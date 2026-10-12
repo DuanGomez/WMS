@@ -1,0 +1,27 @@
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+
+/** Logotipo WMS (pin de ubicación sobre "squircle" azul). */
+@Component({
+  selector: 'app-logo',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { style: 'display:block;line-height:0' },
+  template: `
+    <svg viewBox="0 0 32 32" [attr.width]="size()" [attr.height]="size()" aria-hidden="true">
+      <defs>
+        <linearGradient id="wms-logo-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#34C7FF" />
+          <stop offset="1" stop-color="#007AFF" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="8" fill="url(#wms-logo-g)" />
+      <path
+        d="M16 6.5c-3.9 0-7 3-7 6.8 0 5 7 12.2 7 12.2s7-7.2 7-12.2c0-3.8-3.1-6.8-7-6.8Z"
+        fill="#fff"
+      />
+      <circle cx="16" cy="13.3" r="2.8" fill="#007AFF" />
+    </svg>
+  `,
+})
+export class LogoComponent {
+  readonly size = input(64);
+}

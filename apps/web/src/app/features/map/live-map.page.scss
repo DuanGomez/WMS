@@ -1,0 +1,172 @@
+:host {
+  display: block;
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+.map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.panel {
+  position: absolute;
+  z-index: 500;
+  top: 10px;
+  left: calc(var(--inset-left, 0px) + 0px);
+  width: 360px;
+  max-height: calc(100dvh - 20px);
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: page-in 420ms var(--ease) both;
+}
+.grabber {
+  display: none;
+}
+.panel-head {
+  padding: 18px 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panel-head .footnote {
+  margin-top: -6px;
+}
+.panel-head app-segmented {
+  display: block;
+}
+.panel-head ::ng-deep .segmented {
+  width: 100%;
+}
+.panel-head ::ng-deep .segmented button {
+  flex: 1;
+  padding: 0 6px;
+}
+.live-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--fill-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+.vlist {
+  overflow-y: auto;
+  padding: 0 8px 10px;
+  flex: 1;
+}
+.vrow {
+  border-radius: 14px;
+  min-height: 60px;
+}
+.vrow + .vrow::before {
+  left: 66px !important;
+  right: 10px !important;
+}
+.detail {
+  padding: 16px;
+  overflow-y: auto;
+  animation: page-in 320ms var(--ease) both;
+}
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fill-2);
+  margin-bottom: 12px;
+}
+.status-line[data-tone='red'] {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red);
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  border: 0.5px solid var(--hairline);
+}
+.metric strong {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.metric small {
+  font-size: 13px;
+  color: var(--label-2);
+  font-weight: 500;
+}
+.detail .list {
+  box-shadow: none;
+}
+.controls {
+  position: absolute;
+  z-index: 500;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+.layers-menu {
+  position: relative;
+  min-width: 260px;
+}
+
+@media (max-width: 760px) {
+  .panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    width: auto;
+    height: var(--sheet-h, 40vh);
+    max-height: none;
+    border-radius: 16px 16px 0 0;
+    transition: height 380ms var(--ease);
+    animation: sheet-up 460ms var(--ease) both;
+  }
+  .grabber {
+    display: grid;
+    place-items: center;
+    height: 22px;
+    cursor: grab;
+    touch-action: none;
+    flex: none;
+  }
+  .grabber span {
+    width: 38px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--gray3);
+  }
+  .panel-head {
+    padding-top: 2px;
+  }
+  .controls {
+    top: calc(10px + env(safe-area-inset-top));
+  }
+}

@@ -1,0 +1,267 @@
+<div class="map" #map role="application" aria-label="Mapa en vivo de la flota sobre Medellín"></div>
+
+<!-- Panel flotante (escritorio) / bottom sheet (móvil) -->
+<section class="panel glass-thick" [style.--sheet-h.px]="sheetH()" aria-label="Vehículos">
+  <div
+    class="grabber"
+    (pointerdown)="dragStart($event)"
+    (pointermove)="dragMove($event)"
+    (pointerup)="dragEnd()"
+    (pointercancel)="dragEnd()"
+    (dblclick)="cycleSheet()"
+  >
+    <span></span>
+  </div>
+
+  @if (selected(); as s) {
+    <!-- Tarjeta de detalle del vehículo -->
+    <div class="detail">
+      <div class="detail-head">
+        <button
+          class="btn icon sm"
+          type="button"
+          aria-label="Volver a la lista"
+          (click)="select(null)"
+        >
+          <app-icon name="arrow-left" [size]="16" />
+        </button>
+        <div class="icon-tile lg" [class]="'icon-tile lg bg-' + statusTone(s)">
+          <app-icon [name]="typeIcon(s.type)" [size]="22" />
+        </div>
+        <div style="min-width: 0; flex: 1">
+          <h2 class="title-2 tabular">{{ s.plate }}</h2>
+          <div class="footnote truncate">{{ typeLabel(s.type) }} · {{ s.brand }} {{ s.model }}</div>
+        </div>
+      </div>
+
+      <div class="status-line" [attr.data-tone]="statusTone(s)">
+        <span
+          class="dot"
+          [class.green]="status(s) === 'moving'"
+          [class.orange]="status(s) === 'stopped' || status(s) === 'parked'"
+          [class.red]="statusTone(s) === 'red'"
+        ></span>
+        <strong>{{ statusLabel(s) }}</strong>
+        <span class="muted">· actualizado {{ ago(s.ts) }}</span>
+      </div>
+
+      <div class="metrics">
+        <div class="metric">
+          <span class="caption">Velocidad</span>
+          <strong class="tabular">{{ s.speed | number: '1.0-0' }}<small> km/h</small></strong>
+        </div>
+        <div class="metric">
+          <span class="caption">Batería GPS</span>
+          <strong class="tabular" [class.c-red]="(s.battery ?? 100) < 20"
+            >{{ s.battery ?? '—' }}<small>%</small></strong
+          >
+        </div>
+        <div class="metric">
+          <span class="caption">Conexión</span>
+          <strong
+            [class.c-green]="s.connection === 'online'"
+            [class.c-red]="s.connection !== 'online'"
+            >{{ s.connection === 'online' ? 'En línea' : 'Sin señal' }}</strong
+          >
+        </div>
+        <div class="metric">
+          <span class="caption">Encendido</span>
+          <strong [class.c-orange]="!s.ignition">{{ s.ignition ? 'Encendido' : 'Apagado' }}</strong>
+        </div>
+      </div>
+
+      <div class="list flat">
+        <div class="list-item no-icon">
+          <div class="content">
+            <div class="sub">Conductor</div>
+            <div class="title">{{ s.driverName ?? 'Sin conductor asignado' }}</div>
+          </div>
+          @if (s.driverPhone) {
+            <a class="btn icon sm" [href]="'tel:' + s.driverPhone" aria-label="Llamar al conductor"
+              ><app-icon name="phone" [size]="15"
+            /></a>
+          }
+        </div>
+        <div class="list-item no-icon">
+          <div class="content">
+            <div class="sub">Dispositivo GPS</div>
+            <div class="title mono">{{ s.deviceSerial ?? '—' }}</div>
+          </div>
+          <span class="caption">±{{ s.accuracy }} m</span>
+        </div>
+        <div class="list-item no-icon">
+          <div class="content">
+            <div class="sub">Coordenadas</div>
+            <div class="title mono">{{ s.lat?.toFixed(5) }}, {{ s.lng?.toFixed(5) }}</div>
+          </div>
+          <span class="caption">{{ s.heading }}°</span>
+        </div>
+        <div class="list-item no-icon">
+          <div class="content title">Seguir al vehículo</div>
+          <app-toggle
+            [value]="follow()"
+            (changed)="follow.set($event); $event && select(s.id)"
+            label="Seguir al vehículo"
+          />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top: 12px">
+        @if (auth.can('vehicles')) {
+          <button class="btn" type="button" style="flex: 1" (click)="openTrips(s.id)">
+            <app-icon name="history" [size]="16" />Recorridos
+          </button>
+        }
+        <button class="btn primary" type="button" style="flex: 1" (click)="select(s.id)">
+          <app-icon name="crosshair" [size]="16" />Centrar
+        </button>
+      </div>
+    </div>
+  } @else {
+    <!-- Lista de vehículos -->
+    <header class="panel-head">
+      <div class="row">
+        <h1 class="title-2">Mapa en vivo</h1>
+        <span class="spacer"></span>
+        <span class="live-chip" [attr.data-mode]="live.mode()" role="status">
+          <span
+            class="dot"
+            [class.green]="live.mode() === 'sse' || live.mode() === 'polling'"
+            [class.pulse]="live.mode() === 'sse'"
+          ></span>
+          {{
+            live.mode() === 'sse'
+              ? 'En vivo'
+              : live.mode() === 'polling'
+                ? 'Polling'
+                : live.mode() === 'connecting'
+                  ? 'Conectando'
+                  : 'Sin conexión'
+          }}
+        </span>
+      </div>
+      <p class="footnote tabular">
+        {{ counts().moving }} en marcha · {{ counts().offline }} sin señal ·
+        {{ counts().total }} vehículos
+      </p>
+      <label class="search">
+        <app-icon name="search" [size]="16" />
+        <input
+          class="input"
+          type="search"
+          placeholder="Buscar placa o conductor"
+          aria-label="Buscar vehículo"
+          [ngModel]="query()"
+          (ngModelChange)="query.set($event)"
+        />
+      </label>
+      <app-segmented
+        [options]="filterOptions"
+        [value]="filter()"
+        (valueChange)="filter.set($any($event))"
+      />
+    </header>
+
+    <div class="vlist">
+      @if (loading()) {
+        @for (i of [1, 2, 3]; track i) {
+          <div class="list-item">
+            <div class="skeleton" style="width: 40px; height: 40px; border-radius: 12px"></div>
+            <div class="content stack" style="gap: 6px">
+              <div class="skeleton" style="height: 12px; width: 40%"></div>
+              <div class="skeleton" style="height: 10px; width: 70%"></div>
+            </div>
+          </div>
+        }
+      } @else {
+        @for (v of list(); track v.id) {
+          <button class="list-item vrow" type="button" (click)="select(v.id)">
+            <span class="icon-tile lg" [class]="'icon-tile lg bg-' + statusTone(v)"
+              ><app-icon [name]="typeIcon(v.type)" [size]="20"
+            /></span>
+            <span class="content">
+              <span class="title tabular">{{ v.plate }}</span>
+              <span class="sub truncate" style="display: block">{{
+                v.driverName ?? typeLabel(v.type)
+              }}</span>
+            </span>
+            <span class="trailing" style="flex-direction: column; align-items: flex-end; gap: 0">
+              <span
+                class="tabular"
+                style="color: var(--label); font-weight: 600; font-size: 14px"
+                >{{ statusLabel(v) }}</span
+              >
+              <span class="caption">{{ ago(v.ts) }}</span>
+            </span>
+          </button>
+        } @empty {
+          <div class="empty" style="padding: 28px 12px">
+            <h3>Sin vehículos</h3>
+            <p class="footnote">No hay vehículos que coincidan con el filtro.</p>
+          </div>
+        }
+      }
+    </div>
+  }
+</section>
+
+<!-- Controles del mapa agrupados (derecha) -->
+<div class="controls">
+  <div class="map-controls glass-thick">
+    <button type="button" aria-label="Acercar" (click)="zoom(1)">
+      <app-icon name="plus" [size]="19" />
+    </button>
+    <button type="button" aria-label="Alejar" (click)="zoom(-1)">
+      <app-icon name="minus" [size]="19" />
+    </button>
+  </div>
+  <div class="map-controls glass-thick">
+    <button
+      type="button"
+      aria-label="Ver toda la flota"
+      title="Ver toda la flota"
+      (click)="fitAll()"
+    >
+      <app-icon name="locate" [size]="19" />
+    </button>
+    <button
+      type="button"
+      aria-label="Capas del mapa"
+      title="Capas"
+      [class.active]="layersOpen()"
+      (click)="layersOpen.set(!layersOpen())"
+    >
+      <app-icon name="layers" [size]="19" />
+    </button>
+  </div>
+  @if (layersOpen()) {
+    <div class="menu glass-thick layers-menu" role="menu">
+      @for (o of layerOptions; track o.value) {
+        <button
+          type="button"
+          role="menuitemradio"
+          [attr.aria-checked]="layerPref.get() === o.value"
+          (click)="setLayer(o.value)"
+        >
+          <app-icon [name]="layerPref.get() === o.value ? 'check' : 'map'" [size]="15" />{{
+            o.label
+          }}
+        </button>
+      }
+      <hr />
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        [attr.aria-checked]="showGeofences.get()"
+        (click)="showGeofences.set(!showGeofences.get())"
+      >
+        <app-icon [name]="showGeofences.get() ? 'check' : 'hexagon'" [size]="15" />Mostrar geocercas
+      </button>
+      @if (auth.can('geofences')) {
+        <button type="button" routerLink="/geocercas">
+          <app-icon name="pencil" [size]="15" />Editar geocercas
+        </button>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,5 @@
+node_modules
+dist
+.angular
+api/src/functions/gps-simulator/route-medellin.geojson
+package-lock.json

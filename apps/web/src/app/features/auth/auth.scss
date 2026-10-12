@@ -1,0 +1,191 @@
+:host {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 32px 16px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      1200px 600px at 10% -10%,
+      color-mix(in srgb, var(--blue) 18%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 110% 110%,
+      color-mix(in srgb, var(--purple) 14%, transparent),
+      transparent 60%
+    ),
+    var(--bg);
+}
+:host::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--hairline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at center, #000 20%, transparent 75%);
+  pointer-events: none;
+}
+.auth-card {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 34px 30px 26px;
+  border-radius: 28px;
+  animation: page-in 500ms var(--ease) both;
+}
+.auth-card.wide {
+  width: min(720px, 100%);
+}
+.auth-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  filter: drop-shadow(0 8px 18px rgba(0, 122, 255, 0.35));
+}
+.auth-title {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+}
+.auth-sub {
+  text-align: center;
+  color: var(--label-2);
+  margin: 6px 0 24px;
+  font-size: 15px;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pw {
+  position: relative;
+}
+.pw .input {
+  padding-right: 42px;
+}
+.pw button {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  height: 32px;
+  width: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+.form-error {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+  font-size: 13.5px;
+  animation: shake 360ms var(--ease);
+}
+.form-ok {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  color: color-mix(in srgb, var(--green) 75%, var(--label));
+  font-size: 13.5px;
+}
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+.links {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  margin-top: 4px;
+}
+.demo {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--separator);
+}
+.demo .caption {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.demo .chips {
+  justify-content: center;
+}
+.foot {
+  text-align: center;
+  font-size: 12px;
+  color: var(--label-3);
+  margin-top: 18px;
+}
+.plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.plan {
+  border: 1.5px solid var(--separator);
+  border-radius: 16px;
+  padding: 14px;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  text-align: left;
+  transition:
+    border-color 200ms,
+    transform 200ms var(--ease);
+}
+.plan:hover {
+  transform: translateY(-2px);
+}
+.plan.selected {
+  border-color: var(--tint);
+  box-shadow: var(--focus-ring);
+}
+.plan .price {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 4px 0;
+}
+.steps {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.steps span {
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill);
+  transition: background 300ms;
+}
+.steps span.on {
+  background: var(--tint);
+}
+@media (max-width: 600px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
+  .auth-card {
+    padding: 28px 20px 22px;
+  }
+}

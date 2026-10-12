@@ -1,0 +1,346 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Gestión</div>
+      <h1 class="large-title">Reportes</h1>
+    </div>
+    <div class="actions">
+      @if (canWrite()) {
+        <button class="btn primary" type="button" (click)="openCreate()">
+          <app-icon name="plus" [size]="16" />Generar reporte
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (sharedWithMe().length) {
+    <div class="section-label">Compartidos conmigo</div>
+    <div class="list" style="margin-bottom: 22px">
+      @for (s of sharedWithMe(); track s.token) {
+        <a
+          class="list-item clickable"
+          [href]="'/compartido/' + s.token"
+          target="_blank"
+          rel="noopener"
+        >
+          <span
+            class="icon-tile"
+            [class]="'icon-tile ' + (s.format === 'pdf' ? 'bg-red' : 'bg-green')"
+            ><app-icon [name]="s.format === 'pdf' ? 'file-text' : 'file-spreadsheet'" [size]="16"
+          /></span>
+          <span class="content">
+            <span class="title" style="display: block">{{ s.name }}</span>
+            <span class="sub" style="display: block"
+              >{{ s.sharedBy }} · {{ s.typeLabel }} · vence {{ s.expiresAt | dt: 'relative'
+              }}{{ s.message ? ' · «' + s.message + '»' : '' }}</span
+            >
+          </span>
+          <app-icon name="chevron-right" [size]="16" class="faint" />
+        </a>
+      }
+    </div>
+  }
+
+  @if (loading()) {
+    <app-skeleton-list />
+  } @else if (!reports().length) {
+    <div class="card">
+      <app-empty
+        icon="file-text"
+        title="Sin reportes"
+        text="Genera reportes de recorridos, alertas y uso de vehículos en PDF o Excel."
+      />
+    </div>
+  } @else {
+    <div class="grid grid-2">
+      @for (r of reports(); track r.id) {
+        <article class="card report">
+          <div class="row" style="align-items: flex-start">
+            <span
+              class="icon-tile lg"
+              [class]="'icon-tile lg ' + (r.format === 'pdf' ? 'bg-red' : 'bg-green')"
+              ><app-icon [name]="r.format === 'pdf' ? 'file-text' : 'file-spreadsheet'" [size]="22"
+            /></span>
+            <div style="flex: 1; min-width: 0">
+              <h2 class="headline truncate">{{ r.name }}</h2>
+              <div class="caption">
+                {{ r.typeLabel }} · {{ r.format === 'pdf' ? 'PDF' : 'Excel' }} · v{{ r.version }} ·
+                {{ bytes(r.sizeBytes) }}
+              </div>
+              <div class="caption">
+                {{ r.periodStart | dt: 'date' }} – {{ r.periodEnd | dt: 'date' }} ·
+                {{ r.vehiclePlate ?? 'Todos los vehículos'
+                }}{{ r.driverName ? ' · ' + r.driverName : '' }}
+              </div>
+            </div>
+            @if (r.activeShares) {
+              <span class="badge blue" title="Enlaces activos"
+                ><app-icon name="link" [size]="12" />{{ r.activeShares }}</span
+              >
+            }
+          </div>
+          <div class="stats">
+            <div>
+              <strong class="tabular">{{ r.summary.km ?? 0 | num }}</strong
+              ><span>km</span>
+            </div>
+            <div>
+              <strong class="tabular">{{ r.summary.trips ?? 0 }}</strong
+              ><span>recorridos</span>
+            </div>
+            <div>
+              <strong class="tabular">{{ r.summary.alerts ?? 0 }}</strong
+              ><span>alertas</span>
+            </div>
+            <div>
+              <strong class="tabular">{{ r.summary.movingHours ?? 0 | num }}</strong
+              ><span>h en marcha</span>
+            </div>
+          </div>
+          <div class="caption">
+            Generado {{ r.generatedAt | dt }}{{ r.createdBy ? ' por ' + r.createdBy : '' }}
+          </div>
+          <div class="row wrap" style="margin-top: 12px; gap: 6px">
+            <button class="btn sm primary" type="button" (click)="download(r)">
+              <app-icon name="download" [size]="14" />Descargar
+            </button>
+            @if (canWrite()) {
+              <button class="btn sm" type="button" (click)="openShare(r)">
+                <app-icon name="share" [size]="14" />Compartir
+              </button>
+              <button class="btn sm" type="button" (click)="openRegenerate(r)">
+                <app-icon name="refresh" [size]="14" />Regenerar
+              </button>
+            }
+            @if (r.vehicleId) {
+              <button class="btn sm" type="button" (click)="openPlayback(r)">
+                <app-icon name="play" [size]="14" />Reproducir
+              </button>
+            }
+            <span class="spacer"></span>
+            @if (canWrite()) {
+              <button
+                class="btn sm icon danger"
+                type="button"
+                aria-label="Eliminar reporte"
+                (click)="remove(r)"
+              >
+                <app-icon name="trash" [size]="14" />
+              </button>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
+</div>
+
+<app-sheet
+  [(open)]="sheetOpen"
+  [title]="
+    regenerating() ? 'Regenerar (v' + (regenerating()!.version + 1) + ')' : 'Generar reporte'
+  "
+  [actionText]="regenerating() ? 'Regenerar' : 'Generar'"
+  [busy]="busy()"
+  (action)="generate()"
+>
+  <form class="stack" style="gap: 16px" (ngSubmit)="generate()">
+    <div class="field">
+      <label for="rn">Nombre</label
+      ><input id="rn" class="input" name="rn" [(ngModel)]="form.name" />
+    </div>
+    <div class="field">
+      <span class="label">Contenido</span
+      ><app-segmented
+        [options]="typeOptions"
+        [value]="form.type"
+        (valueChange)="form.type = $event"
+      />
+    </div>
+    <div class="field">
+      <span class="label">Formato</span
+      ><app-segmented
+        [options]="formatOptions"
+        [value]="form.format"
+        (valueChange)="form.format = $event"
+      />
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="rv">Vehículo</label>
+        <select id="rv" class="select" name="rv" [(ngModel)]="form.vehicleId">
+          <option [ngValue]="null">Todos los vehículos</option>
+          @for (v of vehicles(); track v.id) {
+            <option [ngValue]="v.id">{{ v.plate }}{{ v.retiredAt ? ' (de baja)' : '' }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="rd">Conductor</label>
+        <select id="rd" class="select" name="rd" [(ngModel)]="form.driverId">
+          <option [ngValue]="null">Todos los conductores</option>
+          @for (d of drivers(); track d.id) {
+            <option [ngValue]="d.id">{{ d.name }}</option>
+          }
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Periodo</span
+      ><app-segmented
+        [options]="periodOptions"
+        [value]="period()"
+        (valueChange)="setPeriod($event)"
+      />
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="from">Desde</label
+        ><input
+          id="from"
+          class="input"
+          type="datetime-local"
+          name="from"
+          [(ngModel)]="form.from"
+          (ngModelChange)="period.set('custom')"
+        />
+      </div>
+      <div class="field">
+        <label for="to">Hasta</label
+        ><input
+          id="to"
+          class="input"
+          type="datetime-local"
+          name="to"
+          [(ngModel)]="form.to"
+          (ngModelChange)="period.set('custom')"
+        />
+      </div>
+    </div>
+    <p class="footnote">
+      Hora de Colombia (America/Bogota). El PDF incluye KPIs, mapa del recorrido más largo y tablas;
+      el Excel incluye una hoja por sección con filtros.
+    </p>
+    @if (formError()) {
+      <div
+        class="badge red"
+        style="height: auto; padding: 8px 12px; white-space: normal; border-radius: 12px"
+        role="alert"
+      >
+        {{ formError() }}
+      </div>
+    }
+    <button type="submit" hidden></button>
+  </form>
+</app-sheet>
+
+<app-sheet
+  [(open)]="shareOpen"
+  [title]="'Compartir «' + (sharing()?.name ?? '') + '»'"
+  actionText="Compartir"
+  [busy]="busy()"
+  [actionDisabled]="shareForm.mode === 'user' && !shareForm.userId"
+  (action)="share()"
+>
+  <div class="stack" style="gap: 16px">
+    <app-segmented
+      [options]="[
+        { value: 'link', label: 'Enlace público' },
+        { value: 'user', label: 'Enviar a un usuario' },
+      ]"
+      [value]="shareForm.mode"
+      (valueChange)="shareForm.mode = $event"
+    />
+    @if (shareForm.mode === 'user') {
+      @if (users().length) {
+        <div class="field">
+          <label for="su">Destinatario</label>
+          <select id="su" class="select" [(ngModel)]="shareForm.userId">
+            @for (u of users(); track u.id) {
+              <option [value]="u.id">{{ u.name }} · {{ u.roleLabel }}</option>
+            }
+          </select>
+        </div>
+      } @else {
+        <p class="footnote">No tienes permiso para listar usuarios; comparte con un enlace.</p>
+      }
+    }
+    <div class="field">
+      <label for="se">Vence en</label>
+      <select id="se" class="select" [(ngModel)]="shareForm.expiresInHours">
+        <option [ngValue]="24">24 horas</option>
+        <option [ngValue]="72">3 días</option>
+        <option [ngValue]="168">7 días</option>
+        <option [ngValue]="720">30 días</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="sm">Mensaje (opcional)</label
+      ><input
+        id="sm"
+        class="input"
+        [(ngModel)]="shareForm.message"
+        placeholder="Te comparto el informe de la semana"
+      />
+    </div>
+
+    @if (lastLink()) {
+      <div class="card" style="padding: 12px 14px">
+        <div class="caption">Enlace listo</div>
+        <div class="row">
+          <span class="mono truncate" style="flex: 1">{{ lastLink() }}</span
+          ><button class="btn sm" type="button" (click)="copy(lastLink())">
+            <app-icon name="copy" [size]="14" />Copiar
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (shares().length) {
+      <div>
+        <div class="section-label" style="padding-left: 2px">Enlaces de este reporte</div>
+        <div class="list flat">
+          @for (s of shares(); track s.id) {
+            <div class="list-item no-icon">
+              <span class="content">
+                <span class="title mono truncate" style="display: block; font-size: 13px">{{
+                  s.path
+                }}</span>
+                <span class="sub" style="display: block"
+                  >{{ s.sharedWith ? 'Para ' + s.sharedWith : 'Enlace público' }} · vence
+                  {{ s.expiresAt | dt }}</span
+                >
+              </span>
+              @if (s.revoked) {
+                <span class="badge">Revocado</span>
+              } @else if (s.expired) {
+                <span class="badge">Vencido</span>
+              } @else {
+                <button
+                  class="btn sm icon"
+                  type="button"
+                  aria-label="Copiar enlace"
+                  (click)="copy(linkOf(s.path))"
+                >
+                  <app-icon name="copy" [size]="14" />
+                </button>
+                <button class="btn sm danger" type="button" (click)="revoke(s)">Revocar</button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</app-sheet>
+
+<app-sheet
+  [(open)]="playOpen"
+  [title]="'Reproducir · ' + (playVehicle()?.plate ?? '')"
+  cancelText="Cerrar"
+  [wide]="true"
+>
+  @if (playOpen() && playVehicle()) {
+    <app-playback [vehicleId]="playVehicle()!.id" [plate]="playVehicle()!.plate" />
+  }
+</app-sheet>

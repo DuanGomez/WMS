@@ -1,0 +1,317 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Flota</div>
+      <h1 class="large-title">Vehículos</h1>
+    </div>
+    <div class="actions">
+      @if (canWrite()) {
+        <button class="btn primary" type="button" (click)="openCreate()">
+          <app-icon name="plus" [size]="16" />Nuevo vehículo
+        </button>
+      }
+    </div>
+  </header>
+
+  <div class="row wrap" style="margin-bottom: 14px; gap: 12px">
+    <label class="search" style="flex: 1; min-width: 220px; max-width: 360px">
+      <app-icon name="search" [size]="16" />
+      <input
+        class="input"
+        type="search"
+        placeholder="Buscar placa, marca o conductor"
+        aria-label="Buscar vehículos"
+        [ngModel]="q()"
+        (ngModelChange)="q.set($event)"
+      />
+    </label>
+    <app-segmented
+      [options]="typeOptions"
+      [value]="typeFilter()"
+      (valueChange)="typeFilter.set($event)"
+    />
+    <span class="spacer"></span>
+    <label class="row footnote" style="gap: 8px"
+      >Mostrar dados de baja
+      <app-toggle
+        [value]="showRetired()"
+        (changed)="toggleRetired($event)"
+        label="Mostrar dados de baja"
+    /></label>
+  </div>
+
+  @if (loading()) {
+    <app-skeleton-list [count]="4" />
+  } @else if (!filtered().length) {
+    <div class="card">
+      <app-empty
+        icon="car"
+        title="No hay vehículos"
+        [text]="
+          vehicles().length
+            ? 'Ningún vehículo coincide con la búsqueda.'
+            : 'Registra tu primer vehículo y asócialo a un dispositivo GPS para verlo en el mapa.'
+        "
+      >
+        @if (canWrite() && !vehicles().length) {
+          <button class="btn primary" (click)="openCreate()">Nuevo vehículo</button>
+        }
+      </app-empty>
+    </div>
+  } @else {
+    <div class="table-wrap hide-mobile">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Vehículo</th>
+            <th>Estado</th>
+            <th>Conductor</th>
+            <th>Dispositivo GPS</th>
+            <th>Última posición</th>
+            <th class="actions-cell"><span class="sr-only">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (v of filtered(); track v.id) {
+            <tr>
+              <td>
+                <div class="row">
+                  <span
+                    class="icon-tile"
+                    [class]="'icon-tile bg-' + (v.retiredAt ? 'gray' : 'blue')"
+                    ><app-icon [name]="types[v.type].icon" [size]="16"
+                  /></span>
+                  <div>
+                    <div class="tabular" style="font-weight: 600">{{ v.plate }}</div>
+                    <div class="caption">
+                      {{ types[v.type].label }} · {{ v.brand }} {{ v.model }} {{ v.year ?? '' }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge" [class]="'badge ' + statuses[v.status].tone">{{
+                  statuses[v.status].label
+                }}</span>
+                @if (v.retiredReason) {
+                  <div class="caption">{{ v.retiredReason }}</div>
+                }
+              </td>
+              <td>{{ v.driver?.name ?? '—' }}</td>
+              <td>
+                @if (v.device) {
+                  <div class="row" style="gap: 6px">
+                    <span class="dot" [class]="'dot ' + connTone(v)"></span
+                    ><span class="mono">{{ v.device.serial }}</span>
+                  </div>
+                  <div class="caption">{{ v.device.model }} · {{ v.device.battery ?? '—' }}%</div>
+                } @else {
+                  <span class="muted">Sin GPS</span>
+                }
+              </td>
+              <td class="caption">{{ v.live?.ts ? (v.live!.ts | dt: 'relative') : '—' }}</td>
+              <td class="actions-cell">
+                @if (!v.retiredAt) {
+                  <button
+                    class="btn sm icon plain"
+                    type="button"
+                    title="Ver en el mapa"
+                    aria-label="Ver en el mapa"
+                    (click)="goMap(v)"
+                  >
+                    <app-icon name="map-pin" [size]="16" />
+                  </button>
+                }
+                <button
+                  class="btn sm icon plain"
+                  type="button"
+                  title="Recorridos"
+                  aria-label="Recorridos"
+                  (click)="openTrips(v)"
+                >
+                  <app-icon name="history" [size]="16" />
+                </button>
+                @if (canWrite() && !v.retiredAt) {
+                  <button
+                    class="btn sm icon plain"
+                    type="button"
+                    title="Editar"
+                    aria-label="Editar"
+                    (click)="openEdit(v)"
+                  >
+                    <app-icon name="pencil" [size]="16" />
+                  </button>
+                  <button
+                    class="btn sm icon plain danger"
+                    type="button"
+                    title="Dar de baja"
+                    aria-label="Dar de baja"
+                    (click)="retire(v)"
+                  >
+                    <app-icon name="trash" [size]="16" />
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="list only-mobile">
+      @for (v of filtered(); track v.id) {
+        <button
+          class="list-item"
+          type="button"
+          (click)="canWrite() && !v.retiredAt ? openEdit(v) : openTrips(v)"
+        >
+          <span class="icon-tile" [class]="'icon-tile bg-' + (v.retiredAt ? 'gray' : 'blue')"
+            ><app-icon [name]="types[v.type].icon" [size]="16"
+          /></span>
+          <span class="content">
+            <span class="title tabular" style="display: block"
+              >{{ v.plate }}
+              <span class="badge" [class]="'badge ' + statuses[v.status].tone">{{
+                statuses[v.status].label
+              }}</span></span
+            >
+            <span class="sub" style="display: block"
+              >{{ v.driver?.name ?? 'Sin conductor' }} ·
+              {{ v.device ? v.device.serial : 'Sin GPS' }}</span
+            >
+          </span>
+          <app-icon name="chevron-right" [size]="16" class="faint" />
+        </button>
+      }
+    </div>
+  }
+</div>
+
+<app-sheet
+  [(open)]="sheetOpen"
+  [title]="editing() ? 'Editar ' + editing()!.plate : 'Nuevo vehículo'"
+  actionText="Guardar"
+  [busy]="busy()"
+  (action)="save()"
+>
+  <form class="stack" (ngSubmit)="save()" style="gap: 16px">
+    <div class="field">
+      <span class="label">Tipo de vehículo</span>
+      <app-segmented
+        [options]="formTypeOptions"
+        [value]="form.type"
+        (valueChange)="form.type = $any($event)"
+      />
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="plate">Placa</label
+        ><input
+          id="plate"
+          class="input tabular"
+          name="plate"
+          [(ngModel)]="form.plate"
+          placeholder="ABC123 o ABC12D"
+          style="text-transform: uppercase"
+          required
+        />
+      </div>
+      <div class="field">
+        <label for="status">Estado</label>
+        <select id="status" class="select" name="status" [(ngModel)]="form.status">
+          <option value="active">Activo</option>
+          <option value="maintenance">Mantenimiento</option>
+          <option value="inactive">Inactivo</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="brand">Marca</label
+        ><input
+          id="brand"
+          class="input"
+          name="brand"
+          [(ngModel)]="form.brand"
+          placeholder="Honda"
+        />
+      </div>
+      <div class="field">
+        <label for="model">Modelo / línea</label
+        ><input
+          id="model"
+          class="input"
+          name="model"
+          [(ngModel)]="form.model"
+          placeholder="CB 125F"
+        />
+      </div>
+      <div class="field">
+        <label for="year">Año</label
+        ><input
+          id="year"
+          class="input"
+          type="number"
+          name="year"
+          [(ngModel)]="form.year"
+          min="1980"
+          max="2030"
+        />
+      </div>
+      <div class="field">
+        <label for="color">Color</label
+        ><input id="color" class="input" name="color" [(ngModel)]="form.color" placeholder="Rojo" />
+      </div>
+      <div class="field">
+        <label for="device">Dispositivo GPS</label>
+        <select id="device" class="select" name="device" [(ngModel)]="form.deviceId">
+          <option [ngValue]="null">Sin dispositivo</option>
+          @for (d of availableDevices(); track d.id) {
+            <option [ngValue]="d.id">{{ d.serial }} · {{ d.model }}</option>
+          }
+        </select>
+        <span class="hint">Registra equipos nuevos en Dispositivos GPS.</span>
+      </div>
+      <div class="field">
+        <label for="driver">Conductor asignado</label>
+        <select id="driver" class="select" name="driver" [(ngModel)]="form.driverId">
+          <option [ngValue]="null">Sin conductor</option>
+          @for (d of drivers(); track d.id) {
+            <option [ngValue]="d.id">
+              {{ d.name
+              }}{{
+                d.vehicle && d.vehicle.id !== editing()?.id
+                  ? ' (tiene ' + d.vehicle.plate + ')'
+                  : ''
+              }}
+            </option>
+          }
+        </select>
+      </div>
+    </div>
+    @if (formError()) {
+      <div
+        class="badge red"
+        style="height: auto; padding: 8px 12px; white-space: normal; border-radius: 12px"
+        role="alert"
+      >
+        {{ formError() }}
+      </div>
+    }
+    @if (editing() && canWrite()) {
+      <button class="btn danger block" type="button" (click)="retire(editing()!)">
+        <app-icon name="trash" [size]="16" />Dar de baja este vehículo
+      </button>
+    }
+    <button type="submit" hidden></button>
+  </form>
+</app-sheet>
+
+<app-sheet
+  [(open)]="tripsOpen"
+  [title]="'Recorridos · ' + (tripsVehicle()?.plate ?? '')"
+  cancelText="Cerrar"
+  [wide]="true"
+>
+  @if (tripsOpen() && tripsVehicle()) {
+    <app-playback [vehicleId]="tripsVehicle()!.id" [plate]="tripsVehicle()!.plate" />
+  }
+</app-sheet>

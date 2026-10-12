@@ -1,0 +1,248 @@
+<div class="page narrow">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Cuenta</div>
+      <h1 class="large-title">Ajustes</h1>
+    </div>
+  </header>
+
+  <!-- Perfil -->
+  <div class="me card">
+    <div class="avatar">{{ (auth.user()?.name ?? '?').slice(0, 1) }}</div>
+    <div style="flex: 1; min-width: 0">
+      <div class="title-3 truncate">{{ auth.user()?.name }}</div>
+      <div class="footnote truncate">{{ auth.user()?.email }}</div>
+      <div class="caption">
+        {{ auth.user()?.roleLabel }} · {{ auth.user()?.company?.name
+        }}{{ auth.user()?.company?.planName ? ' · Plan ' + auth.user()?.company?.planName : '' }}
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">Perfil</div>
+  <form class="list form-list" (ngSubmit)="saveProfile()">
+    <label class="list-item no-icon"
+      ><span class="lbl">Nombre</span
+      ><input class="input bare" name="pn" [(ngModel)]="profile.name"
+    /></label>
+    <label class="list-item no-icon"
+      ><span class="lbl">Teléfono</span
+      ><input class="input bare" name="pp" [(ngModel)]="profile.phone" placeholder="300 000 0000"
+    /></label>
+    <div class="list-item no-icon" style="justify-content: flex-end">
+      <button class="btn sm primary" type="submit" [disabled]="busy() === 'profile'">
+        Guardar perfil
+      </button>
+    </div>
+  </form>
+
+  <div class="section-label">Seguridad</div>
+  <form class="list form-list" (ngSubmit)="changePassword()">
+    <label class="list-item no-icon"
+      ><span class="lbl">Contraseña actual</span
+      ><input
+        class="input bare"
+        type="password"
+        name="c"
+        [(ngModel)]="pw.current"
+        autocomplete="current-password"
+    /></label>
+    <label class="list-item no-icon"
+      ><span class="lbl">Nueva contraseña</span
+      ><input
+        class="input bare"
+        type="password"
+        name="n"
+        [(ngModel)]="pw.next"
+        autocomplete="new-password"
+        placeholder="8+ con letras y números"
+    /></label>
+    <label class="list-item no-icon"
+      ><span class="lbl">Confirmar</span
+      ><input
+        class="input bare"
+        type="password"
+        name="cf"
+        [(ngModel)]="pw.confirm"
+        autocomplete="new-password"
+    /></label>
+    @if (pwError()) {
+      <div class="list-item no-icon c-red footnote" role="alert" style="color: var(--red)">
+        {{ pwError() }}
+      </div>
+    }
+    <div class="list-item no-icon" style="justify-content: flex-end">
+      <button
+        class="btn sm primary"
+        type="submit"
+        [disabled]="busy() === 'pw' || !pw.current || !pw.next"
+      >
+        Cambiar contraseña
+      </button>
+    </div>
+  </form>
+
+  <div class="section-label">Apariencia y notificaciones</div>
+  <div class="list">
+    <div class="list-item">
+      <span class="icon-tile bg-indigo"
+        ><app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="16"
+      /></span>
+      <span class="content title">Tema</span>
+      <app-segmented
+        [options]="themeOptions"
+        [value]="theme.pref()"
+        (valueChange)="setTheme($event)"
+      />
+    </div>
+    <div class="list-item">
+      <span class="icon-tile bg-red"
+        ><app-icon [name]="live.sound.get() ? 'volume-on' : 'volume-off'" [size]="16"
+      /></span>
+      <span class="content"
+        ><span class="title" style="display: block">Sonido de alertas</span
+        ><span class="sub">Reproduce un tono cuando llega una alerta en tiempo real</span></span
+      >
+      <app-toggle
+        [value]="live.sound.get()"
+        (changed)="live.sound.set($event)"
+        label="Sonido de alertas"
+      />
+    </div>
+  </div>
+
+  @if (canSim()) {
+    <div class="section-label" id="simulador">Simulador GPS (demo)</div>
+    <div class="card sim">
+      <div class="row wrap">
+        <span class="icon-tile lg bg-purple"><app-icon name="satellite" [size]="22" /></span>
+        <div style="flex: 1; min-width: 200px">
+          <div class="headline">Dispositivos GPS simulados</div>
+          <div class="footnote">
+            Recorren siempre la misma ruta real por Medellín (Poblado → Centro → U. de A. → Estadio
+            → la 72 → Laureles → Regional).
+          </div>
+        </div>
+        @if (sim(); as s) {
+          <span class="badge" [class.green]="s.connected" [class.red]="!s.connected"
+            ><span class="dot" [class.green]="s.connected" [class.red]="!s.connected"></span
+            >{{ s.connected ? 'Simulador conectado' : 'Simulador detenido' }}</span
+          >
+        }
+      </div>
+
+      @if (sim(); as s) {
+        @if (!s.connected) {
+          <p class="warn">
+            El proceso simulador no está enviando datos. Ejecuta
+            <span class="mono">npm run dev</span> (o <span class="mono">npm run dev:sim</span>) en
+            la raíz del proyecto.
+          </p>
+        }
+        <div class="list flat" style="margin-top: 14px; box-shadow: none">
+          <div class="list-item no-icon">
+            <span class="content title">{{
+              s.paused ? 'Simulación en pausa' : 'Simulación en curso'
+            }}</span>
+            <app-toggle
+              [value]="!s.paused"
+              [disabled]="!canSimWrite()"
+              (changed)="setPaused(!$event)"
+              label="Simulación en curso"
+            />
+          </div>
+          <div class="list-item no-icon">
+            <span class="content"
+              ><span class="title" style="display: block">Velocidad de simulación</span
+              ><span class="sub">Acelera el recorrido para la exposición</span></span
+            >
+            <app-segmented
+              [options]="speedOptions"
+              [value]="'' + s.speedFactor"
+              (valueChange)="setSpeed($event)"
+            />
+          </div>
+        </div>
+
+        <div class="vehicles">
+          @for (v of s.vehicles; track v.key) {
+            @let active = scenarioFor(v.key);
+            <article class="veh-card">
+              <div class="row">
+                <span class="icon-tile bg-blue"
+                  ><app-icon [name]="types[v.type].icon" [size]="16"
+                /></span>
+                <div style="flex: 1; min-width: 0">
+                  <div class="headline tabular">{{ v.plate }}</div>
+                  <div class="caption truncate">{{ v.label }}</div>
+                </div>
+                <div style="text-align: right">
+                  <div class="tabular" style="font-weight: 600">{{ v.speed }} km/h</div>
+                  <div class="caption">{{ modeLabels[v.mode] ?? v.mode }}</div>
+                </div>
+              </div>
+              <div class="progress" [attr.aria-label]="'Avance en la ruta ' + v.progress + '%'">
+                <div [style.width.%]="v.progress"></div>
+              </div>
+              <div class="caption tabular" style="margin-bottom: 10px">
+                Ruta {{ v.progress }}% · {{ v.laps }} vueltas
+              </div>
+              @if (active) {
+                <div class="active-sc">
+                  <app-icon [name]="scenarioIcons[active.type].icon" [size]="16" />
+                  <span style="flex: 1">Escenario en curso</span>
+                  <strong class="tabular">{{ remaining(active) }} s</strong>
+                </div>
+              } @else if (canSimWrite()) {
+                <div class="scenarios">
+                  @for (c of s.catalog; track c.id) {
+                    <button
+                      type="button"
+                      class="sc-btn"
+                      [title]="c.description"
+                      (click)="trigger(v.key, c.id, c.label, v.plate)"
+                      [disabled]="!s.connected"
+                    >
+                      <span class="icon-tile" [class]="'icon-tile bg-' + scenarioIcons[c.id].tone"
+                        ><app-icon [name]="scenarioIcons[c.id].icon" [size]="15"
+                      /></span>
+                      <span>{{ c.label }}</span>
+                    </button>
+                  }
+                </div>
+              }
+            </article>
+          } @empty {
+            <p class="footnote">Tu empresa no tiene vehículos simulados.</p>
+          }
+        </div>
+      } @else if (simError()) {
+        <p class="warn">{{ simError() }}</p>
+      }
+    </div>
+  }
+
+  <div class="section-label">Acerca de</div>
+  <div class="list about">
+    <div class="list-item no-icon">
+      <span class="content">WMS · Plataforma SaaS de monitoreo de flotas</span
+      ><span class="caption">v1.0.0</span>
+    </div>
+    <div class="list-item no-icon">
+      <span class="content sub"
+        >Duan Esteban Gómez Rojas · José Sebastián González Cárdenas · María José Lopera Velásquez ·
+        Alejandro Mercado Quiroz</span
+      >
+    </div>
+    <div class="list-item no-icon">
+      <span class="content sub"
+        >Ingeniería de Software II · Tecnológico de Antioquia · Docente: Jhon Hernández</span
+      >
+    </div>
+    <div class="list-item no-icon">
+      <span class="content sub"
+        >Mapas © colaboradores de OpenStreetMap (ODbL) · Teselas CARTO · Rutas OSRM</span
+      >
+    </div>
+  </div>
+</div>

@@ -1,0 +1,172 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">{{ today }} · {{ auth.user()?.company?.name }}</div>
+      <h1 class="large-title">{{ greeting() }}</h1>
+    </div>
+    <div class="actions">
+      <a class="btn" routerLink="/reportes"><app-icon name="file-text" [size]="16" />Reportes</a>
+      <a class="btn primary" routerLink="/mapa"
+        ><app-icon name="map" [size]="16" />Abrir mapa en vivo</a
+      >
+    </div>
+  </header>
+
+  @if (error()) {
+    <app-empty icon="wifi-off" title="No pudimos cargar el resumen" [text]="error()"
+      ><button class="btn" (click)="load()">Reintentar</button></app-empty
+    >
+  } @else if (!data()) {
+    <div class="grid grid-4">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="card kpi">
+          <div class="skeleton" style="height: 14px; width: 50%"></div>
+          <div class="skeleton" style="height: 34px; width: 40%; margin-top: 8px"></div>
+        </div>
+      }
+    </div>
+  } @else {
+    @let d = data()!;
+    <section class="grid grid-4" aria-label="Indicadores clave">
+      <a class="card kpi clickable" routerLink="/mapa">
+        <div class="kpi-head">
+          <span class="icon-tile bg-green" style="width: 26px; height: 26px; border-radius: 7px"
+            ><app-icon name="car" [size]="15" /></span
+          >Vehículos activos
+        </div>
+        <div class="kpi-value">
+          {{ d.vehicles.online }}<small> / {{ d.vehicles.total }}</small>
+        </div>
+        <div class="kpi-foot">{{ d.vehicles.moving }} en movimiento ahora</div>
+      </a>
+      <a class="card kpi clickable" routerLink="/alertas">
+        <div class="kpi-head">
+          <span class="icon-tile bg-red" style="width: 26px; height: 26px; border-radius: 7px"
+            ><app-icon name="bell" [size]="15" /></span
+          >Alertas abiertas
+        </div>
+        <div class="kpi-value">{{ d.openAlerts.total }}</div>
+        <div class="kpi-foot">{{ d.openAlerts.critical }} de prioridad alta o crítica</div>
+      </a>
+      <a class="card kpi clickable" routerLink="/reportes">
+        <div class="kpi-head">
+          <span class="icon-tile bg-blue" style="width: 26px; height: 26px; border-radius: 7px"
+            ><app-icon name="route" [size]="15" /></span
+          >Kilómetros hoy
+        </div>
+        <div class="kpi-value">{{ d.kmToday | num }}<small> km</small></div>
+        <div class="kpi-foot">Recorridos desde la medianoche</div>
+      </a>
+      <a class="card kpi clickable" routerLink="/dispositivos">
+        <div class="kpi-head">
+          <span class="icon-tile bg-orange" style="width: 26px; height: 26px; border-radius: 7px"
+            ><app-icon name="satellite-dish" [size]="15" /></span
+          >Dispositivos en falla
+        </div>
+        <div class="kpi-value">
+          {{ d.devices.failing }}<small> / {{ d.devices.total }}</small>
+        </div>
+        <div class="kpi-foot">Sin señal o reportados en falla</div>
+      </a>
+    </section>
+
+    <section class="grid grid-3" style="margin-top: 16px">
+      <div class="card span-2">
+        <div class="card-title">Kilómetros por día <span class="muted">· últimos 7 días</span></div>
+        <app-bar-chart
+          [data]="kmSeries()"
+          unit="km"
+          [decimals]="1"
+          color="var(--blue)"
+          [height]="300"
+          ariaLabel="Kilómetros recorridos por día en los últimos 7 días"
+        />
+      </div>
+      <div class="card">
+        <div class="card-title">
+          Alertas recientes <span class="spacer"></span
+          ><a class="btn plain sm" routerLink="/alertas">Ver todas</a>
+        </div>
+        @if (d.recentAlerts.length) {
+          <div class="alerts-mini">
+            @for (a of d.recentAlerts; track a.id) {
+              <div class="mini">
+                <span class="icon-tile" [class]="'icon-tile bg-' + icons[a.type].color"
+                  ><app-icon [name]="icons[a.type].icon" [size]="16"
+                /></span>
+                <div class="content">
+                  <div class="title truncate">{{ a.title }}</div>
+                  <div class="sub">
+                    {{ a.ts | dt: 'relative' }} · {{ priority[a.priority].label }}
+                  </div>
+                </div>
+                @if (!a.attended && auth.can('alerts', 'write')) {
+                  <button
+                    class="btn sm"
+                    type="button"
+                    (click)="attend(a)"
+                    [attr.aria-label]="'Marcar como atendida: ' + a.title"
+                  >
+                    <app-icon name="check" [size]="14" />
+                  </button>
+                } @else if (a.attended) {
+                  <app-icon name="circle-check" [size]="18" class="c-green" />
+                }
+              </div>
+            }
+          </div>
+        } @else {
+          <app-empty icon="circle-check" title="Todo en orden" text="No hay alertas recientes." />
+        }
+      </div>
+    </section>
+
+    <section class="grid grid-3" style="margin-top: 16px">
+      <div class="card">
+        <div class="card-title">Alertas por día</div>
+        <app-bar-chart
+          [data]="alertSeries()"
+          color="var(--orange)"
+          [height]="160"
+          ariaLabel="Alertas generadas por día"
+        />
+      </div>
+      <div class="card">
+        <div class="card-title">Alertas por tipo <span class="muted">· 7 días</span></div>
+        <div class="hbars">
+          @for (t of d.alertsByType; track t.type) {
+            <div class="hbar">
+              <div class="row">
+                <span class="truncate">{{ typeLabels[t.type] ?? t.type }}</span
+                ><span class="spacer"></span><strong class="tabular">{{ t.count }}</strong>
+              </div>
+              <div class="track">
+                <div class="fill" [style.width.%]="(t.count / byTypeMax()) * 100"></div>
+              </div>
+            </div>
+          } @empty {
+            <p class="footnote">Sin alertas en el periodo.</p>
+          }
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vehículos con más recorrido</div>
+        <div class="hbars">
+          @for (v of d.topVehicles; track v.id) {
+            <div class="hbar">
+              <div class="row">
+                <app-icon [name]="vtypes[v.type].icon" [size]="15" class="muted" /><span
+                  class="tabular"
+                  >{{ v.plate }}</span
+                ><span class="spacer"></span><strong class="tabular">{{ v.km | num }} km</strong>
+              </div>
+              <div class="track">
+                <div class="fill green" [style.width.%]="(v.km / topMax()) * 100"></div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+  }
+</div>

@@ -1,0 +1,222 @@
+<div
+  class="map"
+  #map
+  [class.drawing]="!!draft()"
+  role="application"
+  aria-label="Mapa de geocercas"
+></div>
+
+<section class="panel glass-thick" aria-label="Geocercas">
+  @if (draft(); as d) {
+    <div class="panel-body">
+      <div class="row" style="margin-bottom: 12px">
+        <button class="btn icon sm" type="button" aria-label="Cancelar" (click)="cancel()">
+          <app-icon name="x" [size]="16" />
+        </button>
+        <h2 class="title-3" style="flex: 1">{{ d.id ? 'Editar geocerca' : 'Nueva geocerca' }}</h2>
+        <button class="btn primary sm" type="button" [disabled]="busy()" (click)="save()">
+          Guardar
+        </button>
+      </div>
+
+      <app-segmented
+        [options]="shapeOptions"
+        [value]="d.shape"
+        (valueChange)="setShape($any($event))"
+      />
+      <div class="hint-box">
+        <app-icon [name]="shapes[d.shape].icon" [size]="16" /><span>{{ hint() }}</span>
+      </div>
+
+      @if (d.shape !== 'polygon') {
+        <div class="field" style="margin-top: 12px">
+          <label for="r"
+            >{{ d.shape === 'circle' ? 'Radio' : 'Ancho del corredor (a cada lado)' }}:
+            <strong class="tabular">{{ d.radiusM }} m</strong></label
+          >
+          <input
+            id="r"
+            type="range"
+            [min]="d.shape === 'circle' ? 50 : 30"
+            [max]="d.shape === 'circle' ? 3000 : 500"
+            [step]="10"
+            [ngModel]="d.radiusM"
+            (ngModelChange)="update({ radiusM: +$event })"
+          />
+        </div>
+      }
+      <div class="row" style="margin-top: 8px">
+        <span class="caption tabular">{{ area() }}</span>
+        <span class="spacer"></span>
+        @if (d.shape !== 'circle' && d.coordinates.length) {
+          <button class="btn sm plain" type="button" (click)="undo()">
+            <app-icon name="undo" [size]="14" />Deshacer
+          </button>
+        }
+        <button class="btn sm plain danger" type="button" (click)="clearShape()">Redibujar</button>
+      </div>
+
+      <div class="stack" style="margin-top: 14px">
+        <div class="field">
+          <label for="gn">Nombre</label
+          ><input
+            id="gn"
+            class="input"
+            [ngModel]="d.name"
+            (ngModelChange)="update({ name: $event })"
+            placeholder="Zona de entregas Laureles"
+          />
+        </div>
+        <div class="field">
+          <label for="gd">Descripción</label
+          ><input
+            id="gd"
+            class="input"
+            [ngModel]="d.description"
+            (ngModelChange)="update({ description: $event })"
+          />
+        </div>
+        <div class="field">
+          <span class="label">Color</span>
+          <div class="swatches" role="radiogroup" aria-label="Color">
+            @for (c of colors; track c) {
+              <button
+                type="button"
+                class="swatch"
+                role="radio"
+                [attr.aria-checked]="d.color === c"
+                [attr.aria-label]="c"
+                [style.background]="c"
+                [class.on]="d.color === c"
+                (click)="update({ color: c })"
+              ></button>
+            }
+          </div>
+        </div>
+        <div class="field">
+          <span class="label"
+            >Vehículos asociados <span class="caption">(ninguno = todos)</span></span
+          >
+          <div class="list flat" style="box-shadow: none">
+            @for (v of vehicles(); track v.id) {
+              <label
+                class="list-item no-icon clickable"
+                style="min-height: 42px; padding: 6px 12px"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="d.vehicleIds.includes(v.id)"
+                  (change)="toggleVehicle(v.id, $any($event.target).checked)"
+                />
+                <app-icon [name]="types[v.type].icon" [size]="15" />
+                <span class="content tabular">{{ v.plate }}</span>
+              </label>
+            }
+          </div>
+        </div>
+        <div class="row">
+          <span class="headline" style="flex: 1; font-weight: 500">Activa</span
+          ><app-toggle
+            [value]="d.active"
+            (changed)="update({ active: $event })"
+            label="Geocerca activa"
+          />
+        </div>
+        @if (error()) {
+          <div
+            class="badge red"
+            style="height: auto; padding: 8px 12px; white-space: normal; border-radius: 12px"
+            role="alert"
+          >
+            {{ error() }}
+          </div>
+        }
+        @if (d.id) {
+          <button
+            class="btn danger block"
+            type="button"
+            (click)="remove($any({ id: d.id, name: d.name }))"
+          >
+            <app-icon name="trash" [size]="15" />Eliminar geocerca
+          </button>
+        }
+      </div>
+    </div>
+  } @else {
+    <header class="panel-head">
+      <div class="row">
+        <h1 class="title-2" style="flex: 1">Geocercas</h1>
+        @if (canWrite()) {
+          <button class="btn primary sm" type="button" (click)="startCreate()">
+            <app-icon name="plus" [size]="15" />Nueva
+          </button>
+        }
+      </div>
+      <p class="footnote">
+        Zonas y rutas autorizadas. Generan alertas de entrada, salida y desvío.
+      </p>
+    </header>
+    <div class="glist">
+      @if (loading()) {
+        <div class="skeleton" style="height: 64px; margin: 6px 0"></div>
+        <div class="skeleton" style="height: 64px"></div>
+      }
+      @for (g of geofences(); track g.id) {
+        <div class="gitem" [class.inactive]="!g.active">
+          <button class="gmain" type="button" (click)="focus(g)">
+            <span class="icon-tile" [style.background]="g.color"
+              ><app-icon [name]="shapes[g.shape].icon" [size]="16"
+            /></span>
+            <span class="content">
+              <span class="title">{{ g.name }}</span>
+              <span class="sub">
+                {{ shapes[g.shape].label
+                }}{{ g.shape === 'circle' ? ' · ' + g.radiusM + ' m' : '' }} ·
+                {{ g.allVehicles ? 'Todos los vehículos' : g.vehicleIds.length + ' vehículo(s)' }}
+              </span>
+              @if (g.vehiclesInside.length) {
+                <span class="inside"
+                  ><span class="dot green"></span>Dentro ahora:
+                  {{ g.vehiclesInside.map(plateOf).join(', ') }}</span
+                >
+              }
+            </span>
+          </button>
+          @if (canWrite()) {
+            <div class="gactions">
+              <app-toggle
+                [value]="g.active"
+                (changed)="toggleActive(g, $event)"
+                [label]="'Activar ' + g.name"
+              />
+              <button
+                class="btn sm icon plain"
+                type="button"
+                aria-label="Editar geocerca"
+                (click)="startEdit(g)"
+              >
+                <app-icon name="pencil" [size]="15" />
+              </button>
+              <button
+                class="btn sm icon plain danger"
+                type="button"
+                aria-label="Eliminar geocerca"
+                (click)="remove(g)"
+              >
+                <app-icon name="trash" [size]="15" />
+              </button>
+            </div>
+          }
+        </div>
+      } @empty {
+        @if (!loading()) {
+          <app-empty
+            icon="hexagon"
+            title="Sin geocercas"
+            text="Dibuja una zona alrededor de tu sede o la ruta autorizada de entregas."
+          />
+        }
+      }
+    </div>
+  }
+</section>

@@ -1,0 +1,288 @@
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  HostListener,
+  inject,
+  input,
+  model,
+  output,
+  signal,
+  viewChildren,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Confirm, Toasts } from '../core/ui.services';
+import { IconComponent } from './icon.component';
+
+/** Hoja modal (sheet) con handle en móvil, cierre con Esc y clic en el fondo. */
+@Component({
+  selector: 'app-sheet',
+  imports: [IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (open()) {
+      <div class="backdrop" (click)="close()"></div>
+      <section
+        class="sheet"
+        [class.wide]="wide()"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="title()"
+      >
+        <div class="sheet-handle"></div>
+        <header class="sheet-header">
+          <button class="btn plain" type="button" (click)="close()">{{ cancelText() }}</button>
+          <h2>{{ title() }}</h2>
+          @if (actionText()) {
+            <button
+              class="btn plain"
+              type="button"
+              style="font-weight:650"
+              [disabled]="busy() || actionDisabled()"
+              (click)="action.emit()"
+            >
+              @if (busy()) {
+                <app-icon name="refresh" [size]="16" class="spin" />
+              }
+              {{ actionText() }}
+            </button>
+          } @else {
+            <span style="min-width:82px"></span>
+          }
+        </header>
+        <div class="sheet-body"><ng-content /></div>
+      </section>
+    }
+  `,
+})
+export class SheetComponent {
+  readonly open = model(false);
+  readonly title = input('');
+  readonly actionText = input<string | null>(null);
+  readonly cancelText = input('Cancelar');
+  readonly busy = input(false);
+  readonly actionDisabled = input(false);
+  readonly wide = input(false);
+  readonly action = output<void>();
+  readonly closed = output<void>();
+
+  close() {
+    this.open.set(false);
+    this.closed.emit();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEsc() {
+    if (this.open()) this.close();
+  }
+}
+
+/** Control segmentado de iOS con "thumb" animado. */
+@Component({
+  selector: 'app-segmented',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="segmented" role="tablist">
+      <span class="thumb" [style.left.px]="thumb().left" [style.width.px]="thumb().width"></span>
+      @for (o of options(); track o.value) {
+        <button
+          #btn
+          type="button"
+          role="tab"
+          [attr.aria-selected]="o.value === value()"
+          (click)="select(o.value)"
+        >
+          {{ o.label }}
+        </button>
+      }
+    </div>
+  `,
+})
+export class SegmentedComponent implements AfterViewInit {
+  readonly options = input.required<{ value: string; label: string }[]>();
+  readonly value = model.required<string>();
+  private buttons = viewChildren<ElementRef<HTMLButtonElement>>('btn');
+  private measured = signal(0);
+  readonly thumb = computed(() => {
+    this.measured();
+    const idx = this.options().findIndex((o) => o.value === this.value());
+    const el = this.buttons()[idx]?.nativeElement;
+    return el ? { left: el.offsetLeft, width: el.offsetWidth } : { left: 2, width: 0 };
+  });
+
+  constructor() {
+    effect(() => {
+      this.options();
+      requestAnimationFrame(() => this.measured.update((n) => n + 1));
+    });
+  }
+  ngAfterViewInit() {
+    requestAnimationFrame(() => this.measured.update((n) => n + 1));
+    document.fonts?.ready.then(() => this.measured.update((n) => n + 1));
+  }
+  @HostListener('window:resize')
+  onResize() {
+    this.measured.update((n) => n + 1);
+  }
+  select(v: string) {
+    this.value.set(v);
+  }
+}
+
+/** Interruptor estilo iOS. */
+@Component({
+  selector: 'app-toggle',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<button
+    type="button"
+    class="toggle"
+    role="switch"
+    [class.on]="value()"
+    [attr.aria-checked]="value()"
+    [attr.aria-label]="label()"
+    [disabled]="disabled()"
+    (click)="value.set(!value()); changed.emit(value())"
+  ></button>`,
+})
+export class ToggleComponent {
+  readonly value = model(false);
+  readonly label = input('');
+  readonly disabled = input(false);
+  readonly changed = output<boolean>();
+}
+
+@Component({
+  selector: 'app-empty',
+  imports: [IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="empty">
+      <div class="empty-icon"><app-icon [name]="icon()" [size]="28" /></div>
+      <h3>{{ title() }}</h3>
+      @if (text()) {
+        <p class="footnote" style="max-width:360px">{{ text() }}</p>
+      }
+      <ng-content />
+    </div>
+  `,
+})
+export class EmptyComponent {
+  readonly icon = input('sparkles');
+  readonly title = input.required<string>();
+  readonly text = input('');
+}
+
+@Component({
+  selector: 'app-skeleton-list',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="list" aria-busy="true" aria-label="Cargando">
+      @for (i of rows(); track i) {
+        <div class="list-item">
+          <div class="skeleton" style="width:32px;height:32px;border-radius:9px"></div>
+          <div class="content stack" style="gap:6px">
+            <div class="skeleton" style="height:12px;width:40%"></div>
+            <div class="skeleton" style="height:10px;width:65%"></div>
+          </div>
+        </div>
+      }
+    </div>
+  `,
+})
+export class SkeletonListComponent {
+  readonly count = input(5);
+  readonly rows = computed(() => Array.from({ length: this.count() }, (_, i) => i));
+}
+
+/** Capa global: notificaciones tipo iOS y diálogos de confirmación. */
+@Component({
+  selector: 'app-overlays',
+  imports: [IconComponent, FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="toasts" aria-live="polite">
+      @for (t of toasts.items(); track t.id) {
+        <div
+          class="toast glass-thick"
+          [class.leaving]="t.leaving"
+          role="status"
+          (click)="t.action?.(); toasts.dismiss(t.id)"
+        >
+          <div class="toast-icon" [class]="'toast-icon bg-' + t.tone">
+            <app-icon [name]="t.icon" [size]="20" />
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="toast-app">
+              <span>{{ t.app ?? 'WMS' }}</span
+              ><span>ahora</span>
+            </div>
+            <div class="toast-title">{{ t.title }}</div>
+            @if (t.text) {
+              <div class="toast-text">{{ t.text }}</div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (confirm.current(); as c) {
+      <div class="backdrop" style="z-index:3000" (click)="confirm.close(false)"></div>
+      <div
+        class="alert-dialog glass-thick"
+        role="alertdialog"
+        aria-modal="true"
+        [attr.aria-label]="c.title"
+      >
+        <div class="alert-body">
+          <h3>{{ c.title }}</h3>
+          @if (c.message) {
+            <p>{{ c.message }}</p>
+          }
+          @if (c.input) {
+            <div class="alert-input">
+              @if (c.input.options) {
+                <select class="select" [(ngModel)]="c.value" aria-label="Opción">
+                  @for (o of c.input.options; track o.value) {
+                    <option [value]="o.value">{{ o.label }}</option>
+                  }
+                </select>
+              } @else {
+                <input
+                  class="input"
+                  [(ngModel)]="c.value"
+                  [placeholder]="c.input.placeholder ?? ''"
+                  (keydown.enter)="confirm.close(true)"
+                />
+              }
+            </div>
+          }
+        </div>
+        <div class="alert-actions">
+          <button type="button" (click)="confirm.close(false)">
+            {{ c.cancelText ?? 'Cancelar' }}
+          </button>
+          <button
+            type="button"
+            class="bold"
+            [class.destructive]="c.destructive"
+            (click)="confirm.close(true)"
+          >
+            {{ c.confirmText ?? 'Aceptar' }}
+          </button>
+        </div>
+      </div>
+    }
+  `,
+})
+export class OverlaysComponent {
+  readonly toasts = inject(Toasts);
+  readonly confirm = inject(Confirm);
+
+  @HostListener('document:keydown.escape')
+  onEsc() {
+    if (this.confirm.current()) this.confirm.close(false);
+  }
+}

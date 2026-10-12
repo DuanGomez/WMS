@@ -1,0 +1,401 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Monitoreo</div>
+      <h1 class="large-title">Alertas</h1>
+    </div>
+    <div class="actions">
+      @if (tab() === 'history' && canWrite() && state() === 'open' && alerts().length) {
+        <button class="btn" type="button" (click)="attendAll()">
+          <app-icon name="check" [size]="16" />Atender todas
+        </button>
+      }
+      @if (tab() === 'rules' && canWrite()) {
+        <button class="btn primary" type="button" (click)="openCreate()">
+          <app-icon name="plus" [size]="16" />Nueva regla
+        </button>
+      }
+    </div>
+  </header>
+
+  <app-segmented
+    [options]="tabs()"
+    [value]="tab()"
+    (valueChange)="setTab($event)"
+    style="display: block; margin-bottom: 16px"
+  />
+
+  @switch (tab()) {
+    @case ('history') {
+      <div class="row wrap" style="margin-bottom: 14px; gap: 10px">
+        <app-segmented
+          [options]="stateOptions"
+          [value]="state()"
+          (valueChange)="setFilter('state', $event)"
+        />
+        <select
+          class="select"
+          style="width: auto; min-width: 180px; height: 34px"
+          aria-label="Tipo de alerta"
+          [ngModel]="typeF()"
+          (ngModelChange)="setFilter('type', $event)"
+        >
+          <option value="">Todos los tipos</option>
+          @for (t of allTypes; track t) {
+            <option [value]="t">{{ typeNames[t] }}</option>
+          }
+        </select>
+        <select
+          class="select"
+          style="width: auto; min-width: 150px; height: 34px"
+          aria-label="Prioridad"
+          [ngModel]="priorityF()"
+          (ngModelChange)="setFilter('priority', $event)"
+        >
+          <option value="">Toda prioridad</option>
+          @for (p of ['critical', 'high', 'medium', 'low']; track p) {
+            <option [value]="p">{{ priority[p].label }}</option>
+          }
+        </select>
+        @if (vehicles().length > 1) {
+          <select
+            class="select"
+            style="width: auto; min-width: 150px; height: 34px"
+            aria-label="Vehículo"
+            [ngModel]="vehicleF()"
+            (ngModelChange)="setFilter('vehicle', $event)"
+          >
+            <option value="">Todos los vehículos</option>
+            @for (v of vehicles(); track v.id) {
+              <option [value]="v.id">{{ v.plate }}</option>
+            }
+          </select>
+        }
+        <span class="spacer"></span>
+        <span class="caption tabular">{{ total() }} resultados</span>
+      </div>
+
+      @if (loading()) {
+        <app-skeleton-list [count]="6" />
+      } @else if (!alerts().length) {
+        <div class="card">
+          <app-empty
+            icon="circle-check"
+            title="Sin alertas"
+            [text]="
+              state() === 'open'
+                ? 'No hay alertas abiertas. ¡Todo en orden!'
+                : 'No hay alertas con estos filtros.'
+            "
+          />
+        </div>
+      } @else {
+        <div class="list">
+          @for (a of alerts(); track a.id) {
+            <div
+              class="list-item alert-row"
+              [class.unread]="!a.attended"
+              [attr.data-priority]="a.priority"
+            >
+              <span class="icon-tile" [class]="'icon-tile bg-' + icons[a.type].color"
+                ><app-icon [name]="icons[a.type].icon" [size]="16"
+              /></span>
+              <div class="content">
+                <div class="row" style="gap: 8px">
+                  <span class="title">{{ a.title }}</span>
+                  <span class="badge" [class]="'badge ' + priority[a.priority].tone">{{
+                    priority[a.priority].label
+                  }}</span>
+                </div>
+                <div class="sub">{{ a.description }}</div>
+                <div class="caption" style="margin-top: 2px">
+                  {{ a.ts | dt }} · {{ a.typeLabel
+                  }}{{ a.vehiclePlate ? ' · ' + a.vehiclePlate : '' }}
+                  @if (a.attended && a.attendedBy) {
+                    · Atendida por {{ a.attendedBy }}
+                  }
+                </div>
+              </div>
+              <div class="trailing">
+                @if (a.vehicleId && auth.can('map')) {
+                  <button
+                    class="btn sm icon plain"
+                    type="button"
+                    title="Ver en el mapa"
+                    aria-label="Ver en el mapa"
+                    (click)="viewOnMap(a)"
+                  >
+                    <app-icon name="map-pin" [size]="16" />
+                  </button>
+                }
+                @if (!a.attended && canWrite()) {
+                  <button class="btn sm" type="button" (click)="attend(a)">
+                    <app-icon name="check" [size]="14" />Atender
+                  </button>
+                } @else if (a.attended) {
+                  <app-icon name="circle-check" [size]="18" class="c-green" />
+                }
+              </div>
+            </div>
+          }
+        </div>
+        @if (alerts().length < total()) {
+          <div class="row" style="justify-content: center; margin-top: 14px">
+            <button class="btn" type="button" (click)="loadHistory(true)">Cargar más</button>
+          </div>
+        }
+      }
+    }
+
+    @case ('rules') {
+      @if (!rules().length) {
+        <div class="card">
+          <app-empty
+            icon="bell"
+            title="Sin reglas configuradas"
+            text="Crea reglas de parada prolongada, pérdida de señal, geocercas y más."
+          />
+        </div>
+      } @else {
+        <div class="grid grid-2">
+          @for (r of rules(); track r.id) {
+            <article class="card rule" [class.inactive]="!r.active">
+              <div class="row">
+                <span class="icon-tile" [class]="'icon-tile bg-' + icons[r.type].color"
+                  ><app-icon [name]="icons[r.type].icon" [size]="16"
+                /></span>
+                <div style="flex: 1; min-width: 0">
+                  <div class="headline truncate">{{ r.name }}</div>
+                  <div class="caption">
+                    {{ r.typeLabel }}{{ thresholdText(r) ? ' · ' + thresholdText(r) : ''
+                    }}{{ r.geofenceName ? ' · ' + r.geofenceName : '' }}
+                  </div>
+                </div>
+                @if (canWrite()) {
+                  <app-toggle
+                    [value]="r.active"
+                    (changed)="toggleRule(r, $event)"
+                    [label]="'Activar ' + r.name"
+                  />
+                }
+              </div>
+              <div class="row wrap" style="margin-top: 12px; gap: 6px">
+                <span class="badge" [class]="'badge ' + priority[r.priority].tone">{{
+                  priority[r.priority].label
+                }}</span>
+                <span class="badge"><app-icon name="bell" [size]="12" />En plataforma</span>
+                @if (r.channels.includes('email')) {
+                  <span class="badge blue"
+                    ><app-icon name="mail" [size]="12" />Correo ({{ r.recipients.length }})</span
+                  >
+                }
+                @if (r.channels.includes('push')) {
+                  <span class="badge purple"><app-icon name="smartphone" [size]="12" />Push</span>
+                }
+                <span class="badge">{{
+                  r.vehicleIds.length ? r.vehicleIds.length + ' vehículo(s)' : 'Todos los vehículos'
+                }}</span>
+              </div>
+              @if (canWrite()) {
+                <div class="row" style="margin-top: 12px; justify-content: flex-end">
+                  <button class="btn sm" type="button" (click)="openEdit(r)">
+                    <app-icon name="pencil" [size]="14" />Editar
+                  </button>
+                  <button
+                    class="btn sm icon danger"
+                    type="button"
+                    aria-label="Eliminar regla"
+                    (click)="removeRule(r)"
+                  >
+                    <app-icon name="trash" [size]="14" />
+                  </button>
+                </div>
+              }
+            </article>
+          }
+        </div>
+      }
+    }
+
+    @case ('sent') {
+      <p class="footnote" style="margin-bottom: 12px">
+        Bandeja de salida simulada: cada alerta con canal correo o push queda registrada aquí (en
+        producción se enviaría por SendGrid / Azure Notification Hubs).
+      </p>
+      @if (!notifications().length) {
+        <div class="card">
+          <app-empty
+            icon="send"
+            title="Sin envíos"
+            text="Aún no se han enviado notificaciones por correo o push."
+          />
+        </div>
+      } @else {
+        <div class="list">
+          @for (n of notifications(); track n.id) {
+            <button
+              class="list-item"
+              type="button"
+              (click)="expanded.set(expanded() === n.id ? null : n.id)"
+              [attr.aria-expanded]="expanded() === n.id"
+            >
+              <span
+                class="icon-tile"
+                [class]="'icon-tile ' + (n.channel === 'email' ? 'bg-blue' : 'bg-purple')"
+                ><app-icon [name]="n.channel === 'email' ? 'mail' : 'smartphone'" [size]="16"
+              /></span>
+              <span class="content">
+                <span class="title" style="display: block">{{ n.subject }}</span>
+                <span class="sub" style="display: block"
+                  >{{ n.channel === 'email' ? 'Correo' : 'Push' }} a {{ n.recipient }} ·
+                  {{ n.createdAt | dt }}</span
+                >
+                @if (expanded() === n.id) {
+                  <pre class="nbody">{{ n.body }}</pre>
+                }
+              </span>
+              <span class="badge green">Enviado (simulado)</span>
+            </button>
+          }
+        </div>
+      }
+    }
+  }
+</div>
+
+<app-sheet
+  [(open)]="sheetOpen"
+  [title]="editing() ? 'Editar regla' : 'Nueva regla de alerta'"
+  actionText="Guardar"
+  [busy]="busy()"
+  (action)="saveRule()"
+>
+  <form class="form-grid" (ngSubmit)="saveRule()">
+    <div class="field full">
+      <label for="rt">Tipo de alerta</label>
+      <select
+        id="rt"
+        class="select"
+        name="rt"
+        [ngModel]="form.type"
+        (ngModelChange)="onTypeChange($event)"
+      >
+        @for (t of ruleTypeKeys; track t) {
+          <option [value]="t">{{ ruleTypes[t].label }}</option>
+        }
+      </select>
+      <span class="hint">{{ ruleTypes[form.type]?.help }}</span>
+    </div>
+    <div class="field full">
+      <label for="rn">Nombre</label
+      ><input id="rn" class="input" name="rn" [(ngModel)]="form.name" />
+    </div>
+    @if (ruleTypes[form.type]?.unit) {
+      <div class="field">
+        <label for="th">Umbral ({{ ruleTypes[form.type].unit }})</label>
+        <input
+          id="th"
+          class="input tabular"
+          type="number"
+          min="1"
+          name="th"
+          [(ngModel)]="form.threshold"
+        />
+      </div>
+    }
+    @if (
+      form.type === 'geofence_enter' ||
+      form.type === 'geofence_exit' ||
+      form.type === 'route_deviation'
+    ) {
+      <div class="field">
+        <label for="gf">{{
+          form.type === 'route_deviation' ? 'Corredor / zona autorizada' : 'Geocerca'
+        }}</label>
+        <select id="gf" class="select" name="gf" [(ngModel)]="form.geofenceId">
+          @if (form.type !== 'route_deviation') {
+            <option [ngValue]="null">Cualquier geocerca</option>
+          }
+          @for (g of geofences(); track g.id) {
+            <option [ngValue]="g.id">{{ g.name }}</option>
+          }
+        </select>
+      </div>
+    }
+    <div class="field">
+      <label for="pr">Prioridad</label>
+      <select id="pr" class="select" name="pr" [(ngModel)]="form.priority">
+        @for (p of ['low', 'medium', 'high', 'critical']; track p) {
+          <option [value]="p">{{ priority[p].label }}</option>
+        }
+      </select>
+    </div>
+    <div class="field full">
+      <span class="label">Canales de notificación</span>
+      <div class="list flat" style="box-shadow: none">
+        <div class="list-item no-icon">
+          <app-icon name="bell" [size]="16" /><span class="content">En plataforma (siempre)</span
+          ><app-toggle [value]="true" [disabled]="true" label="En plataforma" />
+        </div>
+        <div class="list-item no-icon">
+          <app-icon name="mail" [size]="16" /><span class="content">Correo electrónico</span
+          ><app-toggle [(value)]="form.email" label="Correo" />
+        </div>
+        <div class="list-item no-icon">
+          <app-icon name="smartphone" [size]="16" /><span class="content">Notificación push</span
+          ><app-toggle [(value)]="form.push" label="Push" />
+        </div>
+      </div>
+    </div>
+    @if (form.email) {
+      <div class="field full">
+        <label for="rc">Destinatarios (correos separados por coma)</label
+        ><input
+          id="rc"
+          class="input"
+          name="rc"
+          [(ngModel)]="form.recipients"
+          placeholder="gerencia@empresa.co, supervisor@empresa.co"
+        />
+      </div>
+    }
+    @if (vehicles().length) {
+      <div class="field full">
+        <span class="label">Aplica a <span class="caption">(ninguno = todos)</span></span>
+        <div class="chips">
+          @for (v of vehicles(); track v.id) {
+            <button
+              type="button"
+              class="chip"
+              [class.active]="form.vehicleIds.includes(v.id)"
+              (click)="toggleVehicle(v.id, !form.vehicleIds.includes(v.id))"
+            >
+              {{ v.plate }}
+            </button>
+          }
+        </div>
+      </div>
+    }
+    <div class="field full">
+      <div class="row">
+        <span style="flex: 1">Regla activa</span
+        ><app-toggle [(value)]="form.active" label="Regla activa" />
+      </div>
+    </div>
+    @if (formError()) {
+      <div
+        class="full badge red"
+        style="height: auto; padding: 8px 12px; white-space: normal; border-radius: 12px"
+        role="alert"
+      >
+        {{ formError() }}
+      </div>
+    }
+    @if (editing()) {
+      <button class="btn danger full" type="button" (click)="removeRule(editing()!)">
+        <app-icon name="trash" [size]="15" />Eliminar regla
+      </button>
+    }
+    <button type="submit" hidden></button>
+  </form>
+</app-sheet>

@@ -1,0 +1,96 @@
+/**
+ * Genera las capturas del README (docs/screenshots) con Playwright.
+ * Requisitos: `npm run dev` corriendo y `npx playwright install chromium`.
+ * Uso: npm run screenshots  [-- --only=mapa,inicio] [-- --dark] [-- --mobile]
+ */
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const BASE = process.env.WEB_URL ?? 'http://localhost:4200';
+const OUT = path.resolve('docs/screenshots');
+const args = process.argv.slice(2);
+const only = args
+  .find((a) => a.startsWith('--only='))
+  ?.slice(7)
+  .split(',');
+const themes = args.includes('--dark') ? ['dark'] : args.includes('--light') ? ['light'] : ['light', 'dark'];
+const mobile = args.includes('--mobile');
+
+const PAGES = [
+  { name: 'login', path: '/login', auth: false },
+  { name: 'inicio', path: '/inicio', wait: 2500 },
+  { name: 'mapa', path: '/mapa', wait: 6000 },
+  { name: 'vehiculos', path: '/vehiculos' },
+  { name: 'conductores', path: '/conductores' },
+  { name: 'dispositivos', path: '/dispositivos' },
+  { name: 'geocercas', path: '/geocercas', wait: 3500 },
+  { name: 'alertas', path: '/alertas' },
+  { name: 'reportes', path: '/reportes' },
+  { name: 'usuarios', path: '/usuarios' },
+  { name: 'suscripcion', path: '/suscripcion' },
+  { name: 'soporte', path: '/soporte' },
+  { name: 'ajustes', path: '/ajustes', wait: 2500 },
+];
+
+async function login() {
+  const res = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@la72.co', password: 'Demo1234!' }),
+  });
+  if (!res.ok) throw new Error(`Login falló (${res.status}). ¿Está corriendo npm run dev?`);
+  return res.json();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function main() {
+  fs.mkdirSync(OUT, { recursive: true });
+  const session = await login();
+  const browser = await chromium.launch();
+  for (const theme of themes) {
+    const ctx = await browser.newContext({
+      viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+      deviceScaleFactor: mobile ? 3 : 1.5,
+      isMobile: mobile,
+      hasTouch: mobile,
+      colorScheme: theme,
+      locale: 'es-CO',
+      timezoneId: 'America/Bogota',
+    });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => console.error(`  ⚠️  [${theme}] error en la página:`, e.message));
+    for (const p of PAGES) {
+      if (only && !only.includes(p.name)) continue;
+      await page.goto(`${BASE}/login`);
+      await page.evaluate(
+        ([s, auth]) => {
+          localStorage.removeItem('wms.theme');
+          if (auth)
+            localStorage.setItem(
+              'wms.session',
+              JSON.stringify({ accessToken: s.accessToken, refreshToken: s.refreshToken, user: s.user }),
+            );
+          else localStorage.removeItem('wms.session');
+        },
+        [session, p.auth !== false],
+      );
+      await page.goto(`${BASE}${p.path}`, { waitUntil: 'load' }).catch(() => {});
+      await sleep(p.wait ?? 1500);
+      const file = path.join(
+        OUT,
+        `${p.name}${mobile ? '-movil' : ''}${theme === 'dark' ? '-oscuro' : ''}.png`,
+      );
+      await page.screenshot({ path: file });
+      console.log(`📸 ${path.relative(process.cwd(), file)}`);
+    }
+    await ctx.close();
+  }
+  await browser.close();
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

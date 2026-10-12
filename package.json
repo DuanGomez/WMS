@@ -1,0 +1,42 @@
+{
+  "name": "wms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WMS – Plataforma SaaS de Monitoreo y Gestión de Flotas Vehiculares",
+  "workspaces": [
+    "api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,sim,web -c blue,magenta,green \"npm:dev:api\" \"npm:dev:sim\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w api",
+    "dev:func": "npm run start:func -w api",
+    "dev:sim": "npm run sim -w api",
+    "dev:web": "npm start -w apps/web",
+    "build": "npm run build -w api && npm run build -w apps/web",
+    "test": "npm test -w api && npm test -w apps/web",
+    "test:api": "npm test -w api",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "seed": "tsx scripts/seed.ts",
+    "build-route": "tsx scripts/build-route.ts",
+    "screenshots": "node scripts/screenshots.mjs",
+    "predev": "tsx scripts/ensure-db.ts",
+    "dev:docker": "npm run predev && concurrently -k -n api,sim,web -c blue,magenta,green \"npm:dev:api\" \"npm:dev:sim\" \"npm start -w apps/web -- --host 0.0.0.0\"",
+    "dev:azurite": "npx -y azurite --silent --location api/.azurite"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.12.0",
+    "playwright": "^1.64.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.71.2"
+  }
+}

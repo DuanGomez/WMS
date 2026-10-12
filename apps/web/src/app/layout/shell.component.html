@@ -1,0 +1,153 @@
+<a class="skip" href="#main">Saltar al contenido</a>
+
+<aside class="sidebar glass" [class.collapsed]="collapsed.get()" aria-label="Navegación principal">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="30" height="30">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#34C7FF" />
+            <stop offset="1" stop-color="#007AFF" />
+          </linearGradient>
+        </defs>
+        <rect width="32" height="32" rx="8" fill="url(#g)" />
+        <path
+          d="M16 6.5c-3.9 0-7 3-7 6.8 0 5 7 12.2 7 12.2s7-7.2 7-12.2c0-3.8-3.1-6.8-7-6.8Z"
+          fill="#fff"
+        />
+        <circle cx="16" cy="13.3" r="2.8" fill="#007AFF" />
+      </svg>
+    </div>
+    <div class="brand-text">
+      <strong>WMS</strong>
+      <span class="truncate">{{ auth.user()?.company?.name }}</span>
+    </div>
+    <button
+      class="btn icon sm plain collapse-btn"
+      type="button"
+      (click)="collapsed.set(!collapsed.get())"
+      [attr.aria-label]="collapsed.get() ? 'Expandir barra lateral' : 'Contraer barra lateral'"
+    >
+      <app-icon [name]="collapsed.get() ? 'chevron-right' : 'arrow-left'" [size]="16" />
+    </button>
+  </div>
+
+  <nav class="nav">
+    @for (g of groups(); track g.name) {
+      <div class="nav-group">
+        <div class="nav-group-label">{{ g.name }}</div>
+        @for (it of g.items; track it.path) {
+          <a
+            class="nav-item"
+            [routerLink]="it.path"
+            routerLinkActive="active"
+            [attr.title]="collapsed.get() ? it.label : null"
+          >
+            <app-icon [name]="it.icon" [size]="18" />
+            <span class="nav-label">{{ it.label }}</span>
+            @if (it.badge && live.openAlerts() > 0) {
+              <span class="count-badge">{{
+                live.openAlerts() > 99 ? '99+' : live.openAlerts()
+              }}</span>
+            }
+          </a>
+        }
+      </div>
+    }
+  </nav>
+
+  <div class="sidebar-foot">
+    @if (auth.can('map')) {
+      <div class="live-pill" [attr.data-mode]="live.mode()" role="status">
+        <span
+          class="dot"
+          [class.green]="live.mode() === 'sse' || live.mode() === 'polling'"
+          [class.pulse]="live.mode() === 'sse'"
+        ></span>
+        <span class="nav-label">{{ liveLabel() }}</span>
+      </div>
+    }
+    <div class="me">
+      <a
+        routerLink="/ajustes"
+        class="avatar"
+        [attr.aria-label]="'Perfil de ' + auth.user()?.name"
+        >{{ initials() }}</a
+      >
+      <div class="me-text">
+        <strong class="truncate">{{ auth.user()?.name }}</strong>
+        <span class="truncate">{{ auth.user()?.roleLabel }}</span>
+      </div>
+      <button
+        class="btn icon sm plain"
+        type="button"
+        aria-label="Cerrar sesión"
+        title="Cerrar sesión"
+        (click)="logout()"
+      >
+        <app-icon name="log-out" [size]="17" />
+      </button>
+    </div>
+  </div>
+</aside>
+
+<main id="main" class="main" [class.bleed]="fullBleed()" [class.wide-left]="!collapsed.get()">
+  <router-outlet />
+</main>
+
+<!-- Tab bar inferior estilo iOS (móvil) -->
+<nav class="tabbar glass" aria-label="Navegación inferior">
+  @for (t of tabs(); track t.path) {
+    <a class="tab" [routerLink]="t.path" routerLinkActive="active">
+      <span class="tab-icon">
+        <app-icon [name]="t.icon" [size]="22" />
+        @if (t.badge && live.openAlerts() > 0) {
+          <span class="count-badge tab-badge">{{
+            live.openAlerts() > 99 ? '99+' : live.openAlerts()
+          }}</span>
+        }
+      </span>
+      <span>{{ t.label === 'Mapa en vivo' ? 'Mapa' : t.label }}</span>
+    </a>
+  }
+  <button
+    class="tab"
+    type="button"
+    [class.active]="moreOpen()"
+    (click)="moreOpen.set(!moreOpen())"
+    aria-label="Más opciones"
+  >
+    <span class="tab-icon"><app-icon name="ellipsis" [size]="22" /></span>
+    <span>Más</span>
+  </button>
+</nav>
+
+@if (moreOpen()) {
+  <div class="backdrop" (click)="moreOpen.set(false)"></div>
+  <section class="sheet more-sheet" role="dialog" aria-label="Más opciones">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body" style="padding-top: 12px">
+      <div class="me-card">
+        <div class="avatar lg">{{ initials() }}</div>
+        <div>
+          <div class="headline">{{ auth.user()?.name }}</div>
+          <div class="footnote">
+            {{ auth.user()?.roleLabel }} · {{ auth.user()?.company?.name }}
+          </div>
+        </div>
+      </div>
+      <div class="list" style="margin-top: 14px">
+        @for (it of moreItems(); track it.path) {
+          <a class="list-item clickable" [routerLink]="it.path">
+            <span class="icon-tile bg-blue"><app-icon [name]="it.icon" [size]="17" /></span>
+            <span class="content title">{{ it.label }}</span>
+            <app-icon name="chevron-right" [size]="16" class="faint" />
+          </a>
+        }
+      </div>
+      <button class="btn block lg danger" type="button" style="margin-top: 16px" (click)="logout()">
+        Cerrar sesión
+      </button>
+    </div>
+  </section>
+}

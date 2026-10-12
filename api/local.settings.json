@@ -1,0 +1,16 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
+    "JWT_SECRET": "solo-para-desarrollo-local",
+    "JWT_REFRESH_SECRET": "solo-para-desarrollo-local-refresh",
+    "DB_PATH": "data/wms.db",
+    "DEMO_MODE": "true"
+  },
+  "Host": {
+    "CORS": "http://localhost:4200",
+    "CORSCredentials": true
+  }
+}

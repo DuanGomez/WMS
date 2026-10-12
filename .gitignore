@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.angular/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+api/data/
+.env
+coverage/
+*.log
+api/.azurite/

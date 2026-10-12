@@ -1,0 +1,128 @@
+.narrow {
+  max-width: 860px;
+}
+.section-label {
+  margin-top: 26px;
+}
+.me {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.me .avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue), var(--indigo));
+  flex: none;
+}
+.form-list .lbl {
+  width: 170px;
+  flex: none;
+  font-weight: 500;
+}
+.input.bare {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  height: 30px;
+  text-align: right;
+}
+.input.bare:focus {
+  box-shadow: none;
+  background: transparent;
+  border: 0;
+}
+.form-list .list-item:focus-within {
+  background: var(--tint-soft);
+}
+.warn {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--orange) 14%, transparent);
+  font-size: 13.5px;
+}
+.vehicles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.veh-card {
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--bg);
+  border: 0.5px solid var(--hairline);
+}
+.progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fill);
+  margin: 12px 0 6px;
+  overflow: hidden;
+}
+.progress div {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 3px;
+  transition: width 1.8s linear;
+}
+.scenarios {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.sc-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 0;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition: transform 160ms var(--ease);
+}
+.sc-btn .icon-tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.sc-btn:hover {
+  transform: translateY(-1px);
+}
+.sc-btn:active {
+  transform: scale(0.97);
+}
+.sc-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.active-sc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--purple) 14%, transparent);
+  color: var(--purple);
+  font-size: 14px;
+}
+@media (max-width: 760px) {
+  .vehicles {
+    grid-template-columns: 1fr;
+  }
+  .form-list .lbl {
+    width: 120px;
+  }
+}
