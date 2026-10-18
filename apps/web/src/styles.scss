@@ -2222,7 +2222,9 @@ table.table {
   animation: wms-out-sheet var(--dur-2) var(--ease-out) forwards !important;
 }
 .wms-leave-dialog {
-  animation: wms-out-dialog var(--dur-1) var(--ease-fade) forwards !important;
+  /* Misma duración que el fondo (wms-leave-fade): si el cuadro acaba antes, Angular le quita la clase
+     mientras sigue en el DOM esperando al fondo, y vuelve a sonar su animación de entrada (destello). */
+  animation: wms-out-dialog var(--dur-2) var(--ease-fade) forwards !important;
 }
 .wms-leave-row {
   animation: wms-out-row var(--dur-2) var(--ease-fade) forwards !important;
