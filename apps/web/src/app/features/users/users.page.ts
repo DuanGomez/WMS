@@ -9,7 +9,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
-import { DtPipe, MODULE_LABELS } from '../../core/format';
+import { DtPipe, MODULE_LABELS, fmt } from '../../core/format';
 import { Level, Module, PermissionMap, Role, User } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
 import {
@@ -19,6 +19,8 @@ import {
   SkeletonListComponent,
 } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
+import { DebounceInputDirective } from '../../ui/motion-directives';
+import { DetailComponent, DetailRow } from '../../ui/detail.component';
 
 interface Meta {
   modules: Module[];
@@ -37,14 +39,14 @@ const ROLE_TONE: Record<string, string> = {
 @Component({
   selector: 'app-users',
   imports: [
+    DebounceInputDirective,
     FormsModule,
     IconComponent,
     SheetComponent,
     EmptyComponent,
     SkeletonListComponent,
     SegmentedComponent,
-    DtPipe,
-  ],
+    DtPipe, DetailComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -52,6 +54,7 @@ const ROLE_TONE: Record<string, string> = {
         <div>
           <div class="eyebrow">Gestión</div>
           <h1 class="large-title">Usuarios y permisos</h1>
+          <p>Quién puede entrar a WMS y qué puede hacer cada persona.</p>
         </div>
         <div class="actions">
           @if (canWrite()) {
@@ -62,23 +65,19 @@ const ROLE_TONE: Record<string, string> = {
         </div>
       </header>
 
-      <div class="row wrap" style="margin-bottom:14px">
-        <label class="search" style="flex:1;max-width:360px;min-width:220px">
-          <app-icon name="search" [size]="16" />
-          <input
-            class="input"
-            type="search"
-            placeholder="Buscar por nombre o correo"
-            aria-label="Buscar usuarios"
-            [ngModel]="q()"
-            (ngModelChange)="q.set($event)"
-          />
-        </label>
-        <app-segmented
-          [options]="roleFilterOptions()"
-          [value]="roleF()"
-          (valueChange)="roleF.set($event)"
-        />
+      <div class="mod-tool">
+        <div class="pills" role="tablist" aria-label="Estado">
+          @for (o of actOptions; track o.value) {
+            <button type="button" [class.on]="actF() === o.value" (click)="actF.set(o.value)">{{ o.label }}@if (countAct(o.value)) {<small>{{ countAct(o.value) }}</small>}</button>
+          }
+        </div>
+        <div class="mod-right">
+          <span class="mod-count">{{ filtered().length }}{{ planMax() != null ? ' / ' + planMax() + ' usuarios de tu plan' : (filtered().length === 1 ? ' usuario' : ' usuarios') }}</span>
+          <label class="search">
+            <app-icon name="search" [size]="14" />
+            <input class="input" type="search" placeholder="Buscar usuario" aria-label="Buscar usuario" [ngModel]="q()" wmsDebounce (debounced)="q.set($event)" />
+          </label>
+        </div>
       </div>
 
       @if (loading()) {
@@ -93,7 +92,7 @@ const ROLE_TONE: Record<string, string> = {
         </div>
       } @else {
         <div class="table-wrap">
-          <table class="table">
+          <table class="table grid" style="--cols: minmax(0,2.2fr) minmax(0,1.3fr) minmax(0,1.2fr) 120px 140px; min-width: 780px">
             <thead>
               <tr>
                 <th>Usuario</th>
@@ -101,87 +100,30 @@ const ROLE_TONE: Record<string, string> = {
                 <th>Permisos</th>
                 <th>Estado</th>
                 <th>Último acceso</th>
-                <th class="actions-cell"><span class="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
               @for (u of filtered(); track u.id) {
-                <tr>
-                  <td>
-                    <div class="row">
-                      <div class="avatar">{{ initials(u.name) }}</div>
-                      <div style="min-width:0">
-                        <div style="font-weight:600">
-                          {{ u.name }}{{ u.id === auth.user()?.id ? ' (tú)' : '' }}
-                        </div>
-                        <div class="caption">{{ u.email }}</div>
-                      </div>
+                <tr class="clickable" (click)="detail.set(u)">
+                  <td data-label="Usuario">
+                    <div class="cell">
+                      <span class="av">{{ initials(u.name) }}</span>
+                      <span class="cell-txt"
+                        ><b>{{ u.name }}</b><small>{{ u.email }}{{ u.id === auth.user()?.id ? ' · tú' : '' }}</small></span
+                      >
                     </div>
                   </td>
-                  <td>
-                    <span class="badge" [class]="'badge ' + roleTone[u.role]">{{
-                      u.roleLabel
-                    }}</span>
-                  </td>
-                  <td class="caption">
-                    {{ countAccess(u) }} de {{ modules().length }} módulos
-                    @if (overrides(u)) {
-                      <span class="badge orange" style="margin-left:4px"
-                        >{{ overrides(u) }} personalizados</span
-                      >
-                    }
-                  </td>
-                  <td>
-                    <span class="row" style="gap:6px"
-                      ><span class="dot" [class.green]="u.active"></span
-                      >{{ u.active ? 'Activo' : 'Inactivo' }}</span
+                  <td data-label="Rol"><span class="truncate">{{ u.roleLabel }}</span></td>
+                  <td data-label="Permisos">
+                    <span class="cell-txt"
+                      ><span style="font-weight:500">{{ overrides(u) ? 'Personalizados' : 'Del rol' }}</span
+                      ><small>{{ countAccess(u) }} módulos</small></span
                     >
                   </td>
-                  <td class="caption">{{ u.lastLoginAt | dt: 'relative' }}</td>
-                  <td class="actions-cell">
-                    @if (canWrite() && u.id !== auth.user()?.id) {
-                      @if (u.role !== 'owner') {
-                        <button
-                          class="btn sm icon plain"
-                          type="button"
-                          title="Permisos"
-                          aria-label="Permisos granulares"
-                          (click)="openPerms(u)"
-                        >
-                          <app-icon name="shield" [size]="16" />
-                        </button>
-                      }
-                      <button
-                        class="btn sm icon plain"
-                        type="button"
-                        title="Editar"
-                        aria-label="Editar usuario"
-                        (click)="openEdit(u)"
-                      >
-                        <app-icon name="pencil" [size]="16" />
-                      </button>
-                      <button
-                        class="btn sm icon plain"
-                        type="button"
-                        title="Restablecer contraseña"
-                        aria-label="Restablecer contraseña"
-                        (click)="resetPassword(u)"
-                      >
-                        <app-icon name="key" [size]="16" />
-                      </button>
-                      @if (u.role !== 'owner') {
-                        <button
-                          class="btn sm icon plain danger"
-                          type="button"
-                          title="Eliminar"
-                          aria-label="Eliminar usuario"
-                          (click)="remove(u)"
-                        >
-                          <app-icon name="trash" [size]="16" />
-                        </button>
-                      }
-                    }
+                  <td data-label="Estado">
+                    <span class="badge" [class.off]="!u.active">{{ u.active ? 'Activo' : 'Desactivado' }}</span>
                   </td>
+                  <td data-label="Último acceso" class="muted">{{ u.lastLoginAt | dt: 'relative' }}</td>
                 </tr>
               }
             </tbody>
@@ -190,6 +132,29 @@ const ROLE_TONE: Record<string, string> = {
       }
     </div>
 
+    @if (detail(); as u) {
+      <app-detail
+        [open]="true"
+        (openChange)="!$event && detail.set(null)"
+        [title]="u.name"
+        [sub]="u.email"
+        [ini]="initials(u.name)"
+        [chip]="u.active ? 'Activo' : 'Inactivo'"
+        [chipTone]="u.active ? 'on' : 'off'"
+        [rows]="userRows(u)"
+      >
+        @if (canWrite() && u.id !== auth.user()?.id) {
+          @if (u.role !== 'owner') {
+            <button class="btn primary" type="button" (click)="detail.set(null); openPerms(u)"><app-icon name="shield" [size]="14" />Permisos</button>
+          }
+          <button class="btn" type="button" (click)="detail.set(null); openEdit(u)"><app-icon name="pencil" [size]="14" />Editar</button>
+          <button class="btn" type="button" (click)="detail.set(null); resetPassword(u)"><app-icon name="key" [size]="14" />Restablecer contraseña</button>
+          @if (u.role !== 'owner') {
+            <button class="btn danger" type="button" (click)="detail.set(null); remove(u)"><app-icon name="trash" [size]="14" />Eliminar</button>
+          }
+        }
+      </app-detail>
+    }
     <app-sheet
       [(open)]="sheetOpen"
       [title]="editing() ? 'Editar usuario' : 'Nuevo usuario'"
@@ -304,10 +269,11 @@ const ROLE_TONE: Record<string, string> = {
       border-radius: 50%;
       display: grid;
       place-items: center;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      color: #fff;
-      background: linear-gradient(135deg, var(--indigo), var(--purple));
+      color: var(--wms-text);
+      border: 1px solid var(--wms-border);
+      background: var(--wms-input);
       flex: none;
     }
     .perm-row {
@@ -321,6 +287,16 @@ const ROLE_TONE: Record<string, string> = {
   `,
 })
 export class UsersPage implements OnInit {
+  // --- Solo presentación (rediseño): panel Detalle ---
+  readonly detail = signal<User | null>(null);
+  userRows(u: User): DetailRow[] {
+    return [
+      { k: 'Rol', v: u.roleLabel },
+      { k: 'Permisos', v: `${this.countAccess(u)} de ${this.modules().length} módulos${this.overrides(u) ? ' · ' + this.overrides(u) + ' personalizados' : ''}` },
+      { k: 'Último acceso', v: fmt.relative(u.lastLoginAt) },
+    ];
+  }
+
   private api = inject(Api);
   readonly auth = inject(Auth);
   private toasts = inject(Toasts);
@@ -369,15 +345,41 @@ export class UsersPage implements OnInit {
       this.meta()?.roles.find((r) => r.id === this.permsUser()?.role)?.defaults ??
       ({} as PermissionMap),
   );
-  readonly filtered = computed(() => {
+  /** Filtro del prototipo por estado (el rol se busca escribiéndolo en el buscador). */
+  readonly actF = signal<'all' | 'on' | 'off'>('all');
+  readonly actOptions = [
+    { value: 'all' as const, label: 'Todos' },
+    { value: 'on' as const, label: 'Activos' },
+    { value: 'off' as const, label: 'Desactivados' },
+  ];
+  /** Máximo de usuarios del plan (prototipo: "7 / 15 usuarios de tu plan"), si el rol puede ver la suscripción. */
+  readonly planMax = signal<number | null>(null);
+  private matchQ(u: User) {
     const q = this.q().trim().toLowerCase();
+    return !q || [u.name, u.email, u.roleLabel].some((x) => (x ?? '').toLowerCase().includes(q));
+  }
+  countAct(f: 'all' | 'on' | 'off') {
+    return this.users().filter((u) => this.matchQ(u) && (f === 'all' || (f === 'on' ? u.active : !u.active))).length;
+  }
+  readonly filtered = computed(() => {
+    const f = this.actF();
     return this.users().filter(
       (u) =>
         (this.roleF() === 'all' || u.role === this.roleF()) &&
-        (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)),
+        (f === 'all' || (f === 'on' ? u.active : !u.active)) &&
+        this.matchQ(u),
     );
   });
 
+  /** Solo presentación (rediseño): conteo por rol para las píldoras. */
+  countRole(r: string) {
+    const q = this.q().trim().toLowerCase();
+    return this.users().filter(
+      (u) =>
+        (r === 'all' || u.role === r) &&
+        (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)),
+    ).length;
+  }
   initials = (n: string) =>
     n
       .split(' ')
@@ -397,6 +399,8 @@ export class UsersPage implements OnInit {
     this.loading.set(true);
     try {
       this.users.set(await this.api.get<User[]>('users'));
+      if (this.auth.can('billing') && this.planMax() == null)
+        this.api.get<{ plan: { maxUsers: number } }>('subscription').then((r) => this.planMax.set(r.plan.maxUsers), () => {});
     } catch (e) {
       this.toasts.error('No se pudieron cargar los usuarios', errorMessage(e));
     } finally {

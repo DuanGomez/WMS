@@ -2,18 +2,24 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
+  HostListener,
   inject,
   OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { Auth } from '../core/auth.service';
 import { Live } from '../core/live.service';
 import { Module } from '../core/models';
 import { Confirm, pref } from '../core/ui.services';
 import { IconComponent } from '../ui/icon.component';
+import { LangToggleComponent } from '../ui/lang';
+import { LogoComponent } from '../ui/logo.component';
+import { NavPillDirective, ThemeToggleComponent } from '../ui/wms-fx';
 
 interface NavItem {
   path: string;
@@ -81,7 +87,16 @@ const NAV: NavItem[] = [
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    IconComponent,
+    LogoComponent,
+    NavPillDirective,
+    ThemeToggleComponent,
+    LangToggleComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.component.html',
   styleUrl: './shell.component.scss',
@@ -89,12 +104,54 @@ const NAV: NavItem[] = [
 export class ShellComponent implements OnInit, OnDestroy {
   readonly auth = inject(Auth);
   readonly live = inject(Live);
+  private destroyRef = inject(DestroyRef);
   private router = inject(Router);
   private confirm = inject(Confirm);
 
   readonly collapsed = pref('sidebarCollapsed', false);
   readonly moreOpen = signal(false);
   readonly fullBleed = signal(false);
+
+  // --- Solo presentación (rediseño): perfil, buscador de módulos y título móvil ---
+  readonly pfOpen = signal(false);
+  readonly searchOpen = signal(false);
+  readonly q = signal('');
+  private url = signal('');
+  readonly current = computed(() => {
+    const u = this.url();
+    return this.items().find((i) => u.startsWith(i.path))?.label ?? 'WMS';
+  });
+  readonly results = computed(() => {
+    const n = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const q = n(this.q().trim());
+    return q ? this.items().filter((i) => n(i.label).includes(q)).slice(0, 8) : [];
+  });
+  goFirst() {
+    const r = this.results()[0];
+    if (r) {
+      this.router.navigateByUrl(r.path);
+      this.q.set('');
+      (document.activeElement as HTMLElement | null)?.blur();
+    }
+  }
+  closeSearchSoon() {
+    setTimeout(() => this.searchOpen.set(false), 120);
+  }
+  @HostListener('document:keydown', ['$event'])
+  onKey(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      (document.querySelector('.gsearch input') as HTMLInputElement | null)?.focus();
+    }
+    if (e.key === 'Escape') {
+      this.pfOpen.set(false);
+      this.moreOpen.set(false);
+    }
+  }
+  @HostListener('document:mousedown', ['$event'])
+  onDoc(e: MouseEvent) {
+    if (this.pfOpen() && !(e.target as HTMLElement).closest('.pf')) this.pfOpen.set(false);
+  }
 
   readonly items = computed(() => {
     const u = this.auth.user();
@@ -142,9 +199,12 @@ export class ShellComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.live.start();
     this.updateBleed(this.router.url);
-    this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe((e) => {
+    this.url.set(this.router.url);
+    this.router.events.pipe(filter((e) => e instanceof NavigationEnd), takeUntilDestroyed(this.destroyRef)).subscribe((e) => {
       this.updateBleed((e as NavigationEnd).urlAfterRedirects);
+      this.url.set((e as NavigationEnd).urlAfterRedirects);
       this.moreOpen.set(false);
+      this.pfOpen.set(false);
     });
   }
   ngOnDestroy() {

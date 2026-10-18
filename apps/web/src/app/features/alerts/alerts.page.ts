@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnDestroy,
   OnInit,
@@ -12,18 +13,20 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
-import { ALERT_ICONS, DtPipe, PRIORITY } from '../../core/format';
+import { ALERT_ICONS, DtPipe, fmt, PRIORITY } from '../../core/format';
 import { Live } from '../../core/live.service';
 import { Alert, AlertRule, Geofence, NotificationItem, Vehicle } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
 import {
   EmptyComponent,
-  SegmentedComponent,
   SheetComponent,
   SkeletonListComponent,
   ToggleComponent,
 } from '../../ui/components';
+import { DetailComponent, DetailRow } from '../../ui/detail.component';
 import { IconComponent } from '../../ui/icon.component';
+import { DebounceInputDirective } from '../../ui/motion-directives';
+import { SwipeDirective } from '../../ui/wms-fx';
 
 const RULE_TYPES: Record<
   string,
@@ -91,25 +94,30 @@ const RULE_TYPES: Record<
 @Component({
   selector: 'app-alerts',
   imports: [
+    DebounceInputDirective,
     FormsModule,
     IconComponent,
     SheetComponent,
     EmptyComponent,
     SkeletonListComponent,
-    SegmentedComponent,
     ToggleComponent,
-    DtPipe,
-  ],
+    DtPipe, SwipeDirective, DetailComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './alerts.page.html',
   styleUrl: './alerts.page.scss',
 })
 export class AlertsPage implements OnInit, OnDestroy {
+  /** Solo presentación (rediseño): conteo de reglas activas. */
+  activeRules() {
+    return this.rules().filter((r) => r.active).length;
+  }
+
   private api = inject(Api);
   readonly auth = inject(Auth);
   private toasts = inject(Toasts);
   private confirm = inject(Confirm);
   private live = inject(Live);
+  private destroyRef = inject(DestroyRef);
   private router = inject(Router);
 
   readonly tab = signal('history');
@@ -134,6 +142,23 @@ export class AlertsPage implements OnInit, OnDestroy {
   readonly typeF = signal('');
   readonly priorityF = signal('');
   readonly vehicleF = signal('');
+  /** Animación del check (prototipo): marcadas al instante, rebote 260 ms y salida de la fila a los 750 ms. */
+  readonly popping = signal<ReadonlySet<string>>(new Set());
+  readonly bouncing = signal<ReadonlySet<string>>(new Set());
+  readonly leaving = signal<ReadonlySet<string>>(new Set());
+  /** Búsqueda local (prototipo: título y placa) sobre la lista ya cargada; no hace llamadas. */
+  readonly q = signal('');
+  readonly shown = computed(() => {
+    const q = this.q().trim().toLowerCase();
+    return q ? this.alerts().filter((a) => (a.title + ' ' + (a.vehiclePlate ?? '')).toLowerCase().includes(q)) : this.alerts();
+  });
+  /** Conteo por estado con los filtros activos (prototipo: Abiertas · Atendidas · Todas). */
+  readonly counts = signal<{ open: number; attended: number; all: number }>({ open: 0, attended: 0, all: 0 });
+  countOf(k: string) {
+    return this.counts()[k as 'open' | 'attended' | 'all'];
+  }
+  /** Alerta abierta en el panel de detalle. */
+  readonly detailAlert = signal<Alert | null>(null);
   readonly stateOptions = [
     { value: 'open', label: 'Abiertas' },
     { value: 'attended', label: 'Atendidas' },
@@ -164,10 +189,13 @@ export class AlertsPage implements OnInit, OnDestroy {
 
   async ngOnInit() {
     await this.loadHistory();
+    // Si se salió de la vista mientras cargaba, no se abre la suscripción (quedaría viva).
+    if (this.destroyRef.destroyed) return;
     this.sub = this.live.alerts$.subscribe((a) => {
       if (this.state() !== 'attended' && (!this.typeF() || this.typeF() === a.type)) {
         this.alerts.update((l) => [a, ...l.filter((x) => x.id !== a.id)]);
         this.total.update((n) => n + 1);
+        this.counts.update((c) => ({ ...c, open: c.open + 1, all: c.all + 1 }));
       }
       if (this.tab() === 'sent') this.loadSent();
     });
@@ -197,6 +225,7 @@ export class AlertsPage implements OnInit, OnDestroy {
       this.alerts.set(append ? [...this.alerts(), ...r.items] : r.items);
       this.total.set(r.total);
       this.live.openAlerts.set(r.open);
+      if (!append) this.loadCounts();
     } catch (e) {
       this.toasts.error('No se pudo cargar el historial', errorMessage(e));
     } finally {
@@ -212,16 +241,83 @@ export class AlertsPage implements OnInit, OnDestroy {
     this.loadHistory();
   }
 
+  /** Atendida o en proceso de atenderse (para el check, la etiqueta y el título). */
+  isDone(a: Alert) {
+    return a.attended || this.popping().has(a.id);
+  }
+  private mark(sig: typeof this.popping, id: string, on: boolean) {
+    sig.update((s) => {
+      const n = new Set(s);
+      if (on) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+  }
+  /**
+   * Check (como el prototipo): se rellena y el ✓ se dibuja al instante con un rebote; con el filtro
+   * "abiertas" la fila sale a los 750 ms y se quita a los 1100 ms (700 ms en los otros filtros).
+   * La petición es la misma de siempre y sale de inmediato.
+   */
+  async attendWithCheck(a: Alert) {
+    if (this.isDone(a) || !this.canWrite()) return;
+    const open = this.state() === 'open';
+    this.mark(this.popping, a.id, true);
+    this.mark(this.bouncing, a.id, true);
+    setTimeout(() => this.mark(this.bouncing, a.id, false), 260);
+    const leave = open ? setTimeout(() => this.mark(this.leaving, a.id, true), 750) : 0;
+    const wait = new Promise((r) => setTimeout(r, open ? 1100 : 700));
+    try {
+      const [r] = await Promise.all([this.api.post<Alert>(`alerts/${a.id}/attend`), wait]);
+      this.applyAttended(a, r);
+    } catch (e) {
+      clearTimeout(leave);
+      this.toasts.error('No se pudo atender', errorMessage(e));
+    } finally {
+      this.mark(this.popping, a.id, false);
+      this.mark(this.leaving, a.id, false);
+    }
+  }
+  /** Conteos de cada estado con los filtros de tipo, prioridad y vehículo (mismo endpoint, solo lectura). */
+  private async loadCounts() {
+    const f = {
+      type: this.typeF() || undefined,
+      priority: this.priorityF() || undefined,
+      vehicleId: this.vehicleF() || undefined,
+      limit: 1,
+    };
+    try {
+      const [all, open] = await Promise.all([
+        this.api.get<{ total: number }>('alerts', f),
+        this.api.get<{ total: number }>('alerts', { ...f, attended: false }),
+      ]);
+      this.counts.set({ open: open.total, attended: all.total - open.total, all: all.total });
+    } catch {}
+  }
+  /** Filas del panel de detalle (prototipo: tipo, prioridad, vehículo, cuándo, fecha, posición, atención). */
+  alertRows(a: Alert): DetailRow[] {
+    return [
+      { k: 'Tipo', v: a.typeLabel },
+      { k: 'Prioridad', v: this.priority[a.priority].label },
+      { k: 'Vehículo', v: a.vehiclePlate ?? '—' },
+      { k: 'Cuándo', v: fmt.relative(a.ts) },
+      { k: 'Fecha', v: fmt.dateTime(a.ts) },
+      { k: 'Posición', v: a.lat != null && a.lng != null ? a.lat.toFixed(5) + ', ' + a.lng.toFixed(5) : '—', mono: true },
+      ...(a.attended ? [{ k: 'Atendida por', v: a.attendedBy ?? '—' }, { k: 'Hora', v: fmt.dateTime(a.attendedAt) }] : []),
+    ];
+  }
+  private applyAttended(a: Alert, r: Alert) {
+    this.counts.update((c) => ({ ...c, open: Math.max(0, c.open - 1), attended: c.attended + 1 }));
+    this.alerts.update((l) =>
+      this.state() === 'open' ? l.filter((x) => x.id !== a.id) : l.map((x) => (x.id === a.id ? r : x)),
+    );
+    this.live.openAlerts.update((n) => Math.max(0, n - 1));
+    this.toasts.success('Alerta atendida');
+  }
+
+  /** Deslizar en móvil: la fila ya salió con el gesto, se atiende directo. */
   async attend(a: Alert) {
     try {
-      const r = await this.api.post<Alert>(`alerts/${a.id}/attend`);
-      this.alerts.update((l) =>
-        this.state() === 'open'
-          ? l.filter((x) => x.id !== a.id)
-          : l.map((x) => (x.id === a.id ? r : x)),
-      );
-      this.live.openAlerts.update((n) => Math.max(0, n - 1));
-      this.toasts.success('Alerta atendida');
+      this.applyAttended(a, await this.api.post<Alert>(`alerts/${a.id}/attend`));
     } catch (e) {
       this.toasts.error('No se pudo atender', errorMessage(e));
     }

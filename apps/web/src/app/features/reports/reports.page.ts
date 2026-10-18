@@ -19,6 +19,8 @@ import {
   SkeletonListComponent,
 } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
+import { FleetActivityComponent } from './fleet-activity.component';
+import { DetailComponent, DetailRow } from '../../ui/detail.component';
 import { PlaybackComponent } from '../map/playback.component';
 
 interface Share {
@@ -53,13 +55,28 @@ interface SharedWithMe {
     SegmentedComponent,
     PlaybackComponent,
     DtPipe,
-    NumPipe,
-  ],
+    NumPipe, FleetActivityComponent, DetailComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './reports.page.html',
   styleUrl: './reports.page.scss',
 })
 export class ReportsPage implements OnInit {
+  // --- Solo presentación (rediseño): panel Detalle al hacer clic en una fila ---
+  readonly detail = signal<Report | null>(null);
+  reportRows(r: Report): DetailRow[] {
+    return [
+      { k: 'Contenido', v: r.typeLabel },
+      { k: 'Periodo', v: `${fmt.date(r.periodStart)} – ${fmt.date(r.periodEnd)}` },
+      { k: 'Vehículo', v: r.vehiclePlate ?? 'Todos los vehículos' },
+      ...(r.driverName ? [{ k: 'Conductor', v: r.driverName }] : []),
+      { k: 'Resumen', v: `${fmt.num(r.summary.km ?? 0)} km · ${r.summary.trips ?? 0} recorridos` },
+      { k: 'Alertas', v: `${r.summary.alerts ?? 0} · ${fmt.num(r.summary.movingHours ?? 0)} h en marcha` },
+      { k: 'Generado', v: fmt.dateTime(r.generatedAt) + (r.createdBy ? ' · ' + r.createdBy : '') },
+      { k: 'Tamaño', v: this.bytes(r.sizeBytes) },
+      { k: 'Enlaces activos', v: String(r.activeShares ?? 0) },
+    ];
+  }
+
   private api = inject(Api);
   readonly auth = inject(Auth);
   private toasts = inject(Toasts);

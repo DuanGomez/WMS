@@ -4,6 +4,7 @@ import {
   Component,
   computed,
   effect,
+  DestroyRef,
   ElementRef,
   inject,
   input,
@@ -74,6 +75,7 @@ type LayerPref = BaseLayer | 'auto';
 })
 export class LiveMapPage implements AfterViewInit, OnDestroy {
   readonly live = inject(Live);
+  private destroyRef = inject(DestroyRef);
   readonly auth = inject(Auth);
   private theme = inject(Theme);
   private router = inject(Router);
@@ -189,6 +191,8 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
 
     try {
       const snap = await this.live.snapshot();
+      // Si se salió de la vista mientras cargaba, el mapa ya se destruyó: no se pintan marcadores ni se abren suscripciones.
+      if (this.destroyRef.destroyed) return;
       this.geofences.set(snap.geofences);
       for (const g of snap.geofences) this.gfGroup.addLayer(geofenceLayer(g, { label: true }));
       const record: Record<string, VM> = {};

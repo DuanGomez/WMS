@@ -3,11 +3,13 @@
     <div>
       <div class="eyebrow">Monitoreo</div>
       <h1 class="large-title">Alertas</h1>
+      <p>Historial de eventos de la flota y las reglas que los generan.</p>
     </div>
+    @if (canWrite()) {
     <div class="actions">
-      @if (tab() === 'history' && canWrite() && state() === 'open' && alerts().length) {
-        <button class="btn" type="button" (click)="attendAll()">
-          <app-icon name="check" [size]="16" />Atender todas
+      @if (tab() === 'history' && state() === 'open' && alerts().length) {
+        <button class="btn attend-all" type="button" (click)="attendAll()" aria-label="Atender todas" title="Atender todas">
+          <app-icon name="check" [size]="16" /><span class="lbl">Atender todas</span>
         </button>
       }
       @if (tab() === 'rules' && canWrite()) {
@@ -16,68 +18,79 @@
         </button>
       }
     </div>
+    }
   </header>
 
-  <app-segmented
-    [options]="tabs()"
-    [value]="tab()"
-    (valueChange)="setTab($event)"
-    style="display: block; margin-bottom: 16px"
-  />
-
-  @switch (tab()) {
-    @case ('history') {
-      <div class="row wrap" style="margin-bottom: 14px; gap: 10px">
-        <app-segmented
-          [options]="stateOptions"
-          [value]="state()"
-          (valueChange)="setFilter('state', $event)"
-        />
-        <select
-          class="select"
-          style="width: auto; min-width: 180px; height: 34px"
-          aria-label="Tipo de alerta"
-          [ngModel]="typeF()"
-          (ngModelChange)="setFilter('type', $event)"
-        >
+  <!-- Barra única del prototipo: pestañas · estados con conteo · filtros · conteo y buscador -->
+  <div class="mod-tool">
+    <div class="pills" role="tablist" aria-label="Sección">
+      @for (o of tabs(); track o.value) {
+        <button type="button" role="tab" [attr.aria-selected]="tab() === o.value" [class.on]="tab() === o.value" (click)="setTab(o.value)">{{ o.label }}</button>
+      }
+    </div>
+    @if (tab() === 'history') {
+      <div class="pills" role="tablist" aria-label="Estado">
+        @for (o of stateOptions; track o.value) {
+          <button type="button" [class.on]="state() === o.value" (click)="setFilter('state', o.value)">
+            {{ o.label }}@if (countOf(o.value)) {<small>{{ countOf(o.value) }}</small>}
+          </button>
+        }
+      </div>
+      <label class="mod-select">
+        <select aria-label="Tipo" [ngModel]="typeF()" (ngModelChange)="setFilter('type', $event)">
           <option value="">Todos los tipos</option>
           @for (t of allTypes; track t) {
             <option [value]="t">{{ typeNames[t] }}</option>
           }
         </select>
-        <select
-          class="select"
-          style="width: auto; min-width: 150px; height: 34px"
-          aria-label="Prioridad"
-          [ngModel]="priorityF()"
-          (ngModelChange)="setFilter('priority', $event)"
-        >
-          <option value="">Toda prioridad</option>
-          @for (p of ['critical', 'high', 'medium', 'low']; track p) {
+        <app-icon name="chevron-down" [size]="12" [stroke]="2.5" />
+      </label>
+      <label class="mod-select">
+        <select aria-label="Prioridad" [ngModel]="priorityF()" (ngModelChange)="setFilter('priority', $event)">
+          <option value="">Cualquier prioridad</option>
+          @for (p of ['low', 'medium', 'high', 'critical']; track p) {
             <option [value]="p">{{ priority[p].label }}</option>
           }
         </select>
-        @if (vehicles().length > 1) {
-          <select
-            class="select"
-            style="width: auto; min-width: 150px; height: 34px"
-            aria-label="Vehículo"
-            [ngModel]="vehicleF()"
-            (ngModelChange)="setFilter('vehicle', $event)"
-          >
+        <app-icon name="chevron-down" [size]="12" [stroke]="2.5" />
+      </label>
+      @if (vehicles().length) {
+        <label class="mod-select">
+          <select aria-label="Vehículo" [ngModel]="vehicleF()" (ngModelChange)="setFilter('vehicle', $event)">
             <option value="">Todos los vehículos</option>
             @for (v of vehicles(); track v.id) {
               <option [value]="v.id">{{ v.plate }}</option>
             }
           </select>
+          <app-icon name="chevron-down" [size]="12" [stroke]="2.5" />
+        </label>
+      }
+    }
+    <div class="mod-right">
+      @switch (tab()) {
+        @case ('history') {
+          <span class="mod-count">{{ q() ? shown().length : total() }} {{ (q() ? shown().length : total()) === 1 ? 'alerta' : 'alertas' }}</span>
+          <label class="search">
+            <app-icon name="search" [size]="14" />
+            <input class="input" type="search" placeholder="Buscar alertas" aria-label="Buscar alertas" [value]="q()" wmsDebounce (debounced)="q.set($event)" />
+          </label>
         }
-        <span class="spacer"></span>
-        <span class="caption tabular">{{ total() }} resultados</span>
-      </div>
+        @case ('rules') {
+          <span class="mod-count">{{ activeRules() }} activas</span>
+        }
+        @case ('sent') {
+          <span class="mod-count">{{ notifications().length }} enviadas</span>
+        }
+      }
+    </div>
+  </div>
+
+  @switch (tab()) {
+    @case ('history') {
 
       @if (loading()) {
         <app-skeleton-list [count]="6" />
-      } @else if (!alerts().length) {
+      } @else if (!shown().length) {
         <div class="card">
           <app-empty
             icon="circle-check"
@@ -91,51 +104,47 @@
         </div>
       } @else {
         <div class="list">
-          @for (a of alerts(); track a.id) {
+          @for (a of shown(); track a.id) {
             <div
-              class="list-item alert-row"
+              class="list-item alert-row clickable"
+              (click)="detailAlert.set(a)"
+              animate.leave="wms-leave-row"
               [class.unread]="!a.attended"
+              [class.al-leaving]="leaving().has(a.id)"
               [attr.data-priority]="a.priority"
+              wmsSwipe
+              swipeLabel="Atendida"
+              [swipeDisabled]="isDone(a) || !canWrite()"
+              (swiped)="attend(a)"
             >
-              <span class="icon-tile" [class]="'icon-tile bg-' + icons[a.type].color"
-                ><app-icon [name]="icons[a.type].icon" [size]="16"
-              /></span>
+              <button
+                type="button"
+                class="al-check"
+                [class.done]="isDone(a)"
+                [class.bounce]="bouncing().has(a.id)"
+                [disabled]="isDone(a) || !canWrite()"
+                (click)="$event.stopPropagation(); attendWithCheck(a)"
+                [attr.aria-label]="'Marcar como atendida: ' + a.title"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </button>
+              <span class="al-tag" [class.hot]="(a.priority === 'high' || a.priority === 'critical') && !isDone(a)">
+                <app-icon [name]="icons[a.type].icon" [size]="13" />
+                <span class="truncate">{{ a.typeLabel }}</span>
+              </span>
               <div class="content">
-                <div class="row" style="gap: 8px">
-                  <span class="title">{{ a.title }}</span>
-                  <span class="badge" [class]="'badge ' + priority[a.priority].tone">{{
-                    priority[a.priority].label
-                  }}</span>
-                </div>
-                <div class="sub">{{ a.description }}</div>
-                <div class="caption" style="margin-top: 2px">
-                  {{ a.ts | dt }} · {{ a.typeLabel
-                  }}{{ a.vehiclePlate ? ' · ' + a.vehiclePlate : '' }}
+                <div class="title truncate" [class.done]="isDone(a)">{{ a.title }}</div>
+                <div class="sub truncate">
+                  {{ a.vehiclePlate ? a.vehiclePlate + ' · ' : '' }}{{ a.description }}
                   @if (a.attended && a.attendedBy) {
                     · Atendida por {{ a.attendedBy }}
                   }
                 </div>
               </div>
-              <div class="trailing">
-                @if (a.vehicleId && auth.can('map')) {
-                  <button
-                    class="btn sm icon plain"
-                    type="button"
-                    title="Ver en el mapa"
-                    aria-label="Ver en el mapa"
-                    (click)="viewOnMap(a)"
-                  >
-                    <app-icon name="map-pin" [size]="16" />
-                  </button>
-                }
-                @if (!a.attended && canWrite()) {
-                  <button class="btn sm" type="button" (click)="attend(a)">
-                    <app-icon name="check" [size]="14" />Atender
-                  </button>
-                } @else if (a.attended) {
-                  <app-icon name="circle-check" [size]="18" class="c-green" />
-                }
-              </div>
+              <span class="badge al-prio" [class.solid]="a.priority === 'high' || a.priority === 'critical'" [class.off]="a.priority === 'low'">{{
+                priority[a.priority].label
+              }}</span>
+              <span class="when">{{ a.ts | dt: 'relative' }}</span>
             </div>
           }
         </div>
@@ -157,71 +166,32 @@
           />
         </div>
       } @else {
-        <div class="grid grid-2">
+        <div class="list">
           @for (r of rules(); track r.id) {
-            <article class="card rule" [class.inactive]="!r.active">
-              <div class="row">
-                <span class="icon-tile" [class]="'icon-tile bg-' + icons[r.type].color"
-                  ><app-icon [name]="icons[r.type].icon" [size]="16"
-                /></span>
-                <div style="flex: 1; min-width: 0">
-                  <div class="headline truncate">{{ r.name }}</div>
-                  <div class="caption">
-                    {{ r.typeLabel }}{{ thresholdText(r) ? ' · ' + thresholdText(r) : ''
-                    }}{{ r.geofenceName ? ' · ' + r.geofenceName : '' }}
-                  </div>
+            <div class="list-item clickable rule-row" [class.inactive]="!r.active" (click)="canWrite() && openEdit(r)">
+              <span class="al-tag wide">
+                <app-icon [name]="icons[r.type].icon" [size]="13" />
+                <span class="truncate">{{ r.typeLabel }}</span>
+              </span>
+              <div class="content">
+                <div class="title truncate">{{ r.name }}</div>
+                <div class="sub truncate">
+                  {{ thresholdText(r) ? 'Umbral ' + thresholdText(r) + ' · ' : '' }}{{ r.geofenceName ? '«' + r.geofenceName + '» · ' : '' }}En plataforma{{ r.channels.includes('email') ? ', Correo (' + r.recipients.length + ')' : '' }}{{ r.channels.includes('push') ? ', Push' : '' }} · {{ r.vehicleIds.length ? r.vehicleIds.length + ' vehículo(s)' : 'Todos los vehículos' }}
                 </div>
-                @if (canWrite()) {
-                  <app-toggle
-                    [value]="r.active"
-                    (changed)="toggleRule(r, $event)"
-                    [label]="'Activar ' + r.name"
-                  />
-                }
               </div>
-              <div class="row wrap" style="margin-top: 12px; gap: 6px">
-                <span class="badge" [class]="'badge ' + priority[r.priority].tone">{{
-                  priority[r.priority].label
-                }}</span>
-                <span class="badge"><app-icon name="bell" [size]="12" />En plataforma</span>
-                @if (r.channels.includes('email')) {
-                  <span class="badge blue"
-                    ><app-icon name="mail" [size]="12" />Correo ({{ r.recipients.length }})</span
-                  >
-                }
-                @if (r.channels.includes('push')) {
-                  <span class="badge purple"><app-icon name="smartphone" [size]="12" />Push</span>
-                }
-                <span class="badge">{{
-                  r.vehicleIds.length ? r.vehicleIds.length + ' vehículo(s)' : 'Todos los vehículos'
-                }}</span>
-              </div>
+              <span class="badge" [class.solid]="r.priority === 'high' || r.priority === 'critical'" [class.off]="r.priority === 'low'">{{ priority[r.priority].label }}</span>
               @if (canWrite()) {
-                <div class="row" style="margin-top: 12px; justify-content: flex-end">
-                  <button class="btn sm" type="button" (click)="openEdit(r)">
-                    <app-icon name="pencil" [size]="14" />Editar
-                  </button>
-                  <button
-                    class="btn sm icon danger"
-                    type="button"
-                    aria-label="Eliminar regla"
-                    (click)="removeRule(r)"
-                  >
-                    <app-icon name="trash" [size]="14" />
-                  </button>
-                </div>
+                <span class="row" style="gap:6px" (click)="$event.stopPropagation()">
+                  <app-toggle [value]="r.active" (changed)="toggleRule(r, $event)" [label]="'Activar ' + r.name" />
+                </span>
               }
-            </article>
+            </div>
           }
         </div>
       }
     }
 
     @case ('sent') {
-      <p class="footnote" style="margin-bottom: 12px">
-        Bandeja de salida simulada: cada alerta con canal correo o push queda registrada aquí (en
-        producción se enviaría por SendGrid / Azure Notification Hubs).
-      </p>
       @if (!notifications().length) {
         <div class="card">
           <app-empty
@@ -231,37 +201,58 @@
           />
         </div>
       } @else {
-        <div class="list">
-          @for (n of notifications(); track n.id) {
-            <button
-              class="list-item"
-              type="button"
-              (click)="expanded.set(expanded() === n.id ? null : n.id)"
-              [attr.aria-expanded]="expanded() === n.id"
-            >
-              <span
-                class="icon-tile"
-                [class]="'icon-tile ' + (n.channel === 'email' ? 'bg-blue' : 'bg-purple')"
-                ><app-icon [name]="n.channel === 'email' ? 'mail' : 'smartphone'" [size]="16"
-              /></span>
-              <span class="content">
-                <span class="title" style="display: block">{{ n.subject }}</span>
-                <span class="sub" style="display: block"
-                  >{{ n.channel === 'email' ? 'Correo' : 'Push' }} a {{ n.recipient }} ·
-                  {{ n.createdAt | dt }}</span
-                >
-                @if (expanded() === n.id) {
-                  <pre class="nbody">{{ n.body }}</pre>
-                }
-              </span>
-              <span class="badge green">Enviado (simulado)</span>
-            </button>
-          }
+        <div class="table-wrap">
+          <table class="table" style="min-width:640px">
+            <thead>
+              <tr>
+                <th>Canal</th>
+                <th>Destinatario</th>
+                <th>Asunto</th>
+                <th>Enviada</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (n of notifications(); track n.id) {
+                <tr class="clickable" (click)="expanded.set(expanded() === n.id ? null : n.id)" [attr.aria-expanded]="expanded() === n.id">
+                  <td><span class="badge" [class.off]="n.channel !== 'email'">{{ n.channel === 'email' ? 'Correo' : 'Push' }}</span></td>
+                  <td>{{ n.recipient }}</td>
+                  <td>
+                    <span class="cell-txt"><b>{{ n.subject }}</b></span>
+                    @if (expanded() === n.id) {
+                      <pre class="nbody">{{ n.body }}</pre>
+                    }
+                  </td>
+                  <td><span class="cell-txt"><span style="font-weight:500">{{ n.createdAt | dt: 'relative' }}</span><small>{{ n.createdAt | dt }}</small></span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
       }
     }
   }
 </div>
+
+<!-- Detalle de la alerta (prototipo: clic en la fila) con las acciones de la fila -->
+@if (detailAlert(); as a) {
+  <app-detail
+    [open]="true"
+    (openChange)="!$event && detailAlert.set(null)"
+    [title]="a.title"
+    [sub]="a.description"
+    [icon]="icons[a.type].icon"
+    [chip]="isDone(a) ? 'Atendida' : 'Abierta'"
+    [chipTone]="isDone(a) ? 'off' : 'solid'"
+    [rows]="alertRows(a)"
+  >
+    @if (!isDone(a) && canWrite()) {
+      <button class="btn primary" type="button" (click)="detailAlert.set(null); attendWithCheck(a)"><app-icon name="check" [size]="14" />Marcar como atendida</button>
+    }
+    @if (a.vehicleId && auth.can('map')) {
+      <button class="btn" type="button" (click)="detailAlert.set(null); viewOnMap(a)"><app-icon name="map" [size]="14" />Ver en el mapa</button>
+    }
+  </app-detail>
+}
 
 <app-sheet
   [(open)]="sheetOpen"
@@ -367,8 +358,8 @@
             <button
               type="button"
               class="chip"
-              [class.active]="form.vehicleIds.includes(v.id)"
-              (click)="toggleVehicle(v.id, !form.vehicleIds.includes(v.id))"
+              [class.active]="form.vehicleIds?.includes(v.id)"
+              (click)="toggleVehicle(v.id, !form.vehicleIds?.includes(v.id))"
             >
               {{ v.plate }}
             </button>

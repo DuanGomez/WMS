@@ -19,6 +19,7 @@ import { Geofence, LatLng, Vehicle } from '../../core/models';
 import { Confirm, Theme, Toasts } from '../../core/ui.services';
 import { EmptyComponent, SegmentedComponent, ToggleComponent } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
+import { DebounceInputDirective } from '../../ui/motion-directives';
 import { createMap, geofenceLayer, tileLayer } from '../map/leaflet-kit';
 
 type Shape = 'circle' | 'polygon' | 'corridor';
@@ -54,12 +55,52 @@ const SHAPE_META: Record<Shape, { label: string; icon: string }> = {
 /** RE2 / RF5-RF8 – Geocercas dibujables sobre el mapa (círculo, polígono o corredor de ruta). */
 @Component({
   selector: 'app-geofences',
-  imports: [FormsModule, IconComponent, SegmentedComponent, ToggleComponent, EmptyComponent],
+  imports: [DebounceInputDirective, FormsModule, IconComponent, SegmentedComponent, ToggleComponent, EmptyComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './geofences.page.html',
   styleUrl: './geofences.page.scss',
+  host: { '[class.map-mode]': 'mapMode()' },
 })
 export class GeofencesPage implements AfterViewInit, OnDestroy {
+  /** Solo presentación (rediseño): geocercas activas. */
+  activeCount() {
+    return this.geofences().filter((g) => g.active).length;
+  }
+  /**
+   * Vista del prototipo: lista de geocercas. El mapa (dibujo, edición, "dentro ahora") se muestra al pulsar
+   * «Ver en el mapa», al crear/editar o al elegir una geocerca; no se quita ninguna función.
+   */
+  readonly mapMode = signal(false);
+  readonly q = signal('');
+  readonly shownList = computed(() => {
+    const q = this.q().trim().toLowerCase();
+    return this.geofences().filter((g) => !q || (g.name + ' ' + (g.description ?? '')).toLowerCase().includes(q));
+  });
+  /** Reglas por geocerca (prototipo: "2 reglas"); solo lectura, si el rol puede ver alertas. */
+  readonly rulesBy = signal<Record<string, number>>({});
+  showMap(g?: Geofence) {
+    this.mapMode.set(true);
+    setTimeout(() => {
+      this.map.invalidateSize();
+      if (g) this.focus(g);
+    });
+  }
+  backToList() {
+    if (this.draft()) return;
+    this.mapMode.set(false);
+  }
+  geoText(g: Geofence) {
+    const geo =
+      g.shape === 'circle'
+        ? `Radio ${g.radiusM} m`
+        : g.shape === 'corridor'
+          ? `Ancho ${g.radiusM} m`
+          : `${g.coordinates.length} vértices`;
+    const veh = g.allVehicles || !g.vehicleIds.length ? 'Todos los vehículos' : g.vehicleIds.map(this.plateOf).join(', ');
+    const n = this.rulesBy()[g.id] ?? 0;
+    return `${geo} · ${veh} · ${n} ${n === 1 ? 'regla' : 'reglas'}`;
+  }
+
   private api = inject(Api);
   readonly auth = inject(Auth);
   private toasts = inject(Toasts);
@@ -162,6 +203,12 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
       ]);
       this.geofences.set(g);
       this.vehicles.set(v);
+      if (this.auth.can('alerts'))
+        this.api.get<{ geofenceId: string | null }[]>('alert-rules').then((rules) => {
+          const m: Record<string, number> = {};
+          for (const r of rules) if (r.geofenceId) m[r.geofenceId] = (m[r.geofenceId] ?? 0) + 1;
+          this.rulesBy.set(m);
+        }, () => {});
       this.renderAll();
     } catch (e) {
       this.toasts.error('No se pudieron cargar las geocercas', errorMessage(e));

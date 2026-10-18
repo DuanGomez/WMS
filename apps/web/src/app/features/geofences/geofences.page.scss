@@ -1,8 +1,60 @@
 :host {
   display: block;
   position: relative;
-  height: 100dvh;
+}
+/* Modo mapa: ocupa el alto disponible como antes */
+:host(.map-mode) {
+  height: 100%;
+  min-height: calc(100dvh - var(--nav-h));
   overflow: hidden;
+}
+:host(.map-mode) .gf-page {
+  display: none;
+}
+/* El mapa sigue montado (Leaflet conserva su estado) y solo se ve en modo mapa */
+.mapview {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+:host(.map-mode) .mapview {
+  visibility: visible;
+  pointer-events: auto;
+}
+:host(:not(.map-mode)) .mapview .panel {
+  animation: none;
+}
+/* Lista del prototipo (tag 150 px, interruptor y columna de 64 px a la derecha) */
+.gf-list {
+  padding: 14px;
+}
+.gf-li {
+  gap: 12px;
+  padding: 10px;
+}
+.gf-li .gf-tag {
+  width: 150px;
+}
+.gf-li .content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gf-li .title {
+  font-size: 13px;
+  font-weight: 600;
+  transition: color var(--dur-2);
+}
+.gf-li.inactive .title {
+  color: var(--wms-faint);
+}
+.gf-sw-cell {
+  display: flex;
+}
+.gf-when {
+  flex: none;
+  min-width: 64px;
 }
 .map {
   position: absolute;
@@ -14,18 +66,33 @@
 .panel {
   position: absolute;
   z-index: 500;
-  top: 10px;
-  left: var(--inset-left, 0px);
-  bottom: 10px;
+  top: 12px;
+  left: 12px;
+  bottom: 12px;
   width: 360px;
   border-radius: 22px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: page-in 420ms var(--ease) both;
+  background: var(--wms-panel);
+  border: 1px solid var(--wms-card-border);
+  box-shadow: var(--wms-pop-shadow);
+  animation: wms-drawer-l var(--dur-3) var(--ease) backwards;
+}
+@keyframes wms-drawer-l {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateX(-14px) scale(0.99);
+  }
 }
 .panel-head {
   padding: 18px 16px 8px;
+}
+.panel-head :is(h1, h2, .title-2) {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 .panel-body {
   padding: 16px;
@@ -44,9 +111,10 @@
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: var(--tint-soft);
-  color: var(--tint);
-  font-size: 13px;
+  border: 1px solid var(--wms-divider);
+  background: var(--wms-soft);
+  color: var(--wms-text);
+  font-size: 12px;
 }
 .glist {
   overflow-y: auto;
@@ -54,9 +122,15 @@
   flex: 1;
 }
 .gitem {
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 4px;
-  transition: background 160ms;
+  transition: background var(--dur-1);
+  animation: wms-row-in var(--dur-4) var(--ease) backwards;
+}
+@for $i from 1 through 12 {
+  .gitem:nth-child(#{$i}) {
+    animation-delay: #{220 + ($i - 1) * 45}ms;
+  }
 }
 .gitem:hover {
   background: var(--bg-hover);
@@ -81,11 +155,12 @@
   min-width: 0;
 }
 .gmain .title {
+  font-size: 13px;
   font-weight: 600;
 }
 .gmain .sub {
-  font-size: 12.5px;
-  color: var(--label-2);
+  font-size: 11px;
+  color: var(--wms-muted);
 }
 .inside {
   display: inline-flex;
@@ -118,23 +193,89 @@
   border: 0;
   cursor: pointer;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
-  transition: transform 160ms var(--ease);
+  transition: transform var(--dur-1) var(--ease);
 }
 .swatch.on {
   box-shadow:
-    0 0 0 2px var(--bg-elevated),
-    0 0 0 4px var(--label-2);
+    0 0 0 2px var(--wms-page),
+    0 0 0 4px var(--wms-text);
   transform: scale(1.05);
 }
 @media (max-width: 760px) {
   .panel {
     top: auto;
-    left: 0;
-    right: 0;
-    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
     width: auto;
     height: 46vh;
-    border-radius: 16px 16px 0 0;
-    animation: sheet-up 460ms var(--ease) both;
+    border-radius: 22px;
+    animation: sheet-up var(--dur-3) var(--ease-out) both;
+  }
+}
+
+.gf-row .gmain {
+  align-items: center;
+}
+.gf-tag {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  width: 132px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  color: var(--wms-text);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* Monocromo como el prototipo: la fila solo lleva la etiqueta de la forma. El color de cada geocerca
+   se sigue viendo en el mapa y se elige en el formulario. */
+.gf-sw {
+  display: none;
+}
+.gf-row.inactive {
+  opacity: 1;
+}
+.gf-row.inactive .title {
+  color: var(--wms-faint);
+}
+.gactions .btn.icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.gactions app-toggle {
+  transform: none;
+}
+.panel-head .mod-count {
+  margin-top: 6px;
+}
+
+/* Móvil como el prototipo: etiqueta e interruptor arriba; nombre y detalle abajo a todo el ancho */
+@media (max-width: 760px) {
+  .gf-li {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 12px 10px;
+  }
+  .gf-li .content {
+    flex: 1 1 100%;
+    order: 9;
+  }
+  .gf-li .title {
+    white-space: normal;
+  }
+  .gf-li .gf-tag {
+    width: auto;
+    max-width: 150px;
+  }
+  .gf-when {
+    display: none;
   }
 }

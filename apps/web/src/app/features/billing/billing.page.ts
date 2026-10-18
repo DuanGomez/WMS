@@ -14,6 +14,7 @@ import { Invoice, Plan, Session, Subscription } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
 import { SheetComponent } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
+import { MorphWidthDirective } from '../../ui/motion-directives';
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   active: { label: 'Activa', tone: 'green' },
@@ -25,127 +26,115 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 /** RG7 / RE9 / RF23-RF26 – Plan de suscripción, uso, facturas y datos de la empresa. */
 @Component({
   selector: 'app-billing',
-  imports: [FormsModule, IconComponent, SheetComponent, CopPipe, DtPipe],
+  imports: [FormsModule, IconComponent, SheetComponent, CopPipe, DtPipe, MorphWidthDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <header class="page-head">
         <div>
-          <div class="eyebrow">{{ auth.user()?.company?.name }}</div>
+          <div class="eyebrow">Gestión</div>
           <h1 class="large-title">Suscripción y facturación</h1>
-        </div>
-        <div class="actions">
-          @if (canWrite()) {
-            <button class="btn" type="button" (click)="companyOpen.set(true)">
-              <app-icon name="building" [size]="16" />Datos de la empresa
-            </button>
-          }
         </div>
       </header>
 
       @if (sub(); as s) {
-        <section class="card current">
-          <div class="row wrap" style="align-items:flex-start">
-            <div style="flex:1;min-width:240px">
-              <div class="row">
-                <span class="caption">Plan actual</span
-                ><span class="badge" [class]="'badge ' + status[s.status].tone">{{
-                  status[s.status].label
-                }}</span>
-              </div>
-              <h2 class="title-1">{{ s.plan.name }}</h2>
-              <div class="title-3 tabular">
-                {{ s.plan.priceCop | cop }} <span class="footnote">/ mes + IVA</span>
-              </div>
-              @if (s.status === 'canceled') {
-                <p class="footnote" style="margin-top:6px">
-                  Cancelada el {{ s.canceledAt | dt: 'date' }}. Motivo: {{ s.cancelReason }}. Puedes
-                  consultar tus datos, pero no crear registros hasta reactivar un plan.
-                </p>
-              } @else {
-                <p class="footnote" style="margin-top:6px">
-                  Periodo actual: {{ s.currentPeriodStart | dt: 'date' }} –
-                  {{ s.currentPeriodEnd | dt: 'date' }} · Cliente desde
-                  {{ s.startedAt | dt: 'date' }}
-                </p>
-              }
-            </div>
-            <div class="usage">
-              <div class="meter">
-                <div class="row">
-                  <span>Vehículos</span><span class="spacer"></span
-                  ><strong class="tabular"
-                    >{{ s.usage.vehicles }} / {{ s.plan.maxVehicles }}</strong
-                  >
-                </div>
-                <div class="track">
-                  <div
-                    class="fill"
-                    [class.warn]="s.usage.vehicles / s.plan.maxVehicles > 0.8"
-                    [style.width.%]="(s.usage.vehicles / s.plan.maxVehicles) * 100"
-                  ></div>
-                </div>
-              </div>
-              <div class="meter">
-                <div class="row">
-                  <span>Usuarios</span><span class="spacer"></span
-                  ><strong class="tabular">{{ s.usage.users }} / {{ s.plan.maxUsers }}</strong>
-                </div>
-                <div class="track">
-                  <div
-                    class="fill"
-                    [class.warn]="s.usage.users / s.plan.maxUsers > 0.8"
-                    [style.width.%]="(s.usage.users / s.plan.maxUsers) * 100"
-                  ></div>
-                </div>
-              </div>
-              <div class="caption">{{ s.usage.devices }} dispositivos GPS registrados</div>
-            </div>
+        @if (s.status === 'canceled') {
+          <div class="banner">
+            <app-icon name="info" [size]="16" />
+            <span>
+              Cancelada el {{ s.canceledAt | dt: 'date' }}. Motivo: {{ s.cancelReason || '—' }}. Puedes consultar tus
+              datos, pero no crear registros hasta reactivar un plan.
+            </span>
           </div>
-        </section>
+        }
+        <div class="bgrid">
+          <section class="card bc full">
+            <div class="bc-head">
+              <div class="bc-t"><span>Plan actual</span><small>{{ s.plan.description }}</small></div>
+              <span class="badge" [class.solid]="s.status !== 'canceled'" [class.off]="s.status === 'canceled'">{{ s.status === 'canceled' ? 'Cancelada' : 'Activa' }}</span>
+            </div>
+            <div class="big"><b>{{ s.plan.priceCop | cop }}</b><small>/ mes + IVA · plan {{ s.plan.name }}</small></div>
+            <div class="meter">
+              <div class="mrow"><span>Vehículos</span><b>{{ s.usage.vehicles }} / {{ s.plan.maxVehicles }}</b></div>
+              <div class="track"><div class="fill" [class.warn]="s.usage.vehicles / s.plan.maxVehicles > 0.8" [style.width.%]="(s.usage.vehicles / s.plan.maxVehicles) * 100" wmsMorphWidth></div></div>
+            </div>
+            <div class="meter">
+              <div class="mrow"><span>Usuarios</span><b>{{ s.usage.users }} / {{ s.plan.maxUsers }}</b></div>
+              <div class="track"><div class="fill" [class.warn]="s.usage.users / s.plan.maxUsers > 0.8" [style.width.%]="(s.usage.users / s.plan.maxUsers) * 100" wmsMorphWidth></div></div>
+            </div>
+            <div class="kv"><span>Periodo actual</span><b>{{ s.currentPeriodStart | dt: 'short' }} – {{ s.currentPeriodEnd | dt: 'short' }}</b></div>
+            <div class="kv"><span>Cliente desde</span><b>{{ s.startedAt | dt: 'short' }}</b></div>
+          </section>
 
-        <h2 class="title-2" style="margin:28px 0 12px">Planes</h2>
-        <div class="grid grid-3">
           @for (p of plans(); track p.code) {
-            <article
-              class="card plan"
-              [class.current-plan]="p.code === s.plan.code && s.status !== 'canceled'"
-            >
-              @if (p.code === 'pro') {
-                <span class="badge blue ribbon">Más elegido</span>
-              }
-              <h3 class="title-3">{{ p.name }}</h3>
-              <p class="footnote" style="min-height:38px">{{ p.description }}</p>
-              <div class="price tabular">
-                {{ p.priceCop | cop }}<span class="footnote"> /mes</span>
+            @let isCur = p.code === s.plan.code && s.status !== 'canceled';
+            <article class="card bc plan" [class.current-plan]="isCur">
+              <div class="bc-head">
+                <div class="bc-t"><span>{{ p.name }}</span><small>{{ p.description }}</small></div>
+                @if (p.code === 'pro') {
+                  <span class="badge">Más elegido</span>
+                }
               </div>
+              <div class="big"><b>{{ p.priceCop | cop }}</b><small>/mes</small></div>
               <ul>
                 @for (f of p.features; track f) {
-                  <li><app-icon name="check" [size]="14" class="c-green" />{{ f }}</li>
+                  <li><span class="ck"><app-icon name="check" [size]="10" [stroke]="3" /></span>{{ f }}</li>
                 }
               </ul>
-              @if (p.code === s.plan.code && s.status !== 'canceled') {
-                <button class="btn block" type="button" disabled>Plan actual</button>
-              } @else if (canWrite()) {
-                <button class="btn primary block" type="button" (click)="changePlan(p)">
-                  {{ s.status === 'canceled' ? 'Reactivar con ' : 'Cambiar a ' }}{{ p.name }}
-                </button>
-              }
+              <div class="btns">
+                @if (isCur) {
+                  <button class="btn" type="button" disabled><app-icon name="check" [size]="14" />Plan actual</button>
+                } @else {
+                  <button class="btn primary" type="button" [disabled]="!canWrite()" (click)="changePlan(p)">
+                    {{ s.status === 'canceled' ? 'Reactivar con este plan' : 'Cambiar a este plan' }}
+                  </button>
+                }
+              </div>
             </article>
           }
+
+          <section class="card bc span2">
+            <div class="bc-t"><span>Datos de la empresa</span><small>Aparecen en tus facturas.</small></div>
+            <form class="cform" (ngSubmit)="saveCompany()">
+              <label class="fld">Razón social<input class="input" name="cn" [(ngModel)]="company.name" [disabled]="!canWrite()" /></label>
+              <label class="fld">NIT<input class="input" name="ni" [(ngModel)]="company.nit" [disabled]="!canWrite()" /></label>
+              <label class="fld">Correo<input class="input" type="email" name="ce" [(ngModel)]="company.email" [disabled]="!canWrite()" /></label>
+              <label class="fld">Teléfono<input class="input" type="tel" name="cp" [(ngModel)]="company.phone" [disabled]="!canWrite()" /></label>
+              <label class="fld">Ciudad<input class="input" name="cc" [(ngModel)]="company.city" [disabled]="!canWrite()" /></label>
+              <label class="fld">Dirección<input class="input" name="ca" [(ngModel)]="company.address" [disabled]="!canWrite()" /></label>
+              @if (canWrite()) {
+                <div class="btns">
+                  <button class="btn primary" type="submit" [disabled]="busy()">
+                    @if (busy()) {
+                      <app-icon name="refresh" [size]="14" class="spin" />
+                    }
+                    Guardar
+                  </button>
+                </div>
+              }
+            </form>
+          </section>
+
+          <section class="card bc">
+            <div class="bc-t"><span>Cancelar suscripción</span></div>
+            <p class="note">Tus datos se conservan; podrás reactivar cuando quieras.</p>
+            @if (canWrite() && s.status !== 'canceled') {
+              <div class="btns"><button class="btn" type="button" (click)="cancel()">Cancelar suscripción</button></div>
+            }
+          </section>
         </div>
 
-        <h2 class="title-2" style="margin:28px 0 12px">Facturas</h2>
-        <div class="table-wrap">
-          <table class="table">
+        <div class="table-wrap" style="margin-top:18px">
+          <div class="tt"><span>Facturas</span><small>{{ invoices().length }} {{ invoices().length === 1 ? 'factura' : 'facturas' }}</small></div>
+          <table class="table grid" style="--cols: 110px minmax(0,1.6fr) 80px 100px 100px 110px minmax(0,1.4fr) 90px; min-width: 900px">
             <thead>
               <tr>
                 <th>Número</th>
                 <th>Periodo</th>
                 <th>Plan</th>
-                <th class="num">Subtotal</th>
-                <th class="num">IVA 19 %</th>
-                <th class="num">Total</th>
+                <th>Subtotal</th>
+                <th>IVA 19 %</th>
+                <th>Total</th>
                 <th>Estado</th>
                 <th class="actions-cell"><span class="sr-only">Acciones</span></th>
               </tr>
@@ -153,27 +142,25 @@ const STATUS: Record<string, { label: string; tone: string }> = {
             <tbody>
               @for (i of invoices(); track i.id) {
                 <tr>
-                  <td class="mono">{{ i.number }}</td>
-                  <td class="caption">
-                    {{ i.periodStart | dt: 'date' }} – {{ i.periodEnd | dt: 'date' }}
-                  </td>
-                  <td>{{ i.planName }}</td>
-                  <td class="num">{{ i.amountCop | cop }}</td>
-                  <td class="num">{{ i.taxCop | cop }}</td>
-                  <td class="num" style="font-weight:600">{{ i.totalCop | cop }}</td>
-                  <td>
+                  <td data-label="Número"><b class="mono">{{ i.number }}</b></td>
+                  <td data-label="Periodo">{{ i.periodStart | dt: 'short' }} – {{ i.periodEnd | dt: 'short' }}</td>
+                  <td data-label="Plan">{{ i.planName }}</td>
+                  <td data-label="Subtotal" class="tabular">{{ i.amountCop | cop }}</td>
+                  <td data-label="IVA 19 %" class="tabular">{{ i.taxCop | cop }}</td>
+                  <td data-label="Total" class="tabular" style="font-weight:600">{{ i.totalCop | cop }}</td>
+                  <td data-label="Estado">
                     @if (i.status === 'paid') {
-                      <span class="badge green">Pagada {{ i.paidAt | dt: 'date' }}</span>
+                      <span class="badge">Pagada {{ i.paidAt | dt: 'short' }}</span>
                     } @else if (i.status === 'pending') {
-                      <span class="badge orange">Pendiente · vence {{ i.dueAt | dt: 'date' }}</span>
+                      <span class="badge solid">Pendiente · vence {{ i.dueAt | dt: 'short' }}</span>
                     } @else {
-                      <span class="badge">Anulada</span>
+                      <span class="badge off">Anulada</span>
                     }
                   </td>
                   <td class="actions-cell">
                     @if (i.status === 'pending' && canWrite()) {
-                      <button class="btn sm primary" type="button" (click)="pay(i)">
-                        <app-icon name="credit-card" [size]="14" />Pagar
+                      <button class="btn sm icon" type="button" title="Pagar" aria-label="Pagar" (click)="pay(i)">
+                        <app-icon name="credit-card" [size]="14" />
                       </button>
                     }
                   </td>
@@ -182,18 +169,6 @@ const STATUS: Record<string, { label: string; tone: string }> = {
             </tbody>
           </table>
         </div>
-
-        @if (canWrite() && s.status !== 'canceled') {
-          <div class="card danger-zone">
-            <div style="flex:1">
-              <div class="headline">Cancelar suscripción</div>
-              <p class="footnote">Tus datos se conservan; podrás reactivar cuando quieras.</p>
-            </div>
-            <button class="btn danger" type="button" (click)="cancel()">
-              Cancelar suscripción
-            </button>
-          </div>
-        }
       } @else {
         <div class="card"><div class="skeleton" style="height:120px"></div></div>
       }
@@ -236,76 +211,53 @@ const STATUS: Record<string, { label: string; tone: string }> = {
     </app-sheet>
   `,
   styles: `
-    .current {
-      padding: 22px 24px;
+    .banner { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 18px; border-radius: 14px; border: 1px solid var(--wms-border); background: var(--wms-input); font-size: 13px; text-wrap: pretty; }
+    .bgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .bgrid > * { animation: wms-in var(--dur-4) var(--ease) backwards; }
+    .bgrid > :nth-child(1) { animation-delay: 120ms; } .bgrid > :nth-child(2) { animation-delay: 200ms; }
+    .bgrid > :nth-child(3) { animation-delay: 280ms; } .bgrid > :nth-child(4) { animation-delay: 360ms; }
+    .bgrid > :nth-child(5) { animation-delay: 440ms; } .bgrid > :nth-child(6) { animation-delay: 520ms; }
+    /* Tarjeta genérica del prototipo (título 13/11 px, número 34 px, medidores 6 px, filas con divisor, botones al pie) */
+    .bc { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .bc.full { grid-column: 1 / -1; }
+    .bc.span2 { grid-column: span 2; }
+    .bc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .bc-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .bc-t > span { font-size: 13px; font-weight: 600; }
+    .bc-t small { font-size: 11px; color: var(--wms-muted); text-wrap: pretty; }
+    .big { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+    .big b { font-size: 34px; line-height: 1; font-weight: 600; letter-spacing: -.035em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .big small { font-size: 13px; color: var(--wms-muted); }
+    .meter { display: flex; flex-direction: column; gap: 6px; }
+    .mrow { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+    .mrow span { color: var(--wms-muted); }
+    .mrow b { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .track { height: 6px; border-radius: 999px; background: var(--wms-track); overflow: hidden; }
+    .fill { height: 100%; background: var(--wms-bar-fill); border-radius: 999px; transform-origin: left; animation: grow var(--dur-5) var(--ease-out) .2s backwards; }
+    .fill.warn { background: var(--wms-text); }
+    @keyframes grow { from { transform: scaleX(0); } }
+    .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 8px 0; border-bottom: 1px solid var(--wms-divider); }
+    .kv span { color: var(--wms-muted); }
+    .kv b { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+    .plan.current-plan { box-shadow: 0 0 0 2px var(--wms-text), var(--wms-card-shadow); }
+    .plan ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+    .plan li { display: flex; gap: 10px; align-items: center; font-size: 13px; }
+    .ck { flex: none; width: 18px; height: 18px; border-radius: 999px; border: 1px solid var(--wms-border); background: var(--wms-input); display: grid; place-items: center; color: var(--wms-text); }
+    .cform { display: flex; flex-direction: column; gap: 12px; }
+    .fld { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--wms-muted); }
+    .fld .input { height: 38px; font-size: 13px; }
+    .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
+    .btns .btn { flex: 1; height: 36px; border-radius: 10px; }
+    .note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--wms-muted); text-wrap: pretty; }
+    .tt { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 6px; }
+    .tt span { font-size: 13px; font-weight: 600; }
+    .tt small { font-size: 12px; color: var(--wms-muted); }
+    @media (max-width: 1100px) {
+      .bgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .bc.span2 { grid-column: 1 / -1; }
     }
-    .usage {
-      width: min(340px, 100%);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .meter .row {
-      font-size: 14px;
-      margin-bottom: 6px;
-    }
-    .track {
-      height: 8px;
-      border-radius: 4px;
-      background: var(--fill-2);
-      overflow: hidden;
-    }
-    .fill {
-      height: 100%;
-      background: var(--blue);
-      border-radius: 4px;
-      transition: width 600ms var(--ease);
-    }
-    .fill.warn {
-      background: var(--orange);
-    }
-    .plan {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .plan.current-plan {
-      box-shadow:
-        0 0 0 2px var(--tint),
-        var(--shadow-2);
-    }
-    .plan .price {
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-    }
-    .plan ul {
-      list-style: none;
-      padding: 0;
-      margin: 8px 0 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 14px;
-      flex: 1;
-    }
-    .plan li {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .ribbon {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-    }
-    .danger-zone {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-top: 28px;
-      flex-wrap: wrap;
+    @media (max-width: 760px) {
+      .bgrid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     }
   `,
 })

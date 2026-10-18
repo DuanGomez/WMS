@@ -30,104 +30,108 @@
     <section class="grid grid-4" aria-label="Indicadores clave">
       <a class="card kpi clickable" routerLink="/mapa">
         <div class="kpi-head">
-          <span class="icon-tile bg-green" style="width: 26px; height: 26px; border-radius: 7px"
-            ><app-icon name="car" [size]="15" /></span
+          <span class="icon-tile bg-green" 
+            ><app-icon name="car" [size]="14" /></span
           >Vehículos activos
         </div>
         <div class="kpi-value">
-          {{ d.vehicles.online }}<small> / {{ d.vehicles.total }}</small>
+          <span [wmsCount]="d.vehicles.online"></span><small> / {{ d.vehicles.total }}</small>
         </div>
         <div class="kpi-foot">{{ d.vehicles.moving }} en movimiento ahora</div>
       </a>
       <a class="card kpi clickable" routerLink="/alertas">
         <div class="kpi-head">
-          <span class="icon-tile bg-red" style="width: 26px; height: 26px; border-radius: 7px"
-            ><app-icon name="bell" [size]="15" /></span
+          <span class="icon-tile bg-red" 
+            ><app-icon name="bell" [size]="14" /></span
           >Alertas abiertas
         </div>
-        <div class="kpi-value">{{ d.openAlerts.total }}</div>
+        <div class="kpi-value"><span [wmsCount]="d.openAlerts.total"></span></div>
         <div class="kpi-foot">{{ d.openAlerts.critical }} de prioridad alta o crítica</div>
       </a>
       <a class="card kpi clickable" routerLink="/reportes">
         <div class="kpi-head">
-          <span class="icon-tile bg-blue" style="width: 26px; height: 26px; border-radius: 7px"
-            ><app-icon name="route" [size]="15" /></span
+          <span class="icon-tile bg-blue" 
+            ><app-icon name="route" [size]="14" /></span
           >Kilómetros hoy
         </div>
-        <div class="kpi-value">{{ d.kmToday | num }}<small> km</small></div>
+        <div class="kpi-value"><span [wmsCount]="d.kmToday" [decimals]="1"></span><small> km</small></div>
         <div class="kpi-foot">Recorridos desde la medianoche</div>
       </a>
       <a class="card kpi clickable" routerLink="/dispositivos">
         <div class="kpi-head">
-          <span class="icon-tile bg-orange" style="width: 26px; height: 26px; border-radius: 7px"
-            ><app-icon name="satellite-dish" [size]="15" /></span
+          <span class="icon-tile bg-orange" 
+            ><app-icon name="satellite-dish" [size]="14" /></span
           >Dispositivos en falla
         </div>
         <div class="kpi-value">
-          {{ d.devices.failing }}<small> / {{ d.devices.total }}</small>
+          <span [wmsCount]="d.devices.failing"></span><small> / {{ d.devices.total }}</small>
         </div>
         <div class="kpi-foot">Sin señal o reportados en falla</div>
       </a>
     </section>
 
-    <section class="grid grid-3" style="margin-top: 16px">
-      <div class="card span-2">
+    <section class="grid grid-3" style="margin-top: 18px">
+      <div class="card span-2 chart-card">
         <div class="card-title">Kilómetros por día <span class="muted">· últimos 7 días</span></div>
+        <div class="card-sub">{{ kmWeek() }}</div>
         <app-bar-chart
           [data]="kmSeries()"
           unit="km"
           [decimals]="1"
           color="var(--blue)"
-          [height]="300"
+          [height]="mob() ? 148 : 218"
           ariaLabel="Kilómetros recorridos por día en los últimos 7 días"
         />
       </div>
-      <div class="card">
+      <div class="card recent-card">
         <div class="card-title">
           Alertas recientes <span class="spacer"></span
           ><a class="btn plain sm" routerLink="/alertas">Ver todas</a>
         </div>
         @if (d.recentAlerts.length) {
           <div class="alerts-mini">
-            @for (a of d.recentAlerts; track a.id) {
-              <div class="mini">
-                <span class="icon-tile" [class]="'icon-tile bg-' + icons[a.type].color"
-                  ><app-icon [name]="icons[a.type].icon" [size]="16"
+            @for (a of d.recentAlerts.slice(0, 5); track a.id) {
+              <div class="mini" wmsSwipe swipeLabel="Atendida" [swipeDisabled]="isDone(a) || !auth.can('alerts', 'write')" (swiped)="attend(a)">
+                <span
+                  class="icon-tile"
+                  [class]="'icon-tile bg-' + icons[a.type].color"
+                  [class.hot]="a.priority === 'critical' && !isDone(a)"
+                  ><app-icon [name]="icons[a.type].icon" [size]="14"
                 /></span>
                 <div class="content">
-                  <div class="title truncate">{{ a.title }}</div>
+                  <div class="title truncate" [class.done]="isDone(a)">{{ a.title }}</div>
                   <div class="sub">
                     {{ a.ts | dt: 'relative' }} · {{ priority[a.priority].label }}
                   </div>
                 </div>
-                @if (!a.attended && auth.can('alerts', 'write')) {
+                @if (!isDone(a) && auth.can('alerts', 'write')) {
                   <button
-                    class="btn sm"
+                    class="mini-check"
                     type="button"
                     (click)="attend(a)"
                     [attr.aria-label]="'Marcar como atendida: ' + a.title"
                   >
-                    <app-icon name="check" [size]="14" />
+                    <app-icon name="check" [size]="13" />
                   </button>
-                } @else if (a.attended) {
-                  <app-icon name="circle-check" [size]="18" class="c-green" />
+                } @else if (isDone(a)) {
+                  <span class="mini-done" [class.pop]="popped() === a.id"><app-icon name="check" [size]="11" /></span>
                 }
               </div>
             }
           </div>
         } @else {
-          <app-empty icon="circle-check" title="Todo en orden" text="No hay alertas recientes." />
+          <div class="all-good"><b>Todo en orden</b>No hay alertas recientes.</div>
         }
       </div>
     </section>
 
-    <section class="grid grid-3" style="margin-top: 16px">
-      <div class="card">
+    <section class="grid grid-3" style="margin-top: 18px">
+      <div class="card chart-card day-card">
         <div class="card-title">Alertas por día</div>
         <app-bar-chart
           [data]="alertSeries()"
           color="var(--orange)"
-          [height]="160"
+          [height]="128"
           ariaLabel="Alertas generadas por día"
         />
       </div>
@@ -141,11 +145,11 @@
                 ><span class="spacer"></span><strong class="tabular">{{ t.count }}</strong>
               </div>
               <div class="track">
-                <div class="fill" [style.width.%]="(t.count / byTypeMax()) * 100"></div>
+                <div class="fill" [style.width.%]="(t.count / byTypeMax()) * 100" wmsMorphWidth></div>
               </div>
             </div>
           } @empty {
-            <p class="footnote">Sin alertas en el periodo.</p>
+            <div class="all-good">Sin alertas en el periodo.</div>
           }
         </div>
       </div>
@@ -161,7 +165,7 @@
                 ><span class="spacer"></span><strong class="tabular">{{ v.km | num }} km</strong>
               </div>
               <div class="track">
-                <div class="fill green" [style.width.%]="(v.km / topMax()) * 100"></div>
+                <div class="fill" [style.width.%]="(v.km / topMax()) * 100" wmsMorphWidth></div>
               </div>
             </div>
           }

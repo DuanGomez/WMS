@@ -119,3 +119,16 @@ defineHttp({
     return ok({ ...data, recentAlerts });
   },
 });
+
+/* Analítica por periodo (Actividad de la flota) */
+defineHttp({
+  name: 'analytics',
+  route: 'analytics',
+  methods: ['GET'],
+  guard: { module: 'dashboard', level: 'read' },
+  handler: (req, ctx) => {
+    const d = Number(req.query.get('days'));
+    const days = (d === 30 || d === 90 ? d : 7) as 7 | 30 | 90;
+    return ok(trackingRepo.analytics(ctx.tenantId, days));
+  },
+});

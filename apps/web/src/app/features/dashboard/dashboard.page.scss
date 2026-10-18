@@ -1,60 +1,228 @@
 .kpi.clickable {
   color: inherit;
-  transition:
-    transform 220ms var(--ease),
-    box-shadow 220ms var(--ease);
 }
 .kpi.clickable:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-2);
+  opacity: 1;
 }
-.alerts-mini {
+.chart-card {
+  min-height: 340px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+/* Prototipo: título, subtítulo (km de la semana) y gráfica separados 8 px */
+.chart-card .card-title {
+  margin-bottom: 0;
+}
+.card-sub {
+  font-size: 11px;
+  color: var(--wms-muted);
+}
+/* "Título · detalle" con un solo espacio, como el prototipo */
+.card-title > .muted {
+  margin-left: -4px;
+}
+.chart-card app-bar-chart {
+  flex: 1;
+}
+.card-title .spacer + .btn.plain {
+  height: auto;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wms-muted);
+  border: 0;
+}
+.card-title .spacer + .btn.plain::before {
+  display: none;
+}
+.card-title .spacer + .btn.plain:hover {
+  color: var(--wms-text);
+}
+.alerts-mini {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 -6px;
 }
 .mini {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 0;
+  width: 100%;
+  padding: 8px 6px;
+  border-radius: 10px;
+  transition: background var(--dur-1);
+  animation: wms-row-in var(--dur-4) var(--ease) backwards;
 }
-.mini + .mini {
-  border-top: 0.5px solid var(--separator);
+@for $i from 1 through 8 {
+  .mini:nth-child(#{$i}) {
+    animation-delay: #{420 + ($i - 1) * 45}ms;
+  }
+}
+.mini:hover {
+  background: var(--wms-row-hover);
+}
+.mini .icon-tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
 }
 .mini .content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .mini .title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
+  transition: color var(--dur-2);
+}
+/* Prototipo: atendida = título gris; prioridad alta/crítica abierta = mosaico sólido */
+.mini .title.done {
+  color: var(--wms-muted);
+}
+.mini .icon-tile.hot {
+  background: var(--wms-solid) !important;
+  border-color: transparent;
+  color: var(--wms-solid-text);
 }
 .mini .sub {
+  font-size: 11px;
+  color: var(--wms-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-check {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  color: var(--wms-text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background var(--dur-2),
+    color var(--dur-2),
+    transform var(--dur-1);
+}
+.mini-check:hover {
+  background: var(--wms-solid);
+  color: var(--wms-solid-text);
+}
+.mini-check:active {
+  transform: scale(0.92);
+}
+.mini-done {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0 3px;
+  border-radius: 999px;
+  background: var(--wms-solid);
+  color: var(--wms-solid-text);
+  display: grid;
+  place-items: center;
+  /* Prototipo: aparece en scale(1.25) y vuelve a 1 con resorte (.3s) */
+  transition: transform var(--dur-2) var(--spring);
+}
+.mini-done.pop {
+  transform: scale(1.25);
+}
+.all-good {
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px dashed var(--wms-border);
+  text-align: center;
   font-size: 12px;
-  color: var(--label-2);
+  color: var(--wms-muted);
+}
+.all-good b {
+  display: block;
+  color: var(--wms-text);
+  font-weight: 600;
+  margin-bottom: 2px;
 }
 .hbars {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.hbar .row {
-  font-size: 14px;
+.hbar {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  margin-bottom: 5px;
+  animation: wms-row-in var(--dur-4) var(--ease) backwards;
+}
+@for $i from 1 through 8 {
+  .hbar:nth-child(#{$i}) {
+    animation-delay: #{500 + ($i - 1) * 60}ms;
+  }
+}
+.hbar .row {
+  font-size: 13px;
+  gap: 8px;
+  min-width: 0;
+}
+.hbar .row > span:not(.spacer) {
+  font-weight: 500;
+}
+.hbar .row strong {
+  font-size: 13px;
+  font-weight: 600;
 }
 .track {
-  height: 8px;
-  border-radius: 4px;
-  background: var(--fill-2);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--wms-track);
   overflow: hidden;
 }
-.fill {
-  height: 100%;
-  border-radius: 4px;
-  background: var(--orange);
-  transition: width 600ms var(--ease);
-}
+.fill,
 .fill.green {
-  background: var(--green);
+  height: 100%;
+  border-radius: 999px;
+  background: var(--wms-bar-fill);
+  transform-origin: left;
+  animation: grow var(--dur-5) var(--ease-out) backwards;
+}
+.hbar:first-child .fill {
+  background: var(--wms-text);
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Tarjeta "Alertas recientes" con las medidas del prototipo (padding 22/18/14, encabezado 0 6px 6px) */
+.recent-card {
+  padding: 22px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.recent-card > .card-title {
+  margin-bottom: 0;
+  padding: 0 6px 6px;
+}
+.recent-card .alerts-mini {
+  margin: 0;
+}
+.day-card {
+  min-height: 230px;
+}
+@media (max-width: 760px) {
+  /* Prototipo móvil: sin alto mínimo en las tarjetas de gráfica (chartCardH = 0) */
+  .chart-card,
+  .day-card {
+    min-height: 0;
+  }
 }

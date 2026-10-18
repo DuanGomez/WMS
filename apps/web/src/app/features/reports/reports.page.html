@@ -3,6 +3,7 @@
     <div>
       <div class="eyebrow">Gestión</div>
       <h1 class="large-title">Reportes</h1>
+      <p>Genera, descarga y comparte reportes de la flota.</p>
     </div>
     <div class="actions">
       @if (canWrite()) {
@@ -52,88 +53,89 @@
       />
     </div>
   } @else {
-    <div class="grid grid-2">
-      @for (r of reports(); track r.id) {
-        <article class="card report">
-          <div class="row" style="align-items: flex-start">
-            <span
-              class="icon-tile lg"
-              [class]="'icon-tile lg ' + (r.format === 'pdf' ? 'bg-red' : 'bg-green')"
-              ><app-icon [name]="r.format === 'pdf' ? 'file-text' : 'file-spreadsheet'" [size]="22"
-            /></span>
-            <div style="flex: 1; min-width: 0">
-              <h2 class="headline truncate">{{ r.name }}</h2>
-              <div class="caption">
-                {{ r.typeLabel }} · {{ r.format === 'pdf' ? 'PDF' : 'Excel' }} · v{{ r.version }} ·
-                {{ bytes(r.sizeBytes) }}
-              </div>
-              <div class="caption">
-                {{ r.periodStart | dt: 'date' }} – {{ r.periodEnd | dt: 'date' }} ·
-                {{ r.vehiclePlate ?? 'Todos los vehículos'
-                }}{{ r.driverName ? ' · ' + r.driverName : '' }}
-              </div>
-            </div>
-            @if (r.activeShares) {
-              <span class="badge blue" title="Enlaces activos"
-                ><app-icon name="link" [size]="12" />{{ r.activeShares }}</span
-              >
-            }
-          </div>
-          <div class="stats">
-            <div>
-              <strong class="tabular">{{ r.summary.km ?? 0 | num }}</strong
-              ><span>km</span>
-            </div>
-            <div>
-              <strong class="tabular">{{ r.summary.trips ?? 0 }}</strong
-              ><span>recorridos</span>
-            </div>
-            <div>
-              <strong class="tabular">{{ r.summary.alerts ?? 0 }}</strong
-              ><span>alertas</span>
-            </div>
-            <div>
-              <strong class="tabular">{{ r.summary.movingHours ?? 0 | num }}</strong
-              ><span>h en marcha</span>
-            </div>
-          </div>
-          <div class="caption">
-            Generado {{ r.generatedAt | dt }}{{ r.createdBy ? ' por ' + r.createdBy : '' }}
-          </div>
-          <div class="row wrap" style="margin-top: 12px; gap: 6px">
-            <button class="btn sm primary" type="button" (click)="download(r)">
-              <app-icon name="download" [size]="14" />Descargar
-            </button>
-            @if (canWrite()) {
-              <button class="btn sm" type="button" (click)="openShare(r)">
-                <app-icon name="share" [size]="14" />Compartir
-              </button>
-              <button class="btn sm" type="button" (click)="openRegenerate(r)">
-                <app-icon name="refresh" [size]="14" />Regenerar
-              </button>
-            }
-            @if (r.vehicleId) {
-              <button class="btn sm" type="button" (click)="openPlayback(r)">
-                <app-icon name="play" [size]="14" />Reproducir
-              </button>
-            }
-            <span class="spacer"></span>
-            @if (canWrite()) {
-              <button
-                class="btn sm icon danger"
-                type="button"
-                aria-label="Eliminar reporte"
-                (click)="remove(r)"
-              >
-                <app-icon name="trash" [size]="14" />
-              </button>
-            }
-          </div>
-        </article>
-      }
+    <div class="table-wrap">
+      <div class="tt"><span>Reportes generados</span><small>{{ reports().length }} archivos</small></div>
+      <table class="table grid" style="--cols: minmax(0,2.4fr) 130px 90px minmax(0,1.4fr) 140px; min-width: 820px">
+        <thead>
+          <tr>
+            <th>Reporte</th>
+            <th>Contenido</th>
+            <th>Formato</th>
+            <th>Resumen</th>
+            <th class="actions-cell"><span class="sr-only">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of reports(); track r.id) {
+            <tr class="clickable" (click)="detail.set(r)">
+              <td data-label="Reporte">
+                <div class="cell">
+                  <span class="tile"><app-icon [name]="r.format === 'pdf' ? 'file-text' : 'file-spreadsheet'" [size]="15" /></span>
+                  <span class="cell-txt"
+                    ><b>{{ r.name }}</b
+                    ><small>Generado {{ r.generatedAt | dt: 'relative' }}{{ r.createdBy ? ' por ' + r.createdBy : '' }} · v{{ r.version }}</small></span
+                  >
+                </div>
+              </td>
+              <td data-label="Contenido">
+                <span class="cell-txt"
+                  ><span style="font-weight:500">{{ r.typeLabel }}</span
+                  ><small>{{ r.vehiclePlate ?? 'Todos los vehículos' }}{{ r.driverName ? ' · ' + r.driverName : '' }}</small></span
+                >
+              </td>
+              <td data-label="Formato">
+                <span class="badge" [class.solid]="r.format !== 'pdf'">{{ r.format === 'pdf' ? 'PDF' : 'Excel' }}</span>
+              </td>
+              <td data-label="Resumen">
+                <span class="cell-txt"
+                  ><span style="font-weight:500">{{ r.summary.km ?? 0 | num }} km · {{ r.summary.trips ?? 0 }} recorridos</span
+                  ><small>{{ r.summary.alerts ?? 0 }} alertas · {{ r.summary.movingHours ?? 0 | num }} h en marcha</small></span
+                >
+              </td>
+              <td class="actions-cell" (click)="$event.stopPropagation()">
+                <button class="btn sm icon" type="button" title="Descargar" aria-label="Descargar" (click)="download(r)">
+                  <app-icon name="download" [size]="14" />
+                </button>
+                @if (canWrite()) {
+                  <button class="btn sm icon" type="button" title="Compartir" aria-label="Compartir" (click)="openShare(r)">
+                    <app-icon name="share" [size]="14" />
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
     </div>
   }
+
+  <app-fleet-activity />
 </div>
+
+@if (detail(); as r) {
+  <app-detail
+    [open]="true"
+    (openChange)="!$event && detail.set(null)"
+    [title]="r.name"
+    [sub]="r.typeLabel + ' · v' + r.version"
+    [icon]="r.format === 'pdf' ? 'file-text' : 'file-spreadsheet'"
+    [chip]="r.format === 'pdf' ? 'PDF' : 'Excel'"
+    [chipTone]="r.format === 'pdf' ? 'on' : 'solid'"
+    [rows]="reportRows(r)"
+  >
+    <button class="btn primary" type="button" (click)="download(r)"><app-icon name="download" [size]="14" />Descargar</button>
+    @if (canWrite()) {
+      <button class="btn" type="button" (click)="detail.set(null); openShare(r)"><app-icon name="share" [size]="14" />Compartir</button>
+      <button class="btn" type="button" (click)="detail.set(null); openRegenerate(r)"><app-icon name="refresh" [size]="14" />Regenerar</button>
+    }
+    @if (r.vehicleId) {
+      <button class="btn" type="button" (click)="detail.set(null); openPlayback(r)"><app-icon name="play" [size]="14" />Reproducir</button>
+    }
+    @if (canWrite()) {
+      <button class="btn danger" type="button" (click)="detail.set(null); remove(r)"><app-icon name="trash" [size]="14" />Eliminar</button>
+    }
+  </app-detail>
+}
 
 <app-sheet
   [(open)]="sheetOpen"
@@ -340,7 +342,10 @@
   cancelText="Cerrar"
   [wide]="true"
 >
-  @if (playOpen() && playVehicle()) {
-    <app-playback [vehicleId]="playVehicle()!.id" [plate]="playVehicle()!.plate" />
+  <!-- Carga diferida: el código de la reproducción (y su mapa) se descarga en reposo, no con la página -->
+  @defer (on idle) {
+    @if (playOpen() && playVehicle()) {
+      <app-playback [vehicleId]="playVehicle()!.id" [plate]="playVehicle()!.plate" />
+    }
   }
 </app-sheet>

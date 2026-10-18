@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
 import { CopPipe } from '../../core/format';
@@ -8,152 +8,126 @@ import { AuthResponse, Plan } from '../../core/models';
 import { Toasts } from '../../core/ui.services';
 import { IconComponent } from '../../ui/icon.component';
 import { LogoComponent } from '../../ui/logo.component';
+import { LangToggleComponent } from '../../ui/lang';
+import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirective } from '../../ui/wms-fx';
 
 /** RF23 / HU7 – Registro self-service de una empresa con su plan de suscripción. */
 @Component({
   selector: 'app-signup',
-  imports: [FormsModule, RouterLink, IconComponent, LogoComponent, CopPipe],
+  imports: [FormsModule, IconComponent, LogoComponent, CopPipe, TiltDirective, FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, LangToggleComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './auth.scss',
   template: `
-    <section class="auth-card wide glass-thick" aria-labelledby="t">
-      <app-logo class="auth-logo" [size]="56" style="width:56px;height:56px" />
-      <h1 class="auth-title" id="t">Registra tu empresa</h1>
-      <p class="auth-sub">Empieza a monitorear tu flota en minutos, sin contratos largos.</p>
-      <div class="steps" aria-hidden="true">
-        <span [class.on]="step() >= 1"></span><span [class.on]="step() >= 2"></span
-        ><span [class.on]="step() >= 3"></span>
-      </div>
-
-      <form (ngSubmit)="next()" novalidate>
-        @switch (step()) {
-          @case (1) {
-            <h2 class="headline">1. Elige tu plan</h2>
-            <div class="plans" role="radiogroup" aria-label="Planes">
-              @for (p of plans(); track p.code) {
-                <button
-                  type="button"
-                  class="plan"
-                  role="radio"
-                  [attr.aria-checked]="planCode === p.code"
-                  [class.selected]="planCode === p.code"
-                  (click)="planCode = p.code"
-                >
-                  <div class="headline">{{ p.name }}</div>
-                  <div class="price tabular">
-                    {{ p.priceCop | cop }}<span class="caption"> /mes</span>
+    <div class="a-bg"></div>
+    <div class="a-glow-top"></div>
+    <div class="a-glow-a"></div>
+    <div class="a-glow-b"></div>
+    <div class="auth-ctl"><app-lang-toggle /><app-theme-toggle [labeled]="true" /></div>
+    <div class="auth-stage" [class.wide]="true">
+      <div wmsTilt>
+        <div wmsFlipCard>
+          <section class="auth-card" wmsFlipFace aria-labelledby="t">
+            <div class="hatch"></div>
+            <div class="auth-head">
+              <app-logo class="auth-logo" />
+              <h1 class="auth-title" id="t">Crea tu cuenta</h1>
+              <p class="auth-sub">Completa tus datos para empezar en WMS</p>
+              <div class="steps" aria-hidden="true">
+                <span [class.on]="step() >= 1"></span><span [class.on]="step() >= 2"></span
+                ><span [class.on]="step() >= 3"></span>
+              </div>
+            </div>
+            <form (ngSubmit)="next()" novalidate style="gap:14px">
+              @switch (step()) {
+                @case (1) {
+                  <span class="sec">1. Elige tu plan</span>
+                  <div class="plans" role="radiogroup" aria-label="Planes">
+                    @for (p of plans(); track p.code) {
+                      <button
+                        type="button"
+                        class="plan"
+                        role="radio"
+                        [attr.aria-checked]="planCode === p.code"
+                        [class.selected]="planCode === p.code"
+                        (click)="planCode = p.code"
+                      >
+                        <span class="pn">{{ p.name }}</span>
+                        <span class="pp">{{ p.priceCop | cop }}<span> /mes</span></span>
+                        <span class="pc">{{ p.maxVehicles }} vehículos · {{ p.maxUsers }} usuarios</span>
+                      </button>
+                    }
                   </div>
-                  <div class="caption">
-                    Hasta {{ p.maxVehicles }} vehículos · {{ p.maxUsers }} usuarios
+                }
+                @case (2) {
+                  <span class="sec">2. Datos de la empresa</span>
+                  <div class="agrid">
+                    <div class="afield full">
+                      <label for="cn">Razón social</label>
+                      <input id="cn" name="cn" [(ngModel)]="company.name" required placeholder="Supermercados la 72 S.A.S." />
+                    </div>
+                    <div class="afield">
+                      <label for="nit">NIT</label>
+                      <input id="nit" name="nit" [(ngModel)]="company.nit" placeholder="900123456-7" />
+                    </div>
+                    <div class="afield">
+                      <label for="ph">Teléfono</label>
+                      <input id="ph" name="ph" [(ngModel)]="company.phone" placeholder="604 444 7272" />
+                    </div>
+                    <div class="afield">
+                      <label for="ce">Correo de la empresa</label>
+                      <input id="ce" type="email" name="ce" [(ngModel)]="company.email" />
+                    </div>
+                    <div class="afield">
+                      <label for="city">Ciudad</label>
+                      <input id="city" name="city" [(ngModel)]="company.city" />
+                    </div>
                   </div>
-                </button>
+                }
+                @case (3) {
+                  <span class="sec">3. Responsable de la cuenta</span>
+                  <div class="agrid">
+                    <div class="afield full">
+                      <label for="on">Nombre completo</label>
+                      <input id="on" name="on" [(ngModel)]="owner.name" autocomplete="name" />
+                    </div>
+                    <div class="afield">
+                      <label for="oe">Correo</label>
+                      <input id="oe" type="email" name="oe" [(ngModel)]="owner.email" autocomplete="email" />
+                    </div>
+                    <div class="afield">
+                      <label for="op">Contraseña</label>
+                      <input id="op" type="password" name="op" [(ngModel)]="owner.password" autocomplete="new-password" />
+                      <span class="hint">Mínimo 8 caracteres, con letras y números.</span>
+                    </div>
+                  </div>
+                }
               }
-            </div>
-          }
-          @case (2) {
-            <h2 class="headline">2. Datos de la empresa</h2>
-            <div class="form-grid">
-              <div class="field full">
-                <label for="cn">Razón social</label
-                ><input
-                  id="cn"
-                  class="input"
-                  name="cn"
-                  [(ngModel)]="company.name"
-                  required
-                  placeholder="Supermercados la 72 S.A.S."
-                />
+              @if (error()) {
+                <div class="form-error" role="alert">
+                  <app-icon name="triangle-alert" [size]="16" /><span>{{ error() }}</span>
+                </div>
+              }
+              <div class="row2" style="margin-top:6px">
+                @if (step() > 1) {
+                  <button class="abtn ghost" type="button" (click)="step.set(step() - 1)">Atrás</button>
+                }
+                <button class="abtn" type="submit" [disabled]="busy()">
+                  @if (busy()) {
+                    <span class="spinner"></span>
+                  } @else {
+                    <span>{{ step() < 3 ? 'Continuar' : 'Crear cuenta' }}</span><app-icon name="arrow-right" [size]="12" />
+                  }
+                </button>
               </div>
-              <div class="field">
-                <label for="nit">NIT</label
-                ><input
-                  id="nit"
-                  class="input"
-                  name="nit"
-                  [(ngModel)]="company.nit"
-                  placeholder="900123456-7"
-                />
-              </div>
-              <div class="field">
-                <label for="ph">Teléfono</label
-                ><input
-                  id="ph"
-                  class="input"
-                  name="ph"
-                  [(ngModel)]="company.phone"
-                  placeholder="604 444 7272"
-                />
-              </div>
-              <div class="field">
-                <label for="ce">Correo de la empresa</label
-                ><input id="ce" class="input" type="email" name="ce" [(ngModel)]="company.email" />
-              </div>
-              <div class="field">
-                <label for="city">Ciudad</label
-                ><input id="city" class="input" name="city" [(ngModel)]="company.city" />
-              </div>
-            </div>
-          }
-          @case (3) {
-            <h2 class="headline">3. Responsable de la cuenta</h2>
-            <div class="form-grid">
-              <div class="field full">
-                <label for="on">Nombre completo</label
-                ><input
-                  id="on"
-                  class="input"
-                  name="on"
-                  [(ngModel)]="owner.name"
-                  autocomplete="name"
-                />
-              </div>
-              <div class="field">
-                <label for="oe">Correo</label
-                ><input
-                  id="oe"
-                  class="input"
-                  type="email"
-                  name="oe"
-                  [(ngModel)]="owner.email"
-                  autocomplete="email"
-                />
-              </div>
-              <div class="field">
-                <label for="op">Contraseña</label>
-                <input
-                  id="op"
-                  class="input"
-                  type="password"
-                  name="op"
-                  [(ngModel)]="owner.password"
-                  autocomplete="new-password"
-                />
-                <span class="hint">Mínimo 8 caracteres, con letras y números.</span>
-              </div>
-            </div>
-          }
-        }
-        @if (error()) {
-          <div class="form-error" role="alert">
-            <app-icon name="triangle-alert" [size]="16" />{{ error() }}
-          </div>
-        }
-        <div class="row" style="margin-top:6px">
-          @if (step() > 1) {
-            <button class="btn lg" type="button" (click)="step.set(step() - 1)">Atrás</button>
-          }
-          <button class="btn primary lg" style="flex:1" type="submit" [disabled]="busy()">
-            @if (busy()) {
-              <app-icon name="refresh" [size]="18" class="spin" />
-            }
-            {{ step() < 3 ? 'Continuar' : 'Crear cuenta' }}
-          </button>
+              <p class="alt">
+                <span>¿Ya tienes cuenta?</span>
+                <a wmsFlip="/login" href="/login">Inicia sesión</a>
+              </p>
+            </form>
+          </section>
         </div>
-        <div class="links" style="justify-content:center">
-          <a routerLink="/login">Ya tengo cuenta</a>
-        </div>
-      </form>
-    </section>
+      </div>
+    </div>
   `,
 })
 export class SignupPage implements OnInit {
