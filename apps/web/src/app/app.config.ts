@@ -1,4 +1,4 @@
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpBackend, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { registerLocaleData } from '@angular/common';
 import localeEsCo from '@angular/common/locales/es-CO';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
@@ -10,6 +10,11 @@ import {
 } from '@angular/router';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth.service';
+import { DemoHttpBackend, demoApi } from './core/demo-backend';
+import { DEMO } from './core/runtime';
+
+// Demo de GitHub Pages: la API arranca dentro del navegador mientras carga la interfaz.
+if (DEMO) demoApi().catch(() => {});
 
 registerLocaleData(localeEsCo);
 
@@ -23,6 +28,7 @@ export const appConfig: ApplicationConfig = {
       withViewTransitions(),
     ),
     provideHttpClient(withInterceptors([authInterceptor])),
+    ...(DEMO ? [{ provide: HttpBackend, useClass: DemoHttpBackend }] : []),
     { provide: LOCALE_ID, useValue: 'es-CO' },
   ],
 };

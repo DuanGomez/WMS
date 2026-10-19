@@ -72,16 +72,23 @@ export class Lang {
     if (root.nodeType !== 1) return;
     const el = root as Element;
     if (el.closest('[data-no-i18n],script,style,.leaflet-tile-pane')) return;
-    for (const a of Lang.ATTRS) if (el.hasAttribute(a)) restore ? this.restoreAttr(el, a) : this.attr(el, a);
+    for (const a of Lang.ATTRS) if (el.hasAttribute(a)) this.attrOp(el, a, restore);
     const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
     let n: Node | null = w.nextNode();
     while (n) {
-      if (n.nodeType === 3) restore ? this.restoreText(n) : this.text(n);
+      if (n.nodeType === 3) {
+        if (restore) this.restoreText(n);
+        else this.text(n);
+      }
       else
         for (const a of Lang.ATTRS)
-          if ((n as Element).hasAttribute(a)) restore ? this.restoreAttr(n as Element, a) : this.attr(n as Element, a);
+          if ((n as Element).hasAttribute(a)) this.attrOp(n as Element, a, restore);
       n = w.nextNode();
     }
+  }
+  private attrOp(el: Element, a: string, restore: boolean) {
+    if (restore) this.restoreAttr(el, a);
+    else this.attr(el, a);
   }
   private text(n: Node) {
     if (this.mine.has(n)) {

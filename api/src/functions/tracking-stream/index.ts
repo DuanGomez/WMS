@@ -5,6 +5,11 @@ import { alertsRepo } from '../../shared/repositories/alerts';
 import { vehiclesRepo } from '../../shared/repositories/fleet';
 import { geofencesRepo } from '../../shared/repositories/geofences';
 import { trackingRepo } from '../../shared/repositories/tracking';
+import { driversRepo } from '../../shared/repositories/users';
+
+/** Conductores visibles: el conductor solo se ve a sí mismo. */
+const driverMarkers = (ctx: Ctx, since?: string) =>
+  driversRepo.locations(ctx.tenantId, { since, userId: ctx.user.role === 'driver' ? ctx.user.id : undefined });
 
 /**
  * tracking-stream (RG2): tiempo real hacia el frontend.
@@ -38,6 +43,7 @@ defineHttp({
       trailMinutes: TRAIL_MINUTES,
       vehicles,
       geofences: canSeeGeofences ? geofencesRepo.list(ctx.tenantId, { onlyActive: true }) : [],
+      drivers: driverMarkers(ctx),
       openAlerts:
         ctx.user.permissions.alerts !== 'none'
           ? alertsRepo.list(ctx.tenantId, { attended: false, limit: 20 })
@@ -56,6 +62,7 @@ defineStream({
     send('hello', { serverTime: new Date().toISOString(), tenant: ctx.tenantId });
     const off = subscribe(ctx.tenantId, (event, data) => {
       if (allowed && data?.vehicleId && !allowed.has(data.vehicleId)) return;
+      if (event === 'driver' && ctx.user.role === 'driver' && data?.driverId !== ctx.user.id) return;
       if ((event === 'alert' || event === 'notification') && !canAlerts) return;
       send(event, data);
     });
@@ -103,7 +110,7 @@ defineHttp({
       ctx.user.permissions.alerts !== 'none'
         ? alertsRepo.list(ctx.tenantId, { from: since, limit: 50 }).items
         : [];
-    return ok({ serverTime: new Date().toISOString(), positions, alerts });
+    return ok({ serverTime: new Date().toISOString(), positions, alerts, drivers: driverMarkers(ctx, since) });
   },
 });
 

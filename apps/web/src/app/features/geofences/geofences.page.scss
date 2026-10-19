@@ -63,6 +63,11 @@
 .map.drawing {
   cursor: crosshair;
 }
+/* Dibujo libre: el puntero traza el perímetro en lugar de mover el mapa */
+.map.freehand {
+  cursor: crosshair;
+  touch-action: none;
+}
 .panel {
   position: absolute;
   z-index: 500;

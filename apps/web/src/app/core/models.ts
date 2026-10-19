@@ -71,6 +71,7 @@ export interface Driver extends User {
   shiftActive: boolean;
   vehicle: { id: string; plate: string; type: string } | null;
   openTripId: string | null;
+  location: DriverLocation | null;
 }
 
 export type VehicleType = 'moto' | 'carro' | 'camion' | 'furgon';
@@ -294,6 +295,27 @@ export interface Ticket {
   createdAt: string;
   updatedAt: string;
   thread?: { id: string; author: string; isAgent: boolean; body: string; createdAt: string }[];
+}
+
+/** Ubicación del celular del conductor (Geolocation API del navegador). */
+export interface DriverLocation {
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  sharing: boolean;
+  ts: string;
+}
+
+/** Marcador de conductor en el mapa del administrador. */
+export interface DriverMarker extends DriverLocation {
+  driverId: string;
+  name: string;
+  phone: string;
+  status: string;
+  shiftActive: boolean;
+  vehiclePlate: string | null;
 }
 
 export interface LivePosition extends LiveState {

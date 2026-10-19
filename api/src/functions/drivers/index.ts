@@ -1,4 +1,5 @@
 import { fireAlert } from '../../shared/alert-engine';
+import { publish } from '../../shared/bus';
 import { now } from '../../shared/db';
 import { badRequest, notFound } from '../../shared/errors';
 import { created, defineHttp, noContent, ok } from '../../shared/http';
@@ -171,6 +172,10 @@ defineHttp({
   handler: (req, ctx) => {
     const body = parse(z.object({ message: z.string().max(300).optional() }), req.body);
     const v = myVehicle(ctx.tenantId, ctx.user.id);
+    // Si el celular reportó hace poco, su posición es la más fiable para una emergencia.
+    const phone = driversRepo.get(ctx.tenantId, ctx.user.id).location;
+    const phoneFresh = phone && Date.now() - Date.parse(phone.ts) < 2 * 60_000;
+    const where = phoneFresh ? phone : v.live;
     const alert = fireAlert(
       ctx.tenantId,
       { id: '', name: 'Botón de emergencia', channels: ['inapp', 'push'], recipients: [] },
@@ -179,8 +184,8 @@ defineHttp({
         priority: 'critical',
         vehicleId: v.id,
         deviceId: v.device?.id ?? null,
-        lat: v.live?.lat ?? null,
-        lng: v.live?.lng ?? null,
+        lat: where?.lat ?? null,
+        lng: where?.lng ?? null,
         title: `🚨 Emergencia: ${ctx.user.name} (${v.plate})`,
         description:
           body.message?.trim() ||
@@ -188,5 +193,66 @@ defineHttp({
       },
     );
     return created(alert);
+  },
+});
+
+/* ---- Ubicación del celular del conductor (sin GPS dedicado: Geolocation API del navegador) ---- */
+
+const locationBody = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  accuracy: z.number().min(0).max(100000).nullable().optional(),
+  speed: z.number().min(0).max(400).nullable().optional(),
+  heading: z.number().min(0).max(360).nullable().optional(),
+  timestamp: z.string().optional(),
+});
+
+/** El celular del conductor reporta su posición; el administrador la ve en el mapa en tiempo real. */
+defineHttp({
+  name: 'me-location',
+  route: 'me/location',
+  methods: ['POST'],
+  guard: { roles: ['driver'] },
+  handler: (req, ctx) => {
+    const b = parse(locationBody, req.body);
+    const t = b.timestamp ? Date.parse(b.timestamp) : NaN;
+    const ts = Number.isFinite(t) && Math.abs(t - Date.now()) < 10 * 60_000 ? new Date(t).toISOString() : now();
+    driversRepo.saveLocation(ctx.tenantId, ctx.user.id, {
+      lat: b.lat,
+      lng: b.lng,
+      accuracy: b.accuracy != null ? Math.round(b.accuracy) : null,
+      // La Geolocation API entrega m/s; en la plataforma se maneja km/h
+      speed: b.speed != null ? Math.round(b.speed * 3.6 * 10) / 10 : null,
+      heading: b.heading ?? null,
+      ts,
+    });
+    const marker = driversRepo.locations(ctx.tenantId, { userId: ctx.user.id })[0];
+    publish(ctx.tenantId, 'driver', marker);
+    return ok(marker);
+  },
+});
+
+defineHttp({
+  name: 'me-location-stop',
+  route: 'me/location',
+  methods: ['DELETE'],
+  guard: { roles: ['driver'] },
+  handler: (_req, ctx) => {
+    driversRepo.stopSharing(ctx.tenantId, ctx.user.id);
+    const marker = driversRepo.locations(ctx.tenantId, { userId: ctx.user.id })[0];
+    if (marker) publish(ctx.tenantId, 'driver', marker);
+    return noContent();
+  },
+});
+
+/** Última ubicación de cada conductor de la empresa. */
+defineHttp({
+  name: 'drivers-locations',
+  route: 'drivers/locations',
+  methods: ['GET'],
+  guard: { module: 'map', level: 'read' },
+  handler: (req, ctx) => {
+    const only = ctx.user.role === 'driver' ? ctx.user.id : undefined;
+    return ok(driversRepo.locations(ctx.tenantId, { since: req.query.get('since') ?? undefined, userId: only }));
   },
 });

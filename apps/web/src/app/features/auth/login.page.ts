@@ -88,7 +88,7 @@ import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirecti
               </button>
               <p class="alt">
                 <span>¿No tienes cuenta?</span>
-                <a wmsFlip="/registro" href="/registro">Regístrate</a>
+                <a wmsFlip="/registro" href="registro">Regístrate</a>
               </p>
             </form>
             <div class="demo">

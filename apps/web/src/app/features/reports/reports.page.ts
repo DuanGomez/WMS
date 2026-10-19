@@ -291,7 +291,8 @@ export class ReportsPage implements OnInit {
   }
 
   linkOf(path: string) {
-    return `${location.origin}${path}`;
+    // Relativo a <base href>: funciona en la raíz del dominio y en GitHub Pages (/WMS/).
+    return new URL(path.replace(/^\//, ''), document.baseURI).href;
   }
 
   async share() {

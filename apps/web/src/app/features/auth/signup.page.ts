@@ -121,7 +121,7 @@ import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirecti
               </div>
               <p class="alt">
                 <span>¿Ya tienes cuenta?</span>
-                <a wmsFlip="/login" href="/login">Inicia sesión</a>
+                <a wmsFlip="/login" href="login">Inicia sesión</a>
               </p>
             </form>
           </section>

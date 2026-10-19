@@ -2547,3 +2547,70 @@ table.table {
     width: 100%;
   }
 }
+
+/* Marcador del conductor: ubicación de su celular (Geolocation API) */
+.drv {
+  position: relative;
+  width: 0;
+  height: 0;
+  --drv-color: #34c759;
+}
+.drv.off {
+  --drv-color: #8e8e93;
+}
+.drv .drv-dot {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--drv-color);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.drv:not(.off) .drv-dot {
+  animation: drv-ping 2.4s ease-out infinite;
+}
+@keyframes drv-ping {
+  0% {
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35), 0 0 0 0 color-mix(in srgb, var(--drv-color) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35), 0 0 0 14px transparent;
+  }
+}
+.drv .drv-label {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 20px;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--wms-text);
+  background: var(--wms-panel);
+  border: 1px solid var(--wms-card-border);
+  box-shadow: var(--wms-tip-shadow);
+}
+@media (prefers-reduced-motion: reduce) {
+  .drv .drv-dot {
+    animation: none !important;
+  }
+}
+
+/* Variantes de la capa OSM (antes CARTO, que ahora exige API key) */
+.leaflet-tile-pane .tiles-light {
+  filter: grayscale(0.55) brightness(1.06) contrast(0.92);
+}
+.leaflet-tile-pane .tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.45);
+}

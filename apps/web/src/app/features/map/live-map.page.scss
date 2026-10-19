@@ -413,3 +413,13 @@
     pointer-events: none;
   }
 }
+
+/* Sección de conductores (ubicación del celular) dentro de la lista */
+.drv-section {
+  margin: 14px 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--wms-muted);
+}

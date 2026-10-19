@@ -180,15 +180,19 @@ export interface DriverDto extends UserDto {
   shiftActive: boolean;
   vehicle: { id: string; plate: string; type: string } | null;
   openTripId: string | null;
+  location: DriverLocationDto | null;
 }
 
 const DRIVER_SQL = `
   SELECT u.*, d.document, d.license_number, d.license_category, d.license_expires_at, d.status AS driver_status, d.shift_active,
          v.id AS vehicle_id, v.plate AS vehicle_plate, v.type AS vehicle_type,
-         (SELECT t.id FROM trips t WHERE t.vehicle_id = v.id AND t.status='open' ORDER BY t.started_at DESC LIMIT 1) AS open_trip_id
+         (SELECT t.id FROM trips t WHERE t.vehicle_id = v.id AND t.status='open' ORDER BY t.started_at DESC LIMIT 1) AS open_trip_id,
+         l.lat AS loc_lat, l.lng AS loc_lng, l.accuracy AS loc_accuracy, l.speed AS loc_speed, l.heading AS loc_heading,
+         l.sharing AS loc_sharing, l.ts AS loc_ts
   FROM users u
   LEFT JOIN driver_profiles d ON d.user_id = u.id
   LEFT JOIN vehicles v ON v.driver_id = u.id AND v.retired_at IS NULL
+  LEFT JOIN driver_locations l ON l.user_id = u.id
   WHERE u.company_id = @cid AND u.role = 'driver' AND u.deleted_at IS NULL`;
 
 const mapDriver = (r: any): DriverDto => ({
@@ -201,6 +205,28 @@ const mapDriver = (r: any): DriverDto => ({
   shiftActive: bool(r.shift_active),
   vehicle: r.vehicle_id ? { id: r.vehicle_id, plate: r.vehicle_plate, type: r.vehicle_type } : null,
   openTripId: r.open_trip_id ?? null,
+  location: r.loc_ts ? mapDriverLocation(r) : null,
+});
+
+/** Última ubicación reportada por el celular del conductor. */
+export interface DriverLocationDto {
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  sharing: boolean;
+  ts: string;
+}
+
+const mapDriverLocation = (r: any): DriverLocationDto => ({
+  lat: r.loc_lat,
+  lng: r.loc_lng,
+  accuracy: r.loc_accuracy,
+  speed: r.loc_speed,
+  heading: r.loc_heading,
+  sharing: bool(r.loc_sharing),
+  ts: r.loc_ts,
 });
 
 export interface DriverProfileInput {
@@ -273,4 +299,46 @@ export const driversRepo = {
       cid: tenantId,
     });
   },
+
+  /** Guarda la ubicación enviada por el celular del conductor (Geolocation API del navegador). */
+  saveLocation(
+    tenantId: string,
+    userId: string,
+    p: { lat: number; lng: number; accuracy?: number | null; speed?: number | null; heading?: number | null; ts: string },
+  ) {
+    run(
+      `INSERT INTO driver_locations (user_id, company_id, lat, lng, accuracy, speed, heading, sharing, source, ts)
+       VALUES (@uid,@cid,@lat,@lng,@accuracy,@speed,@heading,1,'browser',@ts)
+       ON CONFLICT(user_id) DO UPDATE SET lat=excluded.lat, lng=excluded.lng, accuracy=excluded.accuracy,
+         speed=excluded.speed, heading=excluded.heading, sharing=1, ts=excluded.ts`,
+      { uid: userId, cid: tenantId, ...p, accuracy: p.accuracy ?? null, speed: p.speed ?? null, heading: p.heading ?? null },
+    );
+  },
+
+  stopSharing(tenantId: string, userId: string) {
+    run(`UPDATE driver_locations SET sharing=0 WHERE user_id=@uid AND company_id=@cid`, { uid: userId, cid: tenantId });
+  },
+
+  /** Conductores con ubicación conocida (para el mapa del administrador). */
+  locations(tenantId: string, opts: { since?: string; userId?: string } = {}) {
+    return all(
+      `${DRIVER_SQL} AND l.ts IS NOT NULL AND (@since IS NULL OR l.ts > @since) AND (@only IS NULL OR u.id = @only) ORDER BY u.name`,
+      { cid: tenantId, since: opts.since ?? null, only: opts.userId ?? null },
+    )
+      .map(mapDriver)
+      .map(toDriverMarker);
+  },
 };
+
+/** Forma compacta que viaja por el stream en tiempo real y pinta el marcador del conductor. */
+export function toDriverMarker(d: DriverDto) {
+  return {
+    driverId: d.id,
+    name: d.name,
+    phone: d.phone,
+    status: d.status,
+    shiftActive: d.shiftActive,
+    vehiclePlate: d.vehicle?.plate ?? null,
+    ...d.location!,
+  };
+}

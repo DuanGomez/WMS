@@ -4,7 +4,8 @@ import { Subject } from 'rxjs';
 import { Api } from './api.service';
 import { Auth } from './auth.service';
 import { ALERT_ICONS } from './format';
-import { Alert, Geofence, LatLng, LivePosition, NotificationItem, Vehicle } from './models';
+import { Alert, DriverMarker, Geofence, LatLng, LivePosition, NotificationItem, Vehicle } from './models';
+import { DEMO } from './runtime';
 import { pref, Toasts } from './ui.services';
 
 export interface LiveSnapshot {
@@ -12,6 +13,7 @@ export interface LiveSnapshot {
   trailMinutes: number;
   vehicles: Vehicle[];
   geofences: Geofence[];
+  drivers: DriverMarker[];
   openAlerts: { items: Alert[]; total: number; open: number } | null;
 }
 
@@ -39,6 +41,8 @@ export class Live {
     lastSeenAt: string;
   }>();
   readonly notifications$ = new Subject<NotificationItem>();
+  /** Ubicación del celular de los conductores. */
+  readonly drivers$ = new Subject<DriverMarker>();
   readonly sound = pref('sound', false);
 
   private es: EventSource | null = null;
@@ -88,7 +92,8 @@ export class Live {
     if (!this.started) return;
     this.mode.set('connecting');
     const token = this.auth.accessToken();
-    if (!token || typeof EventSource === 'undefined') return this.startPolling();
+    // En el demo de GitHub Pages la API vive en el navegador: no hay SSE, se consulta por polling.
+    if (DEMO || !token || typeof EventSource === 'undefined') return this.startPolling();
     const es = new EventSource(`/api/tracking/stream?access_token=${encodeURIComponent(token)}`);
     this.es = es;
     es.addEventListener('hello', () => {
@@ -101,6 +106,10 @@ export class Live {
     es.addEventListener('device', (e) => {
       this.lastEventAt.set(new Date());
       this.devices$.next(JSON.parse((e as MessageEvent).data));
+    });
+    es.addEventListener('driver', (e) => {
+      this.lastEventAt.set(new Date());
+      this.drivers$.next(JSON.parse((e as MessageEvent).data));
     });
     es.addEventListener('notification', (e) =>
       this.notifications$.next(JSON.parse((e as MessageEvent).data)),
@@ -127,10 +136,12 @@ export class Live {
           serverTime: string;
           positions: LivePosition[];
           alerts: Alert[];
+          drivers?: DriverMarker[];
         }>('tracking/poll', { since: this.since });
         this.since = r.serverTime;
         r.positions.forEach((p) => this.onPosition(p));
         r.alerts.reverse().forEach((a) => this.onAlert(a));
+        r.drivers?.forEach((d) => this.drivers$.next(d));
       } catch {}
     }, 2000);
   }
@@ -154,6 +165,8 @@ export class Live {
       this.openAlerts.update((n) => n + 1);
       this.recentAlerts.update((l) => [a, ...l].slice(0, 20));
     }
+    // Avisos informativos que ya llegan atendidos (p. ej. «señal recuperada»): quedan en el historial, sin notificación.
+    if (a.attended && a.priority === 'low') return;
     const meta = ALERT_ICONS[a.type] ?? { icon: 'bell', color: 'blue' };
     const critical = a.priority === 'critical' || a.priority === 'high';
     this.toasts.show(

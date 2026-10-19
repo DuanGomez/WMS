@@ -8,32 +8,34 @@ export const MEDELLIN: LatLng = [6.2442, -75.5812];
 export const ABURRA_BOUNDS = L.latLngBounds([6.02, -75.78], [6.45, -75.38]);
 
 export type BaseLayer = 'osm' | 'light' | 'dark';
+/**
+ * Todas las capas usan las teselas estándar de OpenStreetMap (sin API key). Las variantes clara y nocturna
+ * se obtienen con un filtro CSS sobre la misma tesela (clases .tiles-light / .tiles-dark en styles.scss):
+ * CARTO dejó de servir teselas sin llave.
+ */
 export const BASE_LAYERS: Record<
   BaseLayer,
-  { label: string; url: string; attribution: string; subdomains?: string; maxZoom: number }
+  { label: string; url: string; attribution: string; className?: string; maxZoom: number }
 > = {
   osm: {
     label: 'Estándar (OpenStreetMap)',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution:
-      '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
     maxZoom: 19,
   },
   light: {
-    label: 'Claro (CARTO Positron)',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution:
-      '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 20,
+    label: 'Claro (OpenStreetMap atenuado)',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+    className: 'tiles-light',
+    maxZoom: 19,
   },
   dark: {
-    label: 'Oscuro (CARTO Dark Matter)',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution:
-      '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 20,
+    label: 'Oscuro (OpenStreetMap nocturno)',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+    className: 'tiles-dark',
+    maxZoom: 19,
   },
 };
 
@@ -60,8 +62,7 @@ export function tileLayer(kind: BaseLayer): L.TileLayer {
   return L.tileLayer(b.url, {
     attribution: b.attribution,
     maxZoom: b.maxZoom,
-    subdomains: b.subdomains ?? 'abc',
-    detectRetina: kind !== 'osm',
+    className: b.className ?? '',
     crossOrigin: true,
   });
 }

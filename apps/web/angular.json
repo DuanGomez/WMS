@@ -36,7 +36,10 @@
             ],
             "allowedCommonJsDependencies": [
               "leaflet"
-            ]
+            ],
+            "define": {
+              "WMS_DEMO": "false"
+            }
           },
           "configurations": {
             "production": {
@@ -58,6 +61,25 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "pages": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "1.5MB",
+                  "maximumError": "3MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "13kB",
+                  "maximumError": "24kB"
+                }
+              ],
+              "outputHashing": "all",
+              "define": {
+                "WMS_DEMO": "true"
+              },
+              "baseHref": "/WMS/"
             }
           },
           "defaultConfiguration": "production"

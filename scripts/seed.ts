@@ -17,6 +17,7 @@ import { SIM_FLEET } from '../api/src/functions/gps-simulator/fleet';
 import { loadRoute, SimVehicle } from '../api/src/functions/gps-simulator/engine';
 import { LA72 } from '../api/src/functions/gps-simulator/waypoints';
 import { buildReport } from '../api/src/functions/reports/builder';
+import { driversRepo } from '../api/src/shared/repositories/users';
 
 export const DEMO_PASSWORD = 'Demo1234!';
 
@@ -360,6 +361,28 @@ function seedHistory(
   }
 }
 
+/** Envolvente convexa de la ruta ampliada `bufferM` metros hacia afuera (polígono de operación). */
+function operationArea(points: LatLng[], bufferM: number): LatLng[] {
+  const pts = [...points].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  const cross = (o: LatLng, a: LatLng, b: LatLng) => (a[1] - o[1]) * (b[0] - o[0]) - (a[0] - o[0]) * (b[1] - o[1]);
+  const half = (list: LatLng[]) => {
+    const h: LatLng[] = [];
+    for (const p of list) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();
+      h.push(p);
+    }
+    h.pop();
+    return h;
+  };
+  const hull = [...half(pts), ...half([...pts].reverse())];
+  const c: LatLng = [hull.reduce((s, p) => s + p[0], 0) / hull.length, hull.reduce((s, p) => s + p[1], 0) / hull.length];
+  return hull.map((p) => {
+    const b = (Math.atan2(p[1] - c[1], p[0] - c[0]) * 180) / Math.PI;
+    const q = destination(p, (b + 360) % 360, bufferM);
+    return [Number(q[0].toFixed(6)), Number(q[1].toFixed(6))] as LatLng;
+  });
+}
+
 /** Polígono de la zona autorizada de domicilios (Laureles – Belén). */
 const ZONE_LAURELES_BELEN: LatLng[] = [
   [6.2615, -75.6035],
@@ -481,7 +504,7 @@ export async function seed(opts: { quiet?: boolean } = {}) {
     simVehicles[f.key] = { vehicleId: vid, deviceId: dev.id, companyId: cid };
   }
   // Inventario extra: moto en mantenimiento, GPS de repuesto y uno dado de baja (robado)
-  vehicle(la72, {
+  const bqr = vehicle(la72, {
     plate: 'BQR27F',
     type: 'moto',
     brand: 'Yamaha',
@@ -504,7 +527,35 @@ export async function seed(opts: { quiet?: boolean } = {}) {
   });
   devicesRepo.retire(la72, stolen.id, 'robado');
 
+  // La moto en mantenimiento queda estacionada en la sede (sin GPS: última posición registrada a mano)
+  const parked = destination(LA72, 200, 45);
+  run(
+    `INSERT INTO vehicle_live (vehicle_id, company_id, lat, lng, speed, heading, accuracy, battery, ignition, ts, stopped_since)
+     VALUES (@v,@c,@lat,@lng,0,0,10,NULL,0,@ts,@ts)`,
+    { v: bqr, c: la72, lat: parked[0], lng: parked[1], ts: ago(0.2) },
+  );
+
+  // Mateo comparte la ubicación de su celular (sin GPS dedicado): aparece en el mapa del administrador.
+  const phone = destination(LA72, 70, 190);
+  driversRepo.saveLocation(la72, mateo, { lat: phone[0], lng: phone[1], accuracy: 12, speed: 0, heading: null, ts: ago(0.002) });
+
   // --- Geocercas
+  // Área de operación: envuelve toda la ruta, así cada vehículo demo está siempre dentro de una geocerca.
+  const area = operationArea(route.points, 600);
+  geofencesRepo.create(la72, {
+    name: 'Área de operación – Medellín',
+    description: 'Zona donde opera la flota de la 72 (Poblado, Centro, U. de A., Laureles).',
+    shape: 'polygon',
+    coordinates: area,
+    color: '#5856D6',
+  });
+  geofencesRepo.create(trigal, {
+    name: 'Zona de reparto El Trigal',
+    description: 'Cobertura de entregas de la panadería.',
+    shape: 'polygon',
+    coordinates: area,
+    color: '#30B0C7',
+  });
   const corridor = route.points.filter((_, i) => i % 3 === 0);
   const g72 = geofencesRepo.create(la72, {
     name: 'Supermercados la 72',
@@ -768,7 +819,8 @@ export async function seed(opts: { quiet?: boolean } = {}) {
   );
 }
 
-if (require.main === module) {
+// En el navegador (demo de GitHub Pages) no existe `require`: allí el seed lo invoca src/demo.
+if (typeof module !== 'undefined' && typeof require !== 'undefined' && require.main === module) {
   seed().catch((e) => {
     console.error(e);
     process.exit(1);

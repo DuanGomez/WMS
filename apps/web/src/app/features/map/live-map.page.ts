@@ -20,9 +20,9 @@ import { Subscription } from 'rxjs';
 import { Auth } from '../../core/auth.service';
 import { fmt, VEHICLE_TYPES } from '../../core/format';
 import { Live } from '../../core/live.service';
-import { Geofence, LivePosition, Vehicle } from '../../core/models';
+import { DriverMarker, Geofence, LivePosition, Vehicle } from '../../core/models';
 import { pref, Theme } from '../../core/ui.services';
-import { IconComponent } from '../../ui/icon.component';
+import { IconComponent, iconSvg } from '../../ui/icon.component';
 import { SegmentedComponent, ToggleComponent } from '../../ui/components';
 import {
   BASE_LAYERS,
@@ -81,17 +81,26 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
   private router = inject(Router);
   /** ?v=<vehicleId> preselecciona un vehículo (desde una notificación). */
   readonly v = input<string>();
+  /** ?d=<driverId> centra el mapa en el celular de un conductor. */
+  readonly d = input<string>();
 
   private mapEl = viewChild.required<ElementRef<HTMLDivElement>>('map');
   private map!: L.Map;
   private base?: L.TileLayer;
   private gfGroup = L.layerGroup();
   private markers = new Map<string, VehicleMarker>();
+  private driverGroup = L.layerGroup();
+  private driverMarkers = new Map<string, { marker: L.Marker; ring: L.Circle }>();
   private subs: Subscription[] = [];
   private ro?: ResizeObserver;
   private clock?: ReturnType<typeof setInterval>;
 
   readonly vehicles = signal<Record<string, VM>>({});
+  /** Conductores que comparten la ubicación de su celular. */
+  readonly drivers = signal<Record<string, DriverMarker>>({});
+  readonly driverList = computed(() =>
+    Object.values(this.drivers()).sort((a, b) => Number(this.driverLive(b)) - Number(this.driverLive(a)) || a.name.localeCompare(b.name)),
+  );
   readonly geofences = signal<Geofence[]>([]);
   readonly selectedId = signal<string | null>(null);
   readonly follow = signal(true);
@@ -183,6 +192,7 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     const p = this.layerPref.get();
     this.setBase(p === 'auto' ? (this.theme.isDark() ? 'dark' : 'light') : p);
     if (this.showGeofences.get()) this.gfGroup.addTo(this.map);
+    this.driverGroup.addTo(this.map);
     this.map.on('dragstart', () => this.follow.set(false));
     this.ro = new ResizeObserver(() => this.map.invalidateSize({ pan: false }));
     this.ro.observe(this.mapEl().nativeElement);
@@ -201,8 +211,11 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
         if (v.live) this.addMarker(record[v.id], v.trail ?? [], snap.trailMinutes);
       }
       this.vehicles.set(record);
+      for (const dm of snap.drivers ?? []) this.upsertDriver(dm);
       const pre = this.v();
+      const preDriver = this.d();
       if (pre && record[pre]) this.select(pre);
+      else if (preDriver && this.drivers()[preDriver]) this.focusDriver(preDriver);
       else this.fitAll(false);
     } finally {
       this.loading.set(false);
@@ -210,6 +223,7 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
 
     this.subs.push(
       this.live.positions$.subscribe((p) => this.onPosition(p)),
+      this.live.drivers$.subscribe((dm) => this.upsertDriver(dm)),
       this.live.devices$.subscribe((d) => {
         if (!d.vehicleId) return;
         this.patch(d.vehicleId, { connection: d.connection });
@@ -227,6 +241,49 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     clearInterval(this.clock);
     this.markers.forEach((m) => m.remove());
     this.map?.remove();
+  }
+
+  /* ---------- Conductores (ubicación del celular) ---------- */
+
+  /** Activo si comparte y reportó en los últimos 10 minutos. */
+  driverLive(d: DriverMarker) {
+    return d.sharing && this.now() - Date.parse(d.ts) < 10 * 60_000;
+  }
+
+  private upsertDriver(d: DriverMarker) {
+    this.drivers.update((all) => ({ ...all, [d.driverId]: d }));
+    const live = this.driverLive(d);
+    const first = d.name.split(' ')[0];
+    const html = `<div class="drv${live ? '' : ' off'}"><div class="drv-dot">${iconSvg('user', 13, 2.4)}</div><div class="drv-label">${escapeHtml(first)}</div></div>`;
+    const icon = L.divIcon({ className: '', iconSize: [0, 0], html });
+    const popup = `<strong>${escapeHtml(d.name)}</strong><br>${d.vehiclePlate ? 'Vehículo ' + escapeHtml(d.vehiclePlate) + ' · ' : ''}Celular del conductor<br>Precisión ± ${d.accuracy ?? '—'} m · ${live ? 'en vivo' : 'sin actualizar'}`;
+    const existing = this.driverMarkers.get(d.driverId);
+    if (existing) {
+      existing.marker.setLatLng([d.lat, d.lng]).setIcon(icon).setPopupContent(popup);
+      existing.ring.setLatLng([d.lat, d.lng]).setRadius(Math.min(d.accuracy ?? 0, 300));
+      return;
+    }
+    const ring = L.circle([d.lat, d.lng], {
+      radius: Math.min(d.accuracy ?? 0, 300),
+      color: '#34C759',
+      weight: 1,
+      opacity: 0.5,
+      fillOpacity: 0.08,
+      interactive: false,
+    });
+    const marker = L.marker([d.lat, d.lng], { icon, title: d.name, zIndexOffset: 800, keyboard: true }).bindPopup(popup);
+    this.driverGroup.addLayer(ring).addLayer(marker);
+    this.driverMarkers.set(d.driverId, { marker, ring });
+  }
+
+  focusDriver(id: string) {
+    const d = this.drivers()[id];
+    const m = this.driverMarkers.get(id);
+    if (!d || !m) return;
+    this.selectedId.set(null);
+    this.follow.set(false);
+    this.map.flyTo([d.lat, d.lng], Math.max(this.map.getZoom(), 16), { duration: 0.8 });
+    setTimeout(() => m.marker.openPopup(), 850);
   }
 
   private toVM(v: Vehicle): VM {
@@ -397,4 +454,8 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
   openTrips(id: string) {
     this.router.navigate(['/vehiculos'], { queryParams: { id, tab: 'recorridos' } });
   }
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }

@@ -2,14 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnInit,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
-import { DtPipe, VEHICLE_TYPES } from '../../core/format';
+import { DtPipe, fmt, VEHICLE_TYPES } from '../../core/format';
+import { Live } from '../../core/live.service';
 import { Driver, Vehicle } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
 import { EmptyComponent, SheetComponent, SkeletonListComponent } from '../../ui/components';
@@ -74,13 +77,14 @@ const STATUS: Record<string, { label: string; tone: string }> = {
         </div>
       } @else {
         <div class="table-wrap">
-          <table class="table grid" style="--cols: minmax(0,2fr) 130px minmax(0,1.5fr) 120px 120px; min-width: 760px">
+          <table class="table grid" style="--cols: minmax(0,2fr) 130px minmax(0,1.4fr) 120px minmax(0,1.3fr) 120px; min-width: 900px">
             <thead>
               <tr>
                 <th>Conductor</th>
                 <th>Teléfono</th>
                 <th>Licencia</th>
                 <th>Vehículo</th>
+                <th>Ubicación</th>
                 <th>Estado</th>
               </tr>
             </thead>
@@ -107,12 +111,25 @@ const STATUS: Record<string, { label: string; tone: string }> = {
                       <span class="muted">Sin asignar</span>
                     }
                   </td>
+                  <td data-label="Ubicación">
+                    @if (d.location; as loc) {
+                      <div class="cell loc">
+                        <span class="dot" [class.green]="locLive(d)" [class.pulse]="locLive(d)"></span>
+                        <span class="cell-txt"><b>{{ locLive(d) ? 'Celular en vivo' : loc.sharing ? 'Sin actualizar' : 'En pausa' }}</b><small>{{ loc.ts | dt: 'relative' }} · ± {{ loc.accuracy ?? '—' }} m</small></span>
+                        @if (auth.can('map')) {
+                          <button class="btn sm icon" type="button" title="Ver en el mapa" aria-label="Ver en el mapa" (click)="$event.stopPropagation(); viewOnMap(d)"><app-icon name="map-pin" [size]="14" /></button>
+                        }
+                      </div>
+                    } @else {
+                      <span class="muted">Aún no comparte</span>
+                    }
+                  </td>
                   <td data-label="Estado">
                     <span class="badge" [class.solid]="d.status === 'en_ruta'" [class.off]="d.status === 'descanso' || d.status === 'inactivo'">{{ status[d.status].label }}</span>
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="5"><div class="empty"><h3>Sin conductores</h3>Ningún conductor coincide con el filtro.</div></td></tr>
+                <tr><td colspan="6"><div class="empty"><h3>Sin conductores</h3>Ningún conductor coincide con el filtro.</div></td></tr>
               }
             </tbody>
           </table>
@@ -131,6 +148,9 @@ const STATUS: Record<string, { label: string; tone: string }> = {
         [chipTone]="status[d.status].tone === 'green' ? 'solid' : status[d.status].tone ? 'on' : 'off'"
         [rows]="driverRows(d)"
       >
+        @if (d.location && auth.can('map')) {
+          <button class="btn" type="button" (click)="detail.set(null); viewOnMap(d)"><app-icon name="map-pin" [size]="14" />Ver en el mapa</button>
+        }
         @if (canWrite()) {
           <button class="btn primary" type="button" (click)="detail.set(null); openAssign(d)"><app-icon name="link" [size]="14" />Asignar vehículo</button>
           <button class="btn" type="button" (click)="detail.set(null); openEdit(d)"><app-icon name="pencil" [size]="14" />Editar</button>
@@ -225,6 +245,9 @@ const STATUS: Record<string, { label: string; tone: string }> = {
             </select>
           </div>
         }
+        @if (!editing()) {
+          <p class="full footnote loc-hint"><app-icon name="map-pin" [size]="14" />Cuando el conductor inicie sesión desde su celular, la app le pedirá permiso para compartir su ubicación y la verás en el mapa en vivo.</p>
+        }
         @if (formError()) {
           <div
             class="full badge red"
@@ -301,6 +324,12 @@ export class DriversPage implements OnInit {
       { k: 'Teléfono', v: d.phone || '—' },
       { k: 'Licencia', v: `${d.licenseNumber || '—'} · Cat. ${d.licenseCategory}`, mono: true },
       { k: 'Vehículo', v: d.vehicle ? d.vehicle.plate : 'Sin asignar' },
+      {
+        k: 'Ubicación',
+        v: d.location
+          ? `${this.locLive(d) ? 'Celular en vivo' : 'Última lectura'} · ${fmt.relative(d.location.ts)} · ± ${d.location.accuracy ?? '—'} m`
+          : 'Aún no comparte su ubicación',
+      },
       { k: 'Estado', v: this.status[d.status].label },
     ];
   }
@@ -310,6 +339,39 @@ export class DriversPage implements OnInit {
   private toasts = inject(Toasts);
   private confirm = inject(Confirm);
   readonly drivers = signal<Driver[]>([]);
+  private live = inject(Live);
+  private router = inject(Router);
+  private destroyRef2 = inject(DestroyRef);
+  private tick = signal(Date.now());
+
+  /** Ubicación del celular "en vivo": compartiendo y con lectura de los últimos 10 minutos. */
+  locLive(d: Driver) {
+    this.tick();
+    return !!d.location && d.location.sharing && Date.now() - Date.parse(d.location.ts) < 10 * 60_000;
+  }
+
+  viewOnMap(d: Driver) {
+    this.router.navigate(['/mapa'], { queryParams: { d: d.id } });
+  }
+
+  /** Actualiza la columna de ubicación con lo que llega en tiempo real del celular de cada conductor. */
+  private followLocations = (() => {
+    const sub = this.live.drivers$.subscribe((m) =>
+      this.drivers.update((list) =>
+        list.map((d) =>
+          d.id === m.driverId
+            ? { ...d, location: { lat: m.lat, lng: m.lng, accuracy: m.accuracy, speed: m.speed, heading: m.heading, sharing: m.sharing, ts: m.ts } }
+            : d,
+        ),
+      ),
+    );
+    const t = setInterval(() => this.tick.set(Date.now()), 15000);
+    this.destroyRef2.onDestroy(() => {
+      sub.unsubscribe();
+      clearInterval(t);
+    });
+    return true;
+  })();
   readonly vehicles = signal<Vehicle[]>([]);
   readonly loading = signal(true);
   readonly sheetOpen = signal(false);

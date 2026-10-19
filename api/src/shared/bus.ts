@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events';
  * tracking-stream para empujar los eventos al navegador (SSE). En Azure se reemplazaría por
  * Web PubSub / SignalR Service sin cambiar los productores.
  */
-export type LiveEvent = 'position' | 'alert' | 'device' | 'notification';
+export type LiveEvent = 'position' | 'alert' | 'device' | 'notification' | 'driver';
 
 const emitter = new EventEmitter();
 emitter.setMaxListeners(0);

@@ -95,6 +95,22 @@
             <p class="footnote">No hay vehículos que coincidan con el filtro.</p>
           </div>
         }
+        @if (driverList().length) {
+          <div class="drv-section">Conductores con celular</div>
+          @for (dm of driverList(); track dm.driverId) {
+            <button class="list-item vrow" type="button" (click)="focusDriver(dm.driverId)">
+              <span class="icon-tile lg" [class.bg-green]="driverLive(dm)" [class.bg-gray]="!driverLive(dm)"><app-icon name="user" [size]="20" /></span>
+              <span class="content">
+                <span class="title">{{ dm.name }}</span>
+                <span class="sub truncate" style="display: block">{{ dm.vehiclePlate ? dm.vehiclePlate + ' · ' : '' }}Celular ± {{ dm.accuracy ?? '—' }} m</span>
+              </span>
+              <span class="trailing" style="flex-direction: column; align-items: flex-end; gap: 0">
+                <span class="tabular" style="color: var(--label); font-weight: 600; font-size: 14px">{{ driverLive(dm) ? 'En vivo' : (dm.sharing ? 'Sin actualizar' : 'En pausa') }}</span>
+                <span class="caption">{{ ago(dm.ts) }}</span>
+              </span>
+            </button>
+          }
+        }
       }
     </div>
 </section>

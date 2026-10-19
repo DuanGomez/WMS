@@ -7,15 +7,17 @@ import {
   OnInit,
   signal,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
 import { DtPipe, NumPipe, VEHICLE_TYPES } from '../../core/format';
 import { Live } from '../../core/live.service';
+import { DriverLocation, ShareStatus } from '../../core/driver-location.service';
 import { Driver, Trip, Vehicle } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
-import { EmptyComponent } from '../../ui/components';
+import { EmptyComponent, ToggleComponent } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
 import { CountDirective } from '../../ui/wms-fx';
 
@@ -25,10 +27,21 @@ interface Me {
   trips: Trip[];
 }
 
+const SHARE_LABELS: Record<ShareStatus, string> = {
+  idle: 'Inactiva',
+  requesting: 'Esperando permiso…',
+  active: 'Compartiendo en vivo',
+  paused: 'En pausa',
+  denied: 'Permiso denegado',
+  unavailable: 'No disponible en este dispositivo',
+  insecure: 'Requiere HTTPS',
+  error: 'Buscando señal…',
+};
+
 /** Conductor (Repartidor): iniciarRecorrido, finalizarRecorrido y enviarAlertaEmergencia del modelo de dominio. */
 @Component({
   selector: 'app-my-shift',
-  imports: [RouterLink, IconComponent, EmptyComponent, DtPipe, NumPipe, CountDirective],
+  imports: [RouterLink, NgTemplateOutlet, IconComponent, EmptyComponent, ToggleComponent, DtPipe, NumPipe, CountDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -83,6 +96,8 @@ interface Me {
               </button>
             </section>
 
+            <ng-container [ngTemplateOutlet]="locCard" />
+
             <section class="card mc full">
               <div class="mc-t"><span>Mis últimos recorridos</span></div>
               <div class="trips">
@@ -110,6 +125,7 @@ interface Me {
           <div class="card">
             <app-empty icon="car" title="Sin vehículo asignado" text="Pídele a tu administrador que te asigne un vehículo en Conductores." />
           </div>
+          <div class="mgrid" style="margin-top:18px"><ng-container [ngTemplateOutlet]="locCard" /></div>
         }
       } @else if (error()) {
         <div class="card">
@@ -119,6 +135,31 @@ interface Me {
         <div class="card"><div class="skeleton" style="height:180px"></div></div>
       }
     </div>
+
+    <ng-template #locCard>
+      <section class="card mc loc-card">
+        <div class="mc-head">
+          <div class="mc-t">
+            <span>Ubicación de este celular</span>
+            <small>Tu empresa te ve en el mapa mientras esté activa.</small>
+          </div>
+          <app-toggle [value]="loc.enabled.get()" (changed)="loc.setEnabled($event)" label="Compartir mi ubicación" />
+        </div>
+        <div class="kv"><span>Estado</span><b class="loc-state" [attr.data-state]="loc.status()"><span class="dot" [class.green]="loc.status() === 'active'" [class.pulse]="loc.status() === 'active'"></span>{{ shareLabels[loc.status()] }}</b></div>
+        @if (loc.last(); as p) {
+          <div class="kv"><span>Precisión</span><b>± {{ p.accuracy }} m</b></div>
+          <div class="kv"><span>Última lectura</span><b>{{ p.ts | dt: 'relative' }}</b></div>
+          <div class="kv"><span>Coordenadas</span><b class="mono">{{ p.lat.toFixed(5) }}, {{ p.lng.toFixed(5) }}</b></div>
+        }
+        @if (loc.status() === 'denied') {
+          <p class="note">Permite el acceso a la ubicación para este sitio en los ajustes del navegador y vuelve a activarlo.</p>
+        } @else if (loc.status() === 'insecure') {
+          <p class="note">El navegador solo comparte la ubicación en sitios seguros (HTTPS).</p>
+        } @else if (loc.error()) {
+          <p class="note">{{ loc.error() }}</p>
+        }
+      </section>
+    </ng-template>
   `,
   styles: `
     .mgrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
@@ -126,6 +167,7 @@ interface Me {
     .mgrid > :nth-child(1) { animation-delay: 120ms; } .mgrid > :nth-child(2) { animation-delay: 200ms; } .mgrid > :nth-child(3) { animation-delay: 280ms; }
     .mc { display: flex; flex-direction: column; gap: 12px; }
     .mc.full { grid-column: 1 / -1; }
+    .loc-state { display: inline-flex; align-items: center; gap: 6px; }
     .mc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
     .mc-t { display: flex; flex-direction: column; gap: 2px; }
     .mc-t > span { font-size: 13px; font-weight: 600; }
@@ -157,6 +199,8 @@ interface Me {
 export class MyShiftPage implements OnInit, OnDestroy {
   private api = inject(Api);
   readonly auth = inject(Auth);
+  readonly loc = inject(DriverLocation);
+  readonly shareLabels = SHARE_LABELS;
   private live = inject(Live);
   private destroyRef = inject(DestroyRef);
   private toasts = inject(Toasts);

@@ -8,12 +8,16 @@
 
 **Saber dónde está cada vehículo, en tiempo real, sin contratos largos ni hardware caro.**
 
+### [▶ Probar la demo en vivo](https://duangomez.github.io/WMS/)
+
+<sub>La demo de GitHub Pages corre completa en tu navegador (API, base de datos y simulador GPS). Entra con «Administrador» o cualquier cuenta demo · contraseña <code>Demo1234!</code></sub>
+
 ![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-24_LTS-339933?logo=nodedotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)
 ![Azure Functions](https://img.shields.io/badge/Azure_Functions-v4-0062AD?logo=azurefunctions&logoColor=white)
 ![Leaflet](https://img.shields.io/badge/Leaflet-OpenStreetMap-199900?logo=leaflet&logoColor=white)
-![Tests](https://img.shields.io/badge/pruebas-37_pasando-34C759)
+![Tests](https://img.shields.io/badge/pruebas-45_pasando-34C759)
 ![Licencia](https://img.shields.io/badge/licencia-MIT-lightgrey)
 
 **Proyecto Pedagógico Integrador (PPI)** · Ingeniería de Software II (PREINTIC25004)
@@ -45,7 +49,7 @@ Docente: **Jhon Hernández**
 10. [Metodología SCRUM](#10-metodología-scrum)
 11. [Matriz de cumplimiento de requisitos](#11-matriz-de-cumplimiento-de-requisitos)
 12. [Calidad y pruebas](#12-calidad-y-pruebas)
-13. [Despliegue en Azure y hoja de ruta](#13-despliegue-en-azure-y-hoja-de-ruta)
+13. [Despliegue: GitHub Pages y Azure](#13-despliegue-github-pages-y-azure)
 14. [Licencia y créditos](#14-licencia-y-créditos)
 
 ---
@@ -57,12 +61,13 @@ Docente: **Jhon Hernández**
 **WMS** es una plataforma **SaaS multi-tenant** que cualquier pyme puede contratar por suscripción. Permite:
 
 - 🗺️ ver la **ubicación en tiempo real** de la flota sobre OpenStreetMap, con movimiento fluido y estela de recorrido;
-- ⬡ dibujar **geocercas** (círculos, polígonos y corredores de ruta) y recibir alertas de **entrada, salida y desvío**;
+- ⬡ **dibujar geocercas a mano alzada** sobre el mapa (o como círculo, polígono por puntos o corredor de ruta) y recibir alertas de **entrada, salida y desvío**;
+- 📱 ver a los **conductores en el mapa con la ubicación de su celular**, sin necesidad de un GPS dedicado;
 - 🚨 detectar automáticamente **paradas prolongadas**, **pérdida de señal del GPS**, **exceso de velocidad** y **movimiento con el encendido apagado (posible robo)**;
 - 📄 generar **reportes PDF y Excel**, reproducir recorridos históricos y **compartirlos** por enlace;
 - 👥 gestionar **usuarios, roles y permisos granulares**, conductores, dispositivos GPS, plan y facturación.
 
-Todo con una interfaz inspirada en las apps de Apple: materiales translúcidos, tipografía SF, modo claro y oscuro, animaciones con curva de resorte, *bottom sheet* y *tab bar* en el celular.
+Todo con una interfaz monocromática de vidrio esmerilado, en modo claro y oscuro, español e inglés, con animaciones fluidas y una versión móvil con navegación propia.
 
 ---
 
@@ -70,8 +75,31 @@ Todo con una interfaz inspirada en las apps de Apple: materiales translúcidos, 
 
 > Se generan con `npm run screenshots` (Playwright) mientras corre `npm run dev`. Ver [scripts/screenshots.mjs](scripts/screenshots.mjs).
 
-| Mapa en vivo | Mapa en vivo (oscuro) |
+| Mapa en vivo: vehículos, conductores con celular y geocercas | Mapa en vivo (oscuro) |
 |---|---|
+| ![Mapa en vivo](docs/screenshots/mapa.png) | ![Mapa en vivo, modo oscuro](docs/screenshots/mapa-oscuro.png) |
+
+| Dashboard | Inicio de sesión |
+|---|---|
+| ![Dashboard](docs/screenshots/inicio.png) | ![Login](docs/screenshots/login-oscuro.png) |
+
+| Geocercas sobre el mapa (dibujo libre) | Conductores: ubicación del celular |
+|---|---|
+| ![Geocercas en el mapa](docs/screenshots/geocercas-mapa.png) | ![Conductores](docs/screenshots/conductores.png) |
+
+| Alertas | Reportes |
+|---|---|
+| ![Alertas](docs/screenshots/alertas.png) | ![Reportes](docs/screenshots/reportes.png) |
+
+| Vehículos | Suscripción y facturación |
+|---|---|
+| ![Vehículos](docs/screenshots/vehiculos-oscuro.png) | ![Suscripción](docs/screenshots/suscripcion.png) |
+
+| Móvil: mapa | Móvil: *Mi turno* del conductor | Móvil: alertas |
+|---|---|---|
+| <img src="docs/screenshots/mapa-movil.png" width="260" alt="Mapa en el celular" /> | <img src="docs/screenshots/mi-turno-movil.png" width="260" alt="Mi turno del conductor compartiendo su ubicación" /> | <img src="docs/screenshots/alertas-movil.png" width="260" alt="Alertas en el celular" /> |
+
+---|---|
 | ![Mapa en vivo](docs/screenshots/mapa.png) | ![Mapa en vivo, modo oscuro](docs/screenshots/mapa-oscuro.png) |
 
 | Dashboard | Inicio de sesión |
@@ -96,13 +124,13 @@ Todo con una interfaz inspirada en las apps de Apple: materiales translúcidos, 
 
 | Módulo | Qué hace | Requisitos |
 |---|---|---|
-| **Mapa en vivo** (HU1) | Mapa de OpenStreetMap centrado en Medellín y limitado al Valle de Aburrá. Marcador estilo Apple Maps (punto azul, halo pulsante, cono de rumbo, placa), **animación interpolada a 60 fps** y estela de los últimos 10 min. Tarjeta del vehículo con velocidad, batería del GPS, conexión, encendido y conductor. Botón «Seguir», selector de capas (OSM, CARTO Positron y Dark Matter, automático según el tema), filtros y búsqueda. En el celular el panel es un *bottom sheet* arrastrable con 3 alturas. | RG2, RE1, RF2, RE10 |
+| **Mapa en vivo** (HU1) | Mapa de OpenStreetMap centrado en Medellín y limitado al Valle de Aburrá. Marcador estilo Apple Maps (punto azul, halo pulsante, cono de rumbo, placa), **animación interpolada a 60 fps** y estela de los últimos 10 min. Tarjeta del vehículo con velocidad, batería del GPS, conexión, encendido y conductor. Botón «Seguir», selector de capas (OSM estándar, clara y nocturna, automática según el tema), filtros y búsqueda. Muestra también a los **conductores que comparten la ubicación de su celular**. En el celular el panel es un *bottom sheet* arrastrable con 3 alturas. | RG2, RE1, RF2, RE10 |
 | **Dashboard** | KPIs: vehículos activos, alertas abiertas, km del día y dispositivos en falla. Gráficas de km y alertas por día, alertas por tipo, vehículos con más recorrido y alertas recientes que se pueden atender ahí mismo. | RG5 |
 | **Vehículos** | CRUD con placa colombiana validada, tipo (moto, carro, camión, furgón), estado, GPS y conductor. Baja con motivo, que conserva el histórico. **Reproducción de recorridos** con línea de tiempo. Respeta el límite de vehículos del plan. | RF1-RF4, RG6 |
-| **Conductores** | Registro (conductor = usuario con rol `driver` + perfil con licencia), asignación 1:1 a vehículos y estado. | RE7 |
-| **Mi turno** (rol conductor) | Iniciar y finalizar recorrido, y **botón de emergencia** con ubicación. | Modelo de dominio |
+| **Conductores** | Registro (conductor = usuario con rol `driver` + perfil con licencia), asignación 1:1 a vehículos, estado y **última ubicación del celular** con acceso directo al mapa. | RE7 |
+| **Mi turno** (rol conductor) | Iniciar y finalizar recorrido, **botón de emergencia** con ubicación y **ubicación del celular**: al entrar, la app pide permiso de geolocalización y envía la posición cada 5 s (o al moverse 20 m) para que el administrador lo vea en el mapa. Se puede pausar. | Modelo de dominio |
 | **Dispositivos GPS** | Registro independiente del vehículo con API key, estado (activo, inactivo, en falla), conexión y batería en vivo, reasignación y baja (robado, dañado, fin de vida útil). | RF28-RF31, RG8 |
-| **Geocercas** | Dibujo sobre el mapa de **círculo** (centro y radio), **polígono** (vértices arrastrables) y **corredor de ruta** (polilínea y ancho). Asociación a vehículos, colores, activar o desactivar, y borrado lógico. Muestra qué vehículos están dentro en este momento. | RE2, RF5-RF8, RG3 |
+| **Geocercas** | **Dibujo libre**: se mantiene presionado y se traza el perímetro con el mouse o el dedo; al soltar se cierra y simplifica (Douglas-Peucker) en un polígono con vértices arrastrables. También **círculo** (centro y radio), **polígono por puntos** y **corredor de ruta** (polilínea y ancho). Cada empresa demo tiene un **área de operación** que envuelve toda la ruta, así ningún vehículo queda fuera de una geocerca. Asociación a vehículos, colores, activar o desactivar, y borrado lógico. Muestra qué vehículos están dentro en este momento. | RE2, RF5-RF8, RG3 |
 | **Alertas** | Reglas configurables (tipo, umbral, geocerca, vehículos, canales, destinatarios y prioridad). Historial con filtros y paginación, marcar como atendida y **bandeja de correos y push enviados (simulados)**. Toast tipo notificación de iOS, badge rojo y sonido opcional. | RG4, RE3-RE5, RF15-RF18 |
 | **Reportes** | PDF (KPIs, mini-mapa vectorial del recorrido y tablas) y Excel (una hoja por sección, con filtros) por vehículo, conductor y periodo. Historial, **regenerar** (con versión), eliminar y **compartir** por enlace con token y vencimiento o por envío directo a otro usuario. | RG5, RE6, RF19-RF22, RF33 |
 | **Usuarios y permisos** | CRUD de usuarios, roles (Responsable, Administrador, Supervisor, Conductor) y una **matriz de permisos por módulo** (sin acceso, lectura o escritura) que sobrescribe la del rol. Restablecer contraseña. | RG9, RF9-RF12, RF32 |
@@ -139,7 +167,7 @@ flowchart LR
 
   DB[("SQLite · node:sqlite<br/>migraciones + seed")]
   GPS["Dispositivos GPS<br/>(simulador gps-simulator)"]
-  OSM["Teselas OpenStreetMap / CARTO"]
+  OSM["Teselas OpenStreetMap"]
 
   GPS -- "POST /api/tracking/ingest<br/>x-device-key" --> Ingest
   Ingest --> Engine --> Bus
@@ -262,6 +290,8 @@ wms/
 
 ## 6. Puesta en marcha
 
+> **¿Solo quieres verla?** Abre la [demo en GitHub Pages](https://duangomez.github.io/WMS/): no requiere instalar nada.
+
 ### 6.1 Requisitos previos
 
 | Herramienta | Versión | ¿Obligatoria? |
@@ -383,6 +413,8 @@ Base: `/api`. Respuestas de error con forma uniforme `{ code, message, details }
 | GET / PATCH / DELETE | `/drivers/{id}` | drivers | RE7 |
 | PUT | `/drivers/{id}/vehicle` | drivers:write | RE7 |
 | GET | `/me/driver` | rol conductor | — |
+| POST / DELETE | `/me/location` (ubicación del celular / dejar de compartir) | rol conductor | RE7 |
+| GET | `/drivers/locations?since=` | map:read | RE7 |
 | POST | `/me/trip/start` · `/me/trip/finish` · `/me/emergency` | rol conductor | Dominio |
 | GET | `/devices` · `/devices/{id}` | devices:read | RF29 |
 | POST | `/devices` | devices:write | RF28 |
@@ -450,6 +482,7 @@ x-device-key: gps_xxxxxxxxxxxxxxxx
 | `npm test` | Pruebas de la API (vitest + supertest) y del frontend (vitest de Angular). |
 | `npm run lint` | ESLint (typescript-eslint) en todo el monorepo. |
 | `npm run format` | Prettier. |
+| `npm run build:pages` | Build de la demo para GitHub Pages: Angular en modo demo + la API empaquetada para el navegador (sql.js). `node scripts/serve-pages.mjs` la sirve en local en `/WMS/`. |
 | `npm run screenshots` | Capturas del README con Playwright (`-- --dark`, `-- --mobile`, `-- --only=mapa`). |
 
 ---
@@ -516,7 +549,7 @@ Detalle de cada requisito (endpoint, pantalla y prueba) en [docs/traceability.md
 ## 12. Calidad y pruebas
 
 ```bash
-npm test          # 32 pruebas de API + 5 del frontend
+npm test          # 37 pruebas de API + 8 del frontend
 npm run lint      # ESLint sin errores
 npm run build     # build de producción (bundle inicial ≈ 110 kB gzip)
 ```
@@ -525,6 +558,7 @@ npm run build     # build de producción (bundle inicial ≈ 110 kB gzip)
 |---|---|
 | `api/test/geo.test.ts` | Haversine, punto en círculo, polígono (incl. cóncavo) y corredor de ruta |
 | `api/test/auth-tenant.test.ts` | Login, rate limit, refresh rotativo, logout, zod, cambio de contraseña, roles, permisos granulares, **aislamiento multi-tenant** (listado, 404 cruzado, dispositivos ajenos), límites del plan y registro de empresa |
+| `api/test/driver-location.test.ts` | Ubicación del celular del conductor: lo reporta el conductor, lo ve el administrador (mapa, polling y conductores), pausar y aislamiento entre empresas |
 | `api/test/alerts-e2e.test.ts` | Ingesta GPS (API key, validación), entrada/salida de geocerca, parada prolongada (una sola alerta), pérdida y recuperación de señal (watchdog), robo, desvío, CRUD de reglas, **E2E GPS → SSE → mapa** (incl. que otra empresa no recibe el evento), PDF/Excel válidos, regenerar, compartir y eliminar |
 | `apps/web/src/**/*.spec.ts` | Formatos COP y zona Bogotá, gráfica de barras accesible |
 
@@ -532,9 +566,21 @@ Las pruebas usan una base SQLite temporal por archivo con el mismo seed de la de
 
 ---
 
-## 13. Despliegue en Azure y hoja de ruta
+## 13. Despliegue: GitHub Pages y Azure
 
-**Despliegue sugerido**
+### 13.1 Demo en GitHub Pages (sin servidor)
+
+GitHub Pages solo sirve archivos estáticos, así que el build de Pages (`npm run build:pages`) incluye **la misma API** compilada para el navegador:
+
+- `api/src/demo/browser.ts` carga **todas las funciones** del registro (`defineHttp` / `defineTimer`) sobre **SQLite en WebAssembly (sql.js)**, ejecuta el seed, el **simulador GPS** y el **watchdog** dentro de la página y guarda la base en **IndexedDB** (los datos se regeneran cada 24 h para que el historial sea de la semana actual).
+- Los módulos de Node (`node:sqlite`, `fs`, `crypto`, `jsonwebtoken`…) se reemplazan con *shims* en `api/src/demo/shims` mediante alias de esbuild; el código del backend no cambia.
+- En Angular, la configuración `pages` define `WMS_DEMO=true`: un `HttpBackend` entrega cada petición `/api/*` a la API del navegador y el tiempo real usa polling.
+- El workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) construye y publica en cada *push* a `main`.
+
+**Limitación honesta:** en la demo cada navegador tiene su propia base de datos. La ubicación del celular de un conductor se ve en el mapa del administrador **en el mismo navegador** (cambiando de cuenta); para verla entre dispositivos distintos se usa el backend real (`npm run dev` o Azure).
+
+### 13.2 Despliegue en Azure
+
 
 1. **Azure Static Web Apps** para `apps/web` (`npm run build -w apps/web` → `dist/web/browser`), con una regla de *fallback* a `index.html`.
 2. **Azure Functions** (plan Flex Consumption, Node 24) para `api`: `npm run build -w api` y `func azure functionapp publish <app>`. Configura `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGIN` y `DEMO_MODE=false` en *App settings*.
@@ -551,7 +597,7 @@ Las pruebas usan una base SQLite temporal por archivo con el mismo seed de la de
 Código bajo licencia **MIT** con fines académicos. © 2026 Duan Esteban Gómez Rojas, José Sebastián González Cárdenas, María José Lopera Velásquez y Alejandro Mercado Quiroz.
 
 - Datos de mapas © **colaboradores de [OpenStreetMap](https://www.openstreetmap.org/copyright)**, licencia ODbL. Las teselas estándar se usan según la [política de uso de teselas de OSM](https://operations.osmfoundation.org/policies/tiles/), sin descargas masivas.
-- Teselas claras y oscuras © [CARTO](https://carto.com/attributions).
+- Las capas clara y nocturna son las mismas teselas de OpenStreetMap con un filtro CSS (sin servicios de terceros con API key).
 - Ruta demo calculada **una sola vez** con [OSRM](https://project-osrm.org/) y guardada como archivo estático.
 - Íconos [Lucide](https://lucide.dev) (ISC). Mapas con [Leaflet](https://leafletjs.com) (BSD-2).
 - «Supermercados la 72» se usa como caso de estudio del PPI. Los datos de la demo son ficticios.

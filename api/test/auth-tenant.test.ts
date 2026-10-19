@@ -137,7 +137,7 @@ describe('Aislamiento multi-tenant (RE8, RG10)', () => {
     expect((await request(app).get('/api/reports').set(bearer(b.accessToken))).body).toHaveLength(0);
     expect(
       (await request(app).get('/api/geofences').set(bearer(b.accessToken))).body.map((g: any) => g.name),
-    ).toEqual(['Panadería El Trigal – Estadio']);
+    ).toEqual(['Panadería El Trigal – Estadio', 'Zona de reparto El Trigal']);
   });
 
   it('no se puede asociar un dispositivo de otra empresa', async () => {

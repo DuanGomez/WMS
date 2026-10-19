@@ -22,7 +22,8 @@ import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective } from '../../ui/motion-directives';
 import { createMap, geofenceLayer, tileLayer } from '../map/leaflet-kit';
 
-type Shape = 'circle' | 'polygon' | 'corridor';
+/** 'freehand' es solo de la interfaz: el trazo se guarda como polígono. */
+type Shape = 'freehand' | 'circle' | 'polygon' | 'corridor';
 interface Draft {
   id: string | null;
   name: string;
@@ -47,8 +48,9 @@ const COLORS = [
   '#FF2D55',
 ];
 const SHAPE_META: Record<Shape, { label: string; icon: string }> = {
+  freehand: { label: 'Dibujo libre', icon: 'pencil' },
   circle: { label: 'Círculo', icon: 'circle' },
-  polygon: { label: 'Polígono', icon: 'pentagon' },
+  polygon: { label: 'Por puntos', icon: 'pentagon' },
   corridor: { label: 'Corredor de ruta', icon: 'spline' },
 };
 
@@ -131,6 +133,8 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
   readonly hint = computed(() => {
     const d = this.draft();
     if (!d) return '';
+    if (d.shape === 'freehand')
+      return 'Mantén presionado y dibuja el perímetro sobre el mapa. Al soltar, la geocerca se cierra sola.';
     if (d.shape === 'circle')
       return d.center
         ? 'Toca el mapa para mover el centro o arrástralo. Ajusta el radio abajo.'
@@ -138,7 +142,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
     if (d.shape === 'polygon')
       return d.coordinates.length < 3
         ? `Toca el mapa para agregar vértices (${d.coordinates.length}/3 mínimo).`
-        : 'Arrastra los vértices para ajustar. Toca para agregar más.';
+        : 'Arrastra los vértices para ajustar o pulsa «Redibujar» para trazarla de nuevo.';
     return d.coordinates.length < 2
       ? 'Toca el mapa siguiendo la ruta autorizada (mínimo 2 puntos).'
       : 'Sigue agregando puntos sobre la ruta. Ajusta el ancho del corredor.';
@@ -146,6 +150,9 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
   readonly area = computed(() => {
     const d = this.draft();
     if (!d) return '';
+    if (d.shape === 'freehand') return 'Sin trazo';
+    if (d.shape === 'polygon' && d.coordinates.length >= 3)
+      return `${fmt.num(polygonAreaKm2(d.coordinates), 2)} km² · ${d.coordinates.length} vértices`;
     if (d.shape === 'circle') return `${fmt.num((Math.PI * d.radiusM ** 2) / 1e6, 2)} km²`;
     if (d.shape === 'corridor' && d.coordinates.length > 1) {
       let m = 0;
@@ -160,6 +167,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
     effect(() => {
       this.renderDraft(this.draft());
     });
+    effect(() => this.armFreehand(this.draft()?.shape === 'freehand'));
     effect(() => {
       const dark = this.theme.isDark();
       if (this.map) this.setBase(dark);
@@ -180,6 +188,8 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
     this.layers.addTo(this.map);
     this.draftLayer.addTo(this.map);
     this.map.on('click', (e: L.LeafletMouseEvent) => this.onMapClick([e.latlng.lat, e.latlng.lng]));
+    this.bindFreehand();
+    this.armFreehand(this.draft()?.shape === 'freehand');
     this.map.on(
       'zoomend',
       () => this.draft()?.shape === 'corridor' && this.renderDraft(this.draft()),
@@ -190,6 +200,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.unbindFreehand?.();
     this.ro?.disconnect();
     this.map?.remove();
   }
@@ -250,7 +261,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
       id: null,
       name: '',
       description: '',
-      shape: 'circle',
+      shape: 'freehand',
       center: null,
       radiusM: 250,
       coordinates: [],
@@ -267,7 +278,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
       id: g.id,
       name: g.name,
       description: g.description,
-      shape: g.shape,
+      shape: g.shape as Shape,
       center: g.center,
       radiusM: g.radiusM ?? 250,
       coordinates: [...g.coordinates],
@@ -305,8 +316,95 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
     if (d) this.update({ coordinates: d.coordinates.slice(0, -1) });
   }
 
+  /** Redibujar: los polígonos vuelven al modo de dibujo libre. */
   clearShape() {
-    this.update({ coordinates: [], center: null });
+    const d = this.draft();
+    this.update({ coordinates: [], center: null, shape: d?.shape === 'polygon' ? 'freehand' : d?.shape });
+  }
+
+  /* ---------- Dibujo libre: arrastrar sobre el mapa traza el perímetro ---------- */
+  private sketch?: L.Polyline;
+  private sketchPts: L.LatLng[] = [];
+  private suppressClickUntil = 0;
+  private unbindFreehand?: () => void;
+
+  /** Mientras se espera el trazo el mapa no se arrastra (en el celular el dedo dibuja en vez de mover). */
+  private armFreehand(armed: boolean) {
+    if (!this.map) return;
+    this.mapEl().nativeElement.classList.toggle('freehand', armed);
+    if (armed) this.map.dragging.disable();
+    else this.map.dragging.enable();
+  }
+
+  private bindFreehand() {
+    const el = this.mapEl().nativeElement;
+    let drawing = false;
+    let raf = 0;
+    const isUi = (t: EventTarget | null) =>
+      t instanceof Element && !!t.closest('.leaflet-control, .leaflet-marker-icon');
+    const down = (e: PointerEvent) => {
+      if (this.draft()?.shape !== 'freehand' || isUi(e.target) || e.button > 0) return;
+      e.preventDefault();
+      drawing = true;
+      el.setPointerCapture(e.pointerId);
+      this.sketchPts = [this.map.mouseEventToLatLng(e)];
+      this.sketch?.remove();
+      this.sketch = L.polyline(this.sketchPts, {
+        color: this.draft()!.color,
+        weight: 3,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
+      }).addTo(this.map);
+    };
+    const move = (e: PointerEvent) => {
+      if (!drawing) return;
+      const p = this.map.mouseEventToLatLng(e);
+      const last = this.sketchPts[this.sketchPts.length - 1];
+      if (this.map.latLngToContainerPoint(last).distanceTo(this.map.latLngToContainerPoint(p)) < 3) return;
+      this.sketchPts.push(p);
+      if (!raf)
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          this.sketch?.setLatLngs(this.sketchPts);
+        });
+    };
+    const up = () => {
+      if (!drawing) return;
+      drawing = false;
+      this.suppressClickUntil = Date.now() + 400;
+      const pts = this.simplify(this.sketchPts);
+      this.sketch?.remove();
+      this.sketch = undefined;
+      if (pts.length < 3) {
+        this.toasts.info('Trazo muy corto', 'Mantén presionado y rodea la zona completa.');
+        return;
+      }
+      this.update({ shape: 'polygon', coordinates: pts });
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    this.unbindFreehand = () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+  }
+
+  /** Douglas-Peucker en píxeles de pantalla: polígono liviano (máx. 60 vértices) fiel al trazo. */
+  private simplify(pts: L.LatLng[]): LatLng[] {
+    if (pts.length < 3) return pts.map((p) => [p.lat, p.lng] as LatLng);
+    const xy = pts.map((p) => this.map.latLngToContainerPoint(p));
+    let tol = 4;
+    let keep: number[];
+    do {
+      keep = douglasPeucker(xy, tol);
+      tol *= 1.5;
+    } while (keep.length > 60);
+    return keep.map((i) => [Number(pts[i].lat.toFixed(6)), Number(pts[i].lng.toFixed(6))] as LatLng);
   }
 
   toggleVehicle(id: string, on: boolean) {
@@ -317,7 +415,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
 
   private onMapClick(p: LatLng) {
     const d = this.draft();
-    if (!d) return;
+    if (!d || d.shape === 'freehand' || Date.now() < this.suppressClickUntil) return;
     if (d.shape === 'circle') this.update({ center: p });
     else this.update({ coordinates: [...d.coordinates, p] });
   }
@@ -382,6 +480,11 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
     if (!d) return;
     this.busy.set(true);
     this.error.set('');
+    if (d.shape === 'freehand') {
+      this.error.set('Dibuja el perímetro de la geocerca sobre el mapa antes de guardar.');
+      this.busy.set(false);
+      return;
+    }
     const body = {
       name: d.name,
       description: d.description,
@@ -436,4 +539,42 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
       this.toasts.error('No se pudo eliminar', errorMessage(e));
     }
   }
+}
+
+/** Índices de los puntos que conserva Douglas-Peucker con tolerancia `tol` (px). */
+function douglasPeucker(p: L.Point[], tol: number): number[] {
+  const keep = new Set<number>([0, p.length - 1]);
+  const stack: [number, number][] = [[0, p.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let max = 0;
+    let idx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = segDist(p[i], p[a], p[b]);
+      if (d > max) [max, idx] = [d, i];
+    }
+    if (idx > 0 && max > tol) {
+      keep.add(idx);
+      stack.push([a, idx], [idx, b]);
+    }
+  }
+  return [...keep].sort((x, y) => x - y);
+}
+
+function segDist(p: L.Point, a: L.Point, b: L.Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/** Área aproximada (km²) de un polígono con proyección equirectangular local. */
+function polygonAreaKm2(c: LatLng[]): number {
+  const R = 6371.0088;
+  const lat0 = (c.reduce((s, p) => s + p[0], 0) / c.length) * (Math.PI / 180);
+  const xy = c.map(([la, ln]) => [((ln * Math.PI) / 180) * Math.cos(lat0) * R, ((la * Math.PI) / 180) * R]);
+  let a = 0;
+  for (let i = 0, j = xy.length - 1; i < xy.length; j = i++) a += xy[j][0] * xy[i][1] - xy[i][0] * xy[j][1];
+  return Math.abs(a) / 2;
 }

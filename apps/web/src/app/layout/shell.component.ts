@@ -1,3 +1,4 @@
+import { DriverLocation } from '../core/driver-location.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -104,6 +105,7 @@ const NAV: NavItem[] = [
 export class ShellComponent implements OnInit, OnDestroy {
   readonly auth = inject(Auth);
   readonly live = inject(Live);
+  private driverLocation = inject(DriverLocation);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
   private confirm = inject(Confirm);
@@ -198,6 +200,8 @@ export class ShellComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.live.start();
+    // Conductores: comparten la ubicación de su celular para que el administrador los vea en el mapa.
+    this.driverLocation.start();
     this.updateBleed(this.router.url);
     this.url.set(this.router.url);
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), takeUntilDestroyed(this.destroyRef)).subscribe((e) => {
@@ -209,6 +213,7 @@ export class ShellComponent implements OnInit, OnDestroy {
   }
   ngOnDestroy() {
     this.live.stop();
+    this.driverLocation.stop();
   }
 
   private updateBleed(url: string) {
@@ -224,6 +229,7 @@ export class ShellComponent implements OnInit, OnDestroy {
     });
     if (!ok) return;
     this.live.stop();
+    this.driverLocation.stop();
     await this.auth.logout();
   }
 }

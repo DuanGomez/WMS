@@ -349,4 +349,19 @@ CREATE TABLE simulator_state (
   state TEXT NOT NULL
 );
 `,
+  /* v2 – ubicación del celular del conductor (geolocalización del navegador, sin GPS dedicado) */ `
+CREATE TABLE driver_locations (
+  user_id TEXT PRIMARY KEY REFERENCES users(id),
+  company_id TEXT NOT NULL REFERENCES companies(id),
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  accuracy REAL,
+  speed REAL,
+  heading REAL,
+  sharing INTEGER NOT NULL DEFAULT 1,
+  source TEXT NOT NULL DEFAULT 'browser',
+  ts TEXT NOT NULL
+);
+CREATE INDEX ix_driver_locations_company ON driver_locations(company_id);
+`,
 ];
