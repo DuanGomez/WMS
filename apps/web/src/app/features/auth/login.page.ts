@@ -5,90 +5,105 @@ import { errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
 import { IconComponent } from '../../ui/icon.component';
 import { LogoComponent } from '../../ui/logo.component';
+import { LangToggleComponent } from '../../ui/lang';
+import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirective } from '../../ui/wms-fx';
 
 /** RF13 – Inicio de sesión. */
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, RouterLink, IconComponent, LogoComponent],
+  imports: [FormsModule, RouterLink, IconComponent, LogoComponent, TiltDirective, FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, LangToggleComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './auth.scss',
   template: `
-    <section class="auth-card glass-thick" aria-labelledby="t">
-      <app-logo class="auth-logo" />
-      <h1 class="auth-title" id="t">WMS</h1>
-      <p class="auth-sub">Monitoreo de tu flota en tiempo real</p>
-
-      @if (motivo() === 'expired') {
-        <p class="form-ok" style="margin-bottom:12px">Tu sesión expiró. Inicia sesión de nuevo.</p>
-      }
-
-      <form (ngSubmit)="submit()" #f="ngForm" novalidate>
-        <div class="field">
-          <label for="email">Correo electrónico</label>
-          <input
-            id="email"
-            class="input"
-            type="email"
-            name="email"
-            autocomplete="username"
-            [(ngModel)]="email"
-            required
-            placeholder="tu@empresa.co"
-          />
-        </div>
-        <div class="field">
-          <label for="pw">Contraseña</label>
-          <div class="pw">
-            <input
-              id="pw"
-              class="input"
-              [type]="show() ? 'text' : 'password'"
-              name="password"
-              autocomplete="current-password"
-              [(ngModel)]="password"
-              required
-              placeholder="••••••••"
-            />
-            <button
-              type="button"
-              (click)="show.set(!show())"
-              [attr.aria-label]="show() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-            >
-              <app-icon [name]="show() ? 'eye-off' : 'eye'" [size]="17" />
-            </button>
-          </div>
-        </div>
-        @if (error()) {
-          <div class="form-error" role="alert">
-            <app-icon name="triangle-alert" [size]="16" />{{ error() }}
-          </div>
-        }
-        <button
-          class="btn primary lg block"
-          type="submit"
-          [disabled]="busy() || !email || !password"
-        >
-          @if (busy()) {
-            <app-icon name="refresh" [size]="18" class="spin" />
-          }
-          Iniciar sesión
-        </button>
-        <div class="links">
-          <a routerLink="/recuperar">¿Olvidaste tu contraseña?</a>
-          <a routerLink="/registro">Registrar mi empresa</a>
-        </div>
-      </form>
-
-      <div class="demo">
-        <p class="caption">Cuentas demo · contraseña <strong class="mono">Demo1234!</strong></p>
-        <div class="chips">
-          @for (d of demos; track d.email) {
-            <button type="button" class="chip" (click)="fill(d.email)">{{ d.label }}</button>
-          }
+    <div class="a-bg"></div>
+    <div class="a-glow-top"></div>
+    <div class="a-glow-a"></div>
+    <div class="a-glow-b"></div>
+    <div class="auth-ctl"><app-lang-toggle /><app-theme-toggle [labeled]="true" /></div>
+    <div class="auth-stage">
+      <div wmsTilt>
+        <div wmsFlipCard>
+          <section class="auth-card" wmsFlipFace aria-labelledby="t">
+            <div class="hatch"></div>
+            <div class="auth-head">
+              <app-logo class="auth-logo" />
+              <h1 class="auth-title" id="t">Bienvenido de nuevo</h1>
+              <p class="auth-sub">Inicia sesión para continuar</p>
+            </div>
+            @if (motivo() === 'expired') {
+              <div class="form-ok" style="margin-bottom:16px" role="status">
+                <span class="ok-ic"><app-icon name="info" [size]="11" /></span>
+                <span>Tu sesión expiró. Inicia sesión de nuevo.</span>
+              </div>
+            }
+            <form (ngSubmit)="submit()" #f="ngForm" novalidate>
+              <div class="fields">
+                <div class="ifield">
+                  <app-icon name="mail" [size]="16" />
+                  <input
+                    id="email"
+                    type="email"
+                    name="email"
+                    autocomplete="username"
+                    [(ngModel)]="email"
+                    required
+                    placeholder="Correo electrónico"
+                    aria-label="Correo electrónico"
+                  />
+                </div>
+                <div class="ifield pw">
+                  <app-icon name="lock" [size]="16" />
+                  <input
+                    id="pw"
+                    [type]="show() ? 'text' : 'password'"
+                    name="password"
+                    autocomplete="current-password"
+                    [(ngModel)]="password"
+                    required
+                    placeholder="Contraseña"
+                    aria-label="Contraseña"
+                  />
+                  <button
+                    type="button"
+                    class="eye"
+                    (click)="show.set(!show())"
+                    [attr.aria-label]="show() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                  >
+                    <app-icon [name]="show() ? 'eye' : 'eye-closed'" [size]="16" />
+                  </button>
+                </div>
+              </div>
+              <div class="right"><a routerLink="/recuperar">¿Olvidaste tu contraseña?</a></div>
+              @if (error()) {
+                <div class="form-error" role="alert" style="margin-bottom:-12px">
+                  <app-icon name="triangle-alert" [size]="16" /><span>{{ error() }}</span>
+                </div>
+              }
+              <button class="abtn top" type="submit" [disabled]="busy()">
+                @if (busy()) {
+                  <span class="spinner"></span>
+                } @else {
+                  <span>Iniciar sesión</span><app-icon name="arrow-right" [size]="12" />
+                }
+              </button>
+              <p class="alt">
+                <span>¿No tienes cuenta?</span>
+                <a wmsFlip="/registro" href="/registro">Regístrate</a>
+              </p>
+            </form>
+            <div class="demo">
+              <p>Cuentas demo · contraseña <strong>Demo1234!</strong></p>
+              <div class="chips">
+                @for (d of demos; track d.email) {
+                  <button type="button" class="chip" (click)="fill(d.email)">{{ d.label }}</button>
+                }
+              </div>
+            </div>
+            <p class="foot">Tecnológico de Antioquia · Ingeniería de Software II</p>
+          </section>
         </div>
       </div>
-      <p class="foot">Tecnológico de Antioquia · Ingeniería de Software II</p>
-    </section>
+    </div>
   `,
 })
 export class LoginPage {
@@ -116,6 +131,12 @@ export class LoginPage {
   }
 
   async submit() {
+    // Prototipo: el botón siempre está activo; sin datos se muestra el error de acceso
+    if (!this.email.trim() || !this.password) {
+      this.error.set('');
+      queueMicrotask(() => this.error.set('Correo o contraseña incorrectos.'));
+      return;
+    }
     this.busy.set(true);
     this.error.set('');
     try {

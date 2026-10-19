@@ -3,303 +3,637 @@
   min-height: 100dvh;
 }
 .skip {
-  position: fixed;
-  left: 12px;
-  top: -60px;
-  z-index: 5000;
-  padding: 8px 14px;
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 100;
+  padding: 8px 12px;
   border-radius: 10px;
-  background: var(--tint);
-  color: #fff;
-  transition: top 200ms;
+  background: var(--wms-solid);
+  color: var(--wms-solid-text);
 }
 .skip:focus {
-  top: 12px;
+  left: 8px;
 }
 
-.sidebar {
-  position: fixed;
-  z-index: 900;
-  left: 10px;
-  top: 10px;
-  bottom: 10px;
-  width: var(--sidebar-w);
-  border-radius: 22px;
+/* ---------------- Navbar de vidrio ---------------- */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--wms-bar);
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+  box-shadow: var(--wms-bar-shadow);
+}
+.bar-in {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 10px 24px;
   display: flex;
-  flex-direction: column;
-  background: var(--material-sidebar);
-  transition: width 320ms var(--ease);
-  overflow: hidden;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--nav-h);
 }
 .brand {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 12px 10px 16px;
+  color: inherit;
 }
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-  line-height: 1.15;
-}
-.brand-text strong {
-  font-size: 17px;
-  letter-spacing: -0.02em;
-}
-.brand-text span {
-  font-size: 12px;
-  color: var(--label-2);
-}
-.logo {
-  flex: none;
-  filter: drop-shadow(0 2px 6px rgba(0, 122, 255, 0.35));
+.brand strong {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .nav {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 10px;
+  position: relative;
+  /* Ocupa el espacio libre; si falta sitio, primero se encoge el buscador (.bar-right cede mucho antes). */
+  flex: 1 1 auto;
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
+  padding: 2px 0;
 }
-.nav-group + .nav-group {
-  margin-top: 10px;
-}
-.nav-group-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--label-3);
-  padding: 8px 10px 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.nav::-webkit-scrollbar {
+  display: none;
 }
 .nav-item {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--wms-muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color var(--dur-2),
+    padding var(--dur-3) var(--ease);
+}
+.nav-item:hover {
+  opacity: 1;
+  color: var(--wms-text);
+}
+.nav-item.active {
+  color: var(--wms-text);
+}
+/* Prototipo: solo la sección activa muestra su etiqueta (en cualquier ancho); el resto es un ícono de 34 px. */
+.nav-item:not(.active) {
+  padding: 0;
+}
+.nav-item:not(.active) .nav-label {
+  display: none;
+}
+@media (max-width: 1099px) {
+  .nav-item.active {
+    padding: 0 12px;
+  }
+}
+/* Contador: sólido en la sección activa, tenue en las demás (badgeBg / badgeC del prototipo) */
+.nav-item .count-badge {
+  background: var(--wms-track);
+  color: var(--wms-muted);
+  transition:
+    background var(--dur-2),
+    color var(--dur-2);
+}
+.nav-item.active .count-badge {
+  background: var(--wms-solid);
+  color: var(--wms-solid-text);
+}
+/* El prototipo no tiene estado "En vivo" en la barra ni en el menú lateral */
+.bar-right .live-pill,
+.dr-foot .live-pill {
+  display: none;
+}
+:host ::ng-deep .wms-pill-hover,
+:host ::ng-deep .wms-pill-active {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  height: 34px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+}
+:host ::ng-deep .wms-pill-hover {
+  background: var(--wms-row-hover);
+  transition:
+    transform var(--dur-2) var(--ease),
+    width var(--dur-2) var(--ease),
+    opacity var(--dur-1);
+}
+:host ::ng-deep .wms-pill-active {
+  border: 1px solid var(--wms-chip-border);
+  background: var(--wms-chip);
+  box-shadow: var(--wms-chip-shadow);
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+}
+.bar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1000 auto;
+}
+.bar-right > .pf,
+.bar-right ::ng-deep .wms-lang,
+.bar-right ::ng-deep .wms-ctl {
+  flex-shrink: 0;
+}
+
+/* Buscador ⌘K: crece al enfocar */
+.gsearch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  /* Prototipo: 240 px desde 1240 px; 36 px compacto y 180 px al enfocar por debajo.
+     Crece solo en el espacio libre (flex-shrink): al expandirse no empuja ni tapa la navegación. */
+  flex: 0 1 240px;
+  min-width: 36px;
+  transition: flex-basis var(--dur-2) var(--ease-out);
+}
+.gsearch .gs-ic {
+  position: absolute;
+  left: 12px;
+  z-index: 1;
+  color: var(--wms-faint);
+  pointer-events: none;
+}
+.gsearch input {
+  width: 100%;
+  height: 36px;
+  padding: 0 54px 0 34px;
+  border-radius: 999px;
+  text-overflow: ellipsis;
+  background: var(--wms-chip);
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+  border: 1px solid var(--wms-chip-border);
+  box-shadow: var(--wms-chip-shadow);
+  color: var(--wms-text);
+  font-size: 13px;
+  outline: none;
+}
+/* Abierto, el atajo ⌘K no se muestra: solo se reserva sitio para el botón de limpiar. */
+.gsearch.open input {
+  padding-right: 36px;
+}
+.gsearch .kbd {
+  position: absolute;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  font-size: 10px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.gs-clear {
+  position: absolute;
+  right: 8px;
+  z-index: 1;
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--wms-input);
+  color: var(--wms-muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.gs-pop {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: 280px;
+  padding: 6px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: top right;
+  animation: wms-pop var(--dur-3) var(--ease-out) both;
+}
+.gs-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 36px;
+  height: 38px;
   padding: 0 10px;
   border-radius: 10px;
-  color: var(--label);
-  font-size: 14.5px;
-  font-weight: 500;
-  transition:
-    background 160ms,
-    color 160ms;
-  white-space: nowrap;
+  font-size: 13px;
+  color: var(--wms-text);
 }
-.nav-item app-icon {
-  color: var(--tint);
+.gs-item:hover,
+.gs-item:first-child {
+  background: var(--wms-row-hover);
+  opacity: 1;
 }
-.nav-item:hover {
-  background: var(--bg-hover);
+.gs-empty {
+  padding: 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--wms-muted);
 }
-.nav-item.active {
-  background: var(--tint);
-  color: #fff;
-}
-.nav-item.active app-icon {
-  color: #fff;
-}
-.nav-item .count-badge {
-  margin-left: auto;
-}
-.nav-item.active .count-badge {
-  background: #fff;
-  color: var(--red);
-}
-.sidebar-foot {
-  padding: 10px;
-  border-top: 0.5px solid var(--separator);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+
 .live-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: var(--fill-2);
-  font-size: 12.5px;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--wms-chip);
+  border: 1px solid var(--wms-chip-border);
+  box-shadow: var(--wms-chip-shadow);
+  font-size: 12px;
   font-weight: 500;
-  color: var(--label-2);
   white-space: nowrap;
 }
-.me {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 2px 2px 2px 4px;
+/* "En vivo": punto del color del texto (prototipo: liveDot = t.text), sin verde. */
+.live-pill .dot.green {
+  background: var(--wms-text);
 }
-.me-text {
+/* Como el prototipo: por debajo de 1240 px el buscador queda como círculo hasta enfocarlo o escribir;
+   por debajo de 1100 px se oculta el texto de la marca. */
+@media (max-width: 1239px) {
+  .gsearch {
+    flex-basis: 180px;
+    min-width: 140px;
+  }
+  .gsearch:not(.open):not(:focus-within):not(:has(input:not(:placeholder-shown))) {
+    flex-basis: 36px;
+    min-width: 36px;
+    input {
+      padding: 0 0 0 34px;
+      cursor: pointer;
+    }
+    input::placeholder {
+      color: transparent;
+    }
+    .kbd {
+      display: none;
+    }
+  }
+}
+/* Pantallas estrechas: ya no queda sitio libre para el buscador abierto. Se queda en su hueco de 36 px
+   y el campo se superpone a los controles de la derecha (idioma, tema, perfil), nunca a la navegación. */
+@media (max-width: 960px) {
+  .gsearch:is(.open, :focus-within, :has(input:not(:placeholder-shown))) {
+    flex-basis: 36px;
+    min-width: 36px;
+    z-index: 5;
+    input {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 200px;
+      transform: translateY(-50%);
+      /* Opaco (mismo tono del vidrio sobre el fondo) para que no se transparenten los controles de debajo */
+      background: var(--wms-chip), var(--wms-page);
+    }
+    .gs-clear {
+      left: 166px;
+      right: auto;
+    }
+  }
+}
+@media (max-width: 1099px) {
+  .brand strong {
+    display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .live-pill {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+/* Popover de perfil */
+.pf {
+  position: relative;
+  flex: none;
+}
+.pf-pop {
+  position: absolute;
+  top: 46px;
+  right: 0;
+  z-index: 50;
+  width: 288px;
+  padding: 16px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  flex: 1;
-  line-height: 1.2;
+  gap: 12px;
+  transform-origin: top right;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.96);
+  filter: blur(8px);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-2) var(--ease-fade),
+    transform var(--dur-3) var(--ease-out),
+    filter var(--dur-3) var(--ease-fade);
 }
-.me-text strong {
-  font-size: 13.5px;
+.pf-pop.open {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+  pointer-events: auto;
 }
-.me-text span {
-  font-size: 12px;
-  color: var(--label-2);
-}
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  flex: none;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #8e8e93, #636366);
-}
-.avatar.lg {
-  width: 52px;
-  height: 52px;
-  font-size: 18px;
-}
-.me-card {
+.pf-head,
+.dr-me {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
-
-/* Contraída: sólo íconos */
-.sidebar.collapsed {
-  width: 68px;
+.pf-av {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 600;
 }
-.sidebar.collapsed .brand-text,
-.sidebar.collapsed .nav-label,
-.sidebar.collapsed .nav-group-label,
-.sidebar.collapsed .me-text,
-.sidebar.collapsed .me .btn {
-  display: none;
+.pf-av.sm {
+  width: 36px;
+  height: 36px;
+  font-size: 12px;
 }
-.sidebar.collapsed .brand {
+.pf-txt {
+  display: flex;
   flex-direction: column;
-  padding: 16px 0 8px;
+  gap: 2px;
+  min-width: 0;
 }
-.sidebar.collapsed .nav-item {
+.pf-txt strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.pf-txt span {
+  font-size: 12px;
+  color: var(--wms-muted);
+}
+.pf-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--wms-soft);
+  border: 1px solid var(--wms-divider);
+}
+.pf-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  min-width: 0;
+}
+.pf-rows span {
+  flex: none;
+  color: var(--wms-muted);
+}
+.pf-rows b {
+  font-weight: 600;
+  text-align: right;
+}
+.pf-btn {
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  color: var(--wms-text);
+  display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 0;
-  position: relative;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-2),
+    transform var(--dur-1);
 }
-.sidebar.collapsed .nav-item .count-badge {
-  position: absolute;
-  top: -2px;
-  right: 2px;
-  min-width: 16px;
-  height: 16px;
-  font-size: 10px;
-  padding: 0 4px;
+.pf-btn:hover {
+  background: var(--wms-row-hover);
+  opacity: 1;
 }
-.sidebar.collapsed .live-pill {
-  justify-content: center;
+.pf-btn:active {
+  transform: scale(0.97);
 }
-.sidebar.collapsed .me {
-  justify-content: center;
+.pf-btn.grow {
+  flex: 1;
 }
 
+/* ---------------- Contenido ---------------- */
 .main {
-  min-height: 100dvh;
-  padding-left: calc(68px + 20px);
-  transition: padding-left 320ms var(--ease);
-}
-.main.wide-left {
-  padding-left: calc(var(--sidebar-w) + 20px);
+  position: relative;
+  z-index: 1;
+  min-height: calc(100dvh - var(--nav-h));
 }
 .main.bleed {
-  padding-left: 0;
-  height: 100dvh;
+  height: calc(100dvh - var(--nav-h));
   overflow: hidden;
-  /* Las páginas a pantalla completa (mapa) desplazan sus paneles flotantes según la barra lateral */
-  --inset-left: calc(68px + 20px);
-}
-.main.bleed.wide-left {
-  --inset-left: calc(var(--sidebar-w) + 20px);
 }
 
-.tabbar {
-  display: none;
+/* ---------------- Móvil (≤760px): barra compacta + menú lateral ---------------- */
+.cur-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-@media (max-width: 1024px) and (min-width: 761px) {
-  .sidebar:not(.collapsed) {
-    box-shadow: var(--shadow-3);
-  }
-  .main.wide-left {
-    padding-left: calc(68px + 20px);
-  }
-  .main.bleed,
-  .main.bleed.wide-left {
-    padding-left: 0;
-    --inset-left: calc(68px + 20px);
-  }
+.menu-btn {
+  order: -1;
+}
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--wms-scrim);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-3) var(--ease-fade);
+}
+.drawer-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 61;
+  width: min(300px, 84vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--wms-panel);
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+  border-right: 1px solid var(--wms-card-border);
+  transform: translateX(-104%);
+  transition: transform var(--dur-3) var(--ease-out);
+}
+/* Sombra del cajón abierto en un pseudo-elemento que aparece con opacity (no se anima box-shadow). */
+.drawer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  box-shadow: 30px 0 60px -20px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-3);
+}
+.drawer.open {
+  transform: none;
+}
+.drawer.open::after {
+  opacity: 1;
+}
+.dr-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(16px + env(safe-area-inset-top)) 14px 12px 18px;
+}
+.dr-head strong {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.dr-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 10px 12px;
+  display: flex;
+  flex-direction: column;
+}
+.dr-group {
+  padding: 14px 10px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--wms-muted);
+}
+.dr-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: var(--wms-text);
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background var(--dur-2),
+    color var(--dur-2),
+    transform var(--dur-1);
+}
+.dr-item > span {
+  flex: 1;
+  min-width: 0;
+}
+/* Contador: chip pequeño a la derecha (no se estira) e invertido en el ítem activo, como el prototipo. */
+.dr-item > .count-badge {
+  flex: none;
+  background: var(--wms-solid);
+  color: var(--wms-solid-text);
+}
+.dr-item.active > .count-badge {
+  background: var(--wms-solid-text);
+  color: var(--wms-solid);
+}
+.dr-item:hover {
+  opacity: 1;
+  color: var(--wms-text);
+}
+.dr-item:active {
+  transform: scale(0.98);
+}
+.dr-item.active {
+  background: var(--wms-solid);
+  color: var(--wms-solid-text);
+  font-weight: 600;
+}
+.dr-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px calc(18px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--wms-divider);
+}
+.dr-foot .pf-txt strong {
+  font-size: 13px;
+}
+.dr-foot .pf-txt span {
+  font-size: 11px;
+}
+/* En el menú el estado "En vivo" muestra su etiqueta: no hereda el círculo de 36 px de la navbar (≤1100 px). */
+.dr-foot .live-pill {
+  align-self: flex-start;
+  width: auto;
+  padding: 0 12px;
+}
+.dr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 @media (max-width: 760px) {
-  .sidebar {
+  .bar-in {
+    padding: 8px 12px;
+    gap: 10px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+  }
+  .brand :is(app-logo) {
     display: none;
   }
-  .main,
-  .main.wide-left,
-  .main.bleed,
-  .main.bleed.wide-left {
-    padding-left: 0;
-    --inset-left: 0px;
-  }
-  .tabbar {
-    position: fixed;
-    z-index: 950;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    justify-content: space-around;
-    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
-    border-radius: 0;
-    border: 0;
-    border-top: 0.5px solid var(--separator);
-    box-shadow: none;
-    background: var(--material-thick);
-  }
-  .tab {
-    flex: 1;
-    border: 0;
-    background: transparent;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    font-size: 10.5px;
-    font-weight: 500;
-    color: var(--gray);
-    cursor: pointer;
-    transition: color 160ms;
-  }
-  .tab.active {
-    color: var(--tint);
-  }
-  .tab-icon {
-    position: relative;
-  }
-  .tab-badge {
-    position: absolute;
-    top: -6px;
-    left: 14px;
-    min-width: 18px;
-    height: 18px;
-    font-size: 11px;
-  }
-  .more-sheet {
-    z-index: 2001;
+  .pf-pop {
+    width: min(288px, calc(100vw - 24px));
   }
 }

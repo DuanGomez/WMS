@@ -14,7 +14,7 @@ import { VEHICLE_TYPES } from '../../core/format';
 import { Live } from '../../core/live.service';
 import { AuthResponse, Session } from '../../core/models';
 import { Theme, ThemePref, Toasts } from '../../core/ui.services';
-import { SegmentedComponent, ToggleComponent } from '../../ui/components';
+import { ToggleComponent } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
 
 interface SimState {
@@ -43,7 +43,7 @@ interface SimState {
 }
 
 const SCENARIO_ICONS: Record<string, { icon: string; tone: string }> = {
-  stop: { icon: 'timer', tone: 'orange' },
+  stop: { icon: 'clock', tone: 'orange' },
   signal_loss: { icon: 'wifi-off', tone: 'red' },
   deviation: { icon: 'route', tone: 'purple' },
   theft: { icon: 'siren', tone: 'red' },
@@ -62,7 +62,7 @@ const MODE_LABELS: Record<string, string> = {
 /** Perfil, seguridad (RF27), apariencia, notificaciones y panel del simulador GPS de la demo. */
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule, IconComponent, SegmentedComponent, ToggleComponent],
+  imports: [FormsModule, IconComponent, ToggleComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
@@ -79,20 +79,29 @@ export class SettingsPage implements OnInit, OnDestroy {
   readonly busy = signal('');
   readonly pwError = signal('');
   readonly themeOptions = [
-    { value: 'auto', label: 'Automático' },
     { value: 'light', label: 'Claro' },
     { value: 'dark', label: 'Oscuro' },
+    { value: 'auto', label: 'Automático' },
   ];
 
   readonly sim = signal<SimState | null>(null);
   readonly simError = signal('');
   readonly now = signal(Date.now());
-  readonly speedOptions = [1, 2, 3, 4].map((n) => ({ value: String(n), label: `x${n}` }));
+  readonly speedOptions = [1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n}×` }));
   readonly scenarioIcons = SCENARIO_ICONS;
   readonly modeLabels = MODE_LABELS;
   readonly types = VEHICLE_TYPES;
   readonly canSim = computed(() => this.auth.can('simulator'));
   readonly canSimWrite = computed(() => this.auth.can('simulator', 'write'));
+  /** Vehículo sobre el que se lanzan los escenarios (se elige tocando su fila; por defecto el primero en ruta). */
+  readonly selKey = signal<string | null>(null);
+  readonly selected = computed(() => {
+    const vs = this.sim()?.vehicles ?? [];
+    return vs.find((v) => v.key === this.selKey()) ?? vs.find((v) => v.mode === 'route') ?? vs[0] ?? null;
+  });
+  scenarioLabel(type: string) {
+    return this.sim()?.catalog.find((c) => c.id === type)?.label ?? type;
+  }
   private timer?: ReturnType<typeof setInterval>;
 
   ngOnInit() {
@@ -130,6 +139,10 @@ export class SettingsPage implements OnInit, OnDestroy {
   /** RF27 – Cambiar contraseña (revoca las demás sesiones). */
   async changePassword() {
     this.pwError.set('');
+    // Prototipo: el botón siempre está activo y valida al pulsarlo
+    if (!this.pw.current) return this.pwError.set('Ingresa tu contraseña actual.');
+    if (!(this.pw.next.length >= 8 && /[a-zA-Z]/.test(this.pw.next) && /\d/.test(this.pw.next)))
+      return this.pwError.set('8+ caracteres con letras y números');
     if (this.pw.next !== this.pw.confirm)
       return this.pwError.set('Las contraseñas nuevas no coinciden.');
     this.busy.set('pw');

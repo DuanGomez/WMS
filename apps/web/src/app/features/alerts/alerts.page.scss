@@ -1,27 +1,113 @@
+.list {
+  position: relative;
+  padding: 14px; /* prototipo: tarjeta de lista con 14 px */
+}
 .alert-row {
-  align-items: flex-start;
-  padding-top: 13px;
-  padding-bottom: 13px;
+  gap: 12px;
 }
-.alert-row .content .sub {
-  margin-top: 2px;
+.al-check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1.5px solid var(--wms-faint);
+  background: transparent;
+  color: var(--wms-solid-text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  /* Igual que el prototipo: relleno .3s y rebote con resorte cubic-bezier(.34,1.56,.64,1) */
+  transition:
+    background var(--dur-2),
+    border-color var(--dur-2),
+    transform var(--dur-1) var(--spring);
 }
-.alert-row.unread {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--tint) 6%, transparent),
-    transparent 40%
-  );
+.al-check svg polyline {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset var(--dur-2) var(--ease-fade) 0.08s;
 }
-.alert-row.unread[data-priority='critical'] {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--red) 9%, transparent),
-    transparent 45%
-  );
+.al-check:hover:not([disabled]) {
+  border-color: var(--wms-text);
+  transform: scale(1.12);
 }
-.alert-row .trailing {
-  align-self: center;
+.al-check.done {
+  background: var(--wms-solid);
+  border-color: var(--wms-solid);
+  cursor: default;
+}
+.al-check.bounce {
+  transform: scale(1.3);
+}
+/* Salida de la fila (prototipo: opacidad, 14 px a la derecha y desenfoque en .35s) */
+.alert-row {
+  transition:
+    opacity var(--dur-2) var(--ease-fade),
+    transform var(--dur-2) var(--ease-fade),
+    filter var(--dur-2) var(--ease-fade),
+    background var(--dur-1);
+}
+.alert-row.al-leaving {
+  opacity: 0;
+  transform: translateX(14px);
+  filter: blur(4px);
+  pointer-events: none;
+}
+.al-check.done svg polyline {
+  stroke-dashoffset: 0;
+}
+.al-check[disabled]:not(.done) {
+  cursor: default;
+  opacity: 0.5;
+}
+.al-tag {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  width: 168px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  color: var(--wms-text);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.al-tag.hot {
+  background: var(--wms-solid);
+  border-color: var(--wms-solid);
+  color: var(--wms-solid-text);
+}
+.alert-row .content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.alert-row .title {
+  transition: color var(--dur-2);
+}
+/* Prototipo: atendida = título tenue, sin tachar */
+.alert-row .title.done {
+  color: var(--wms-faint);
+}
+.alert-row .trailing .btn.icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.when {
+  flex: none;
+  min-width: 64px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--wms-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .rule.inactive {
   opacity: 0.6;
@@ -29,19 +115,80 @@
 .nbody {
   white-space: pre-wrap;
   font-family: var(--font);
-  font-size: 13px;
-  color: var(--label);
-  background: var(--fill-2);
+  font-size: 12px;
+  color: var(--wms-text);
+  background: var(--wms-input);
+  border: 1px solid var(--wms-border);
   border-radius: 10px;
   padding: 10px 12px;
   margin: 8px 0 2px;
 }
 @media (max-width: 760px) {
+  /* Prototipo móvil: etiqueta, prioridad y hora arriba; título y detalle abajo a todo el ancho */
   .alert-row {
     flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 12px 10px;
   }
-  .alert-row .trailing {
-    width: 100%;
-    justify-content: flex-end;
+  .alert-row .content {
+    flex: 1 1 100%;
+    order: 9;
+  }
+  .alert-row .title {
+    white-space: normal;
+  }
+  .al-tag {
+    width: auto;
+    max-width: 150px;
+  }
+  .alert-row .badge.hide-mobile {
+    display: inline-flex;
+  }
+  .when {
+    min-width: 0;
+    margin-left: auto;
+  }
+  /* Prototipo móvil: las abiertas se atienden deslizando; el check solo se ve si ya está atendida. */
+  .al-check:not(.done) {
+    display: none;
+  }
+}
+.al-tag.wide {
+  width: 200px;
+  background: var(--wms-input);
+  border-color: var(--wms-border);
+  color: var(--wms-text);
+}
+.rule-row.inactive .title {
+  color: var(--wms-faint);
+}
+.rule-row app-toggle {
+  display: block;
+}
+@media (max-width: 760px) {
+  .al-tag.wide {
+    width: auto;
+  }
+}
+
+/* Móvil: "Atender todas" no existe en el prototipo; se conserva como botón de ícono en la esquina del encabezado
+   para no desplazar la barra de herramientas. */
+@media (max-width: 760px) {
+  .page-head {
+    position: relative;
+  }
+  .page-head .actions:has(.attend-all) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: auto;
+  }
+  .attend-all {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .attend-all .lbl {
+    display: none;
   }
 }

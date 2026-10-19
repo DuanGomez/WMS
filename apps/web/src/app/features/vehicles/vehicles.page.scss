@@ -1,0 +1,237 @@
+.wms-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, 1fr);
+  gap: 12px;
+  align-items: start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: -6px -4px 0;
+  padding: 6px 4px 6px;
+  scrollbar-width: none;
+}
+.wms-board::-webkit-scrollbar {
+  display: none;
+}
+.bcol {
+  background: var(--wms-card);
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+  border: 1px solid var(--wms-card-border);
+  box-shadow:
+    0 0 0 1.5px transparent,
+    var(--wms-card-shadow);
+  border-radius: 22px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 420px;
+  position: relative;
+  transition: background var(--dur-2);
+  animation: wms-in var(--dur-4) var(--ease) backwards;
+}
+/* Anillo de "soltar aquí": sombra en un pseudo-elemento que aparece con opacity (no se anima box-shadow). */
+.bcol::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1.5px var(--wms-text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-2);
+}
+.bcol.wms-over::after {
+  opacity: 1;
+}
+@for $i from 1 through 4 {
+  .bcol:nth-child(#{$i}) {
+    animation-delay: #{200 + ($i - 1) * 80}ms;
+  }
+}
+.bcol.wms-over {
+  background: var(--wms-card-hi);
+}
+.bcol-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 2px 4px;
+}
+.bdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.bname {
+  font-size: 13px;
+  font-weight: 600;
+}
+.bcount {
+  margin-left: auto;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--wms-track);
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  transition:
+    background var(--dur-2),
+    color var(--dur-2);
+}
+.bsub {
+  font-size: 12px;
+  color: var(--wms-muted);
+}
+.bshare {
+  height: 2px;
+  border-radius: 999px;
+  background: var(--wms-track);
+  overflow: hidden;
+}
+.bshare > div {
+  height: 100%;
+  background: var(--wms-text);
+  transform-origin: left;
+  animation: grow var(--dur-4) var(--ease-out) 0.3s backwards;
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.vcard {
+  background: var(--wms-card-hi);
+  border: 1px solid var(--wms-border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-y;
+  transition:
+    border-color var(--dur-2),
+    opacity var(--dur-2),
+    transform var(--dur-2) var(--ease);
+  animation: wms-row-in var(--dur-4) var(--ease) backwards;
+}
+@for $i from 1 through 12 {
+  .vcard:nth-of-type(#{$i}) {
+    animation-delay: #{300 + ($i - 1) * 45}ms;
+  }
+}
+.vcard.movable {
+  cursor: grab;
+}
+.vcard:hover {
+  border-color: var(--wms-chip-border);
+  transform: translateY(-2px);
+}
+.vcard:focus-visible {
+  border-color: var(--wms-text);
+}
+:host ::ng-deep .vcard.wms-dragging {
+  opacity: 0.35;
+  transform: scale(0.98);
+}
+.vc-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.vc-id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.vc-plate {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.vc-sub {
+  font-size: 11px;
+  color: var(--wms-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vc-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.vc-lines > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vc-lines app-icon {
+  flex: none;
+  color: var(--wms-muted);
+}
+.bempty {
+  flex: 1;
+  min-height: 120px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--wms-border);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--wms-muted);
+  transition: border-color var(--dur-2);
+}
+:host ::ng-deep .wms-board-active .bempty {
+  border-color: var(--wms-faint);
+}
+:host ::ng-deep .wms-over .bempty {
+  border-color: var(--wms-text);
+}
+@media (max-width: 760px) {
+  .wms-board {
+    grid-auto-columns: 84vw;
+    scroll-snap-type: x mandatory;
+  }
+  .bcol {
+    scroll-snap-align: start;
+    min-height: 60vh;
+  }
+}
+
+/* Tarjeta como el prototipo: mosaico 32 px (sólido en marcha, tenue sin GPS) y líneas sin dato en gris */
+.vc-top .icon-tile {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+.vc-top .icon-tile.solid {
+  background: var(--wms-solid) !important;
+  border-color: transparent;
+  color: var(--wms-solid-text);
+}
+.vc-top .icon-tile.muted {
+  background: transparent !important;
+  color: var(--wms-faint);
+}
+.vc-lines > span.dim {
+  color: var(--wms-muted);
+}

@@ -1,8 +1,10 @@
 import {
+  afterRenderEffect,
   AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   ElementRef,
   HostListener,
@@ -11,11 +13,13 @@ import {
   model,
   output,
   signal,
+  viewChild,
   viewChildren,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Confirm, Toasts } from '../core/ui.services';
 import { IconComponent } from './icon.component';
+import { cssMs, cssVar, reducedMotion } from './motion';
 
 /** Hoja modal (sheet) con handle en móvil, cierre con Esc y clic en el fondo. */
 @Component({
@@ -24,9 +28,10 @@ import { IconComponent } from './icon.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open()) {
-      <div class="backdrop" (click)="close()"></div>
+      <div class="backdrop" animate.leave="wms-leave-fade" (click)="close()"></div>
       <section
         class="sheet"
+        animate.leave="wms-leave-sheet"
         [class.wide]="wide()"
         role="dialog"
         aria-modal="true"
@@ -86,7 +91,7 @@ export class SheetComponent {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="segmented" role="tablist">
-      <span class="thumb" [style.left.px]="thumb().left" [style.width.px]="thumb().width"></span>
+      <span #thumbEl class="thumb" [style.left.px]="thumb().left" [style.width.px]="thumb().width"></span>
       @for (o of options(); track o.value) {
         <button
           #btn
@@ -105,7 +110,9 @@ export class SegmentedComponent implements AfterViewInit {
   readonly options = input.required<{ value: string; label: string }[]>();
   readonly value = model.required<string>();
   private buttons = viewChildren<ElementRef<HTMLButtonElement>>('btn');
+  private thumbEl = viewChild<ElementRef<HTMLElement>>('thumbEl');
   private measured = signal(0);
+  private prevThumb: { left: number; width: number } | null = null;
   readonly thumb = computed(() => {
     this.measured();
     const idx = this.options().findIndex((o) => o.value === this.value());
@@ -117,6 +124,27 @@ export class SegmentedComponent implements AfterViewInit {
     effect(() => {
       this.options();
       requestAnimationFrame(() => this.measured.update((n) => n + 1));
+    });
+    // Vuelve a medir cuando cambia el tamaño de un botón: la hoja aún abriéndose (botones de 0 px),
+    // la fuente que termina de cargar o la traducción a inglés. Sin esto el indicador quedaba en 0 px
+    // y solo se veía su borde como una franja clara a la izquierda.
+    const RO: typeof ResizeObserver | undefined = (globalThis as any).ResizeObserver;
+    if (RO) {
+      const ro = new RO(() => this.measured.update((n) => n + 1));
+      effect(() => this.buttons().forEach((b) => ro.observe(b.nativeElement, { box: 'border-box' })));
+      inject(DestroyRef).onDestroy(() => ro.disconnect());
+    }
+    // FLIP: left/width se aplican al instante (mismo resultado final) y el cambio se anima solo con transform.
+    afterRenderEffect(() => {
+      const t = this.thumb();
+      const el = this.thumbEl()?.nativeElement;
+      const p = this.prevThumb;
+      this.prevThumb = t;
+      if (!el || !p || !p.width || !t.width || (p.left === t.left && p.width === t.width) || reducedMotion()) return;
+      el.animate(
+        [{ transform: `translateX(${p.left - t.left}px) scaleX(${p.width / t.width})` }, { transform: 'none' }],
+        { duration: cssMs('--dur-3', 450), easing: cssVar('--ease', 'ease') },
+      );
     });
   }
   ngAfterViewInit() {
@@ -229,9 +257,10 @@ export class SkeletonListComponent {
     </div>
 
     @if (confirm.current(); as c) {
-      <div class="backdrop" style="z-index:3000" (click)="confirm.close(false)"></div>
+      <div class="backdrop" style="z-index:3000" animate.leave="wms-leave-fade" (click)="confirm.close(false)"></div>
       <div
         class="alert-dialog glass-thick"
+        animate.leave="wms-leave-dialog"
         role="alertdialog"
         aria-modal="true"
         [attr.aria-label]="c.title"

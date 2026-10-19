@@ -19,6 +19,7 @@ import {
   SkeletonListComponent,
 } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
+import { DebounceInputDirective } from '../../ui/motion-directives';
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   open: { label: 'Abierto', tone: 'blue' },
@@ -39,6 +40,7 @@ const CATEGORIES: Record<string, string> = {
 @Component({
   selector: 'app-support',
   imports: [
+    DebounceInputDirective,
     FormsModule,
     IconComponent,
     SheetComponent,
@@ -53,9 +55,16 @@ const CATEGORIES: Record<string, string> = {
       <header class="page-head">
         <div>
           <div class="eyebrow">
-            {{ isAgent() ? 'Mesa de ayuda WMS · todas las empresas' : 'Ayuda' }}
+            Gestión
           </div>
           <h1 class="large-title">Soporte</h1>
+          <p>
+            {{
+              isAgent()
+                ? 'Tickets de todas las empresas de la plataforma.'
+                : 'Escríbele al equipo de WMS; solemos responder el mismo día.'
+            }}
+          </p>
         </div>
         <div class="actions">
           @if (!isAgent()) {
@@ -66,16 +75,24 @@ const CATEGORIES: Record<string, string> = {
         </div>
       </header>
 
-      <app-segmented
-        [options]="filterOptions"
-        [value]="filter()"
-        (valueChange)="setFilter($event)"
-        style="display:block;margin-bottom:14px"
-      />
+      <div class="mod-tool">
+        <div class="pills" role="tablist" aria-label="Estado">
+          @for (o of filterOptions; track o.value) {
+            <button type="button" [class.on]="filter() === o.value" (click)="setFilter(o.value)">{{ o.label }}@if (countF(o.value)) {<small>{{ countF(o.value) }}</small>}</button>
+          }
+        </div>
+        <div class="mod-right">
+          <span class="mod-count">{{ shown().length }} tickets</span>
+          <label class="search">
+            <app-icon name="search" [size]="14" />
+            <input class="input" type="search" placeholder="Buscar tickets" aria-label="Buscar tickets" [value]="q()" wmsDebounce (debounced)="q.set($event)" />
+          </label>
+        </div>
+      </div>
 
       @if (loading()) {
         <app-skeleton-list />
-      } @else if (!tickets().length) {
+      } @else if (!shown().length) {
         <div class="card">
           <app-empty
             icon="life-buoy"
@@ -88,32 +105,46 @@ const CATEGORIES: Record<string, string> = {
           />
         </div>
       } @else {
-        <div class="list">
-          @for (t of tickets(); track t.id) {
-            <button class="list-item" type="button" (click)="openTicket(t)">
-              <span class="icon-tile" [class]="'icon-tile bg-' + (status[t.status].tone || 'gray')"
-                ><app-icon name="message" [size]="16"
-              /></span>
-              <span class="content">
-                <span class="row" style="gap:8px"
-                  ><span class="title truncate">#{{ t.number }} · {{ t.subject }}</span></span
-                >
-                <span class="sub" style="display:block">
-                  @if (isAgent()) {
-                    <strong>{{ t.companyName }}</strong> ·
-                  }
-                  {{ categories[t.category] }} · {{ t.createdBy }} ·
-                  {{ t.updatedAt | dt: 'relative' }} · {{ t.comments }} respuestas
-                </span>
-              </span>
-              <span class="badge" [class]="'badge ' + priority[t.priority].tone">{{
-                priority[t.priority].label
-              }}</span>
-              <span class="badge" [class]="'badge ' + status[t.status].tone">{{
-                status[t.status].label
-              }}</span>
-            </button>
-          }
+        <div class="table-wrap">
+          <table class="table grid" style="--cols: 70px minmax(0,2.4fr) 110px 100px 120px 120px; min-width: 760px">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Asunto</th>
+                <th>Categoría</th>
+                <th>Prioridad</th>
+                <th>Estado</th>
+                <th>Actualizado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (t of shown(); track t.id) {
+                <tr class="clickable" (click)="openTicket(t)">
+                  <td data-label="#"><b class="mono">#{{ t.number }}</b></td>
+                  <td data-label="Asunto">
+                    <span class="cell-txt"
+                      ><b>{{ t.subject }}</b
+                      ><small
+                        >{{ isAgent() ? t.companyName + ' · ' : '' }}{{ t.createdBy }} · {{ t.comments }} respuestas</small
+                      ></span
+                    >
+                  </td>
+                  <td data-label="Categoría">{{ categories[t.category] }}</td>
+                  <td data-label="Prioridad">
+                    <span class="badge" [class.solid]="t.priority === 'high' || t.priority === 'critical'" [class.off]="t.priority === 'low'">{{
+                      priority[t.priority].label
+                    }}</span>
+                  </td>
+                  <td data-label="Estado">
+                    <span class="badge" [class.solid]="t.status === 'open'" [class.off]="t.status === 'resolved' || t.status === 'closed'">{{
+                      status[t.status].label
+                    }}</span>
+                  </td>
+                  <td data-label="Actualizado" class="muted">{{ t.updatedAt | dt: 'relative' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
       }
     </div>
@@ -262,9 +293,10 @@ const CATEGORIES: Record<string, string> = {
     .bubble {
       max-width: 82%;
       padding: 9px 13px;
-      border-radius: 18px;
-      font-size: 15px;
+      border-radius: 16px;
+      font-size: 13px;
       white-space: pre-wrap;
+      animation: wms-in var(--dur-3) var(--ease) backwards;
     }
     .bubble .who {
       font-size: 11px;
@@ -273,14 +305,14 @@ const CATEGORIES: Record<string, string> = {
     }
     .bubble.them {
       align-self: flex-start;
-      background: var(--bg-elevated);
-      border: 0.5px solid var(--hairline);
+      background: var(--wms-card-hi);
+      border: 1px solid var(--wms-border);
       border-bottom-left-radius: 6px;
     }
     .bubble.me {
       align-self: flex-end;
-      background: var(--tint);
-      color: #fff;
+      background: var(--wms-solid);
+      color: var(--wms-solid-text);
       border-bottom-right-radius: 6px;
     }
     .composer {
@@ -289,7 +321,7 @@ const CATEGORIES: Record<string, string> = {
       position: sticky;
       bottom: 0;
       padding-top: 8px;
-      background: var(--bg);
+      background: transparent;
     }
     .composer .input {
       border-radius: 999px;
@@ -302,7 +334,25 @@ export class SupportPage implements OnInit {
   private toasts = inject(Toasts);
   readonly tickets = signal<Ticket[]>([]);
   readonly loading = signal(true);
-  readonly filter = signal('');
+  /** Filtros del prototipo (Abiertos agrupa abierto y en progreso; Resueltos agrupa resuelto y cerrado). */
+  readonly filter = signal<'open' | 'done' | 'all'>('open');
+  readonly q = signal('');
+  private inGroup(t: Ticket, f: string) {
+    const open = t.status === 'open' || t.status === 'in_progress';
+    return f === 'all' || (f === 'open' ? open : !open);
+  }
+  private matchQ(t: Ticket) {
+    const q = this.q().trim().toLowerCase();
+    return !q || ('#' + t.number + ' ' + t.subject).toLowerCase().includes(q);
+  }
+  countF(f: string) {
+    return this.tickets().filter((t) => this.matchQ(t) && this.inGroup(t, f)).length;
+  }
+  readonly shown = computed(() =>
+    this.tickets()
+      .filter((t) => this.matchQ(t) && this.inGroup(t, this.filter()))
+      .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1)),
+  );
   readonly createOpen = signal(false);
   readonly detailOpen = signal(false);
   readonly current = signal<Ticket | null>(null);
@@ -314,11 +364,9 @@ export class SupportPage implements OnInit {
   readonly categoryKeys = Object.keys(CATEGORIES);
   readonly isAgent = computed(() => this.auth.user()?.role === 'support');
   readonly filterOptions = [
-    { value: '', label: 'Todos' },
-    { value: 'open', label: 'Abiertos' },
-    { value: 'in_progress', label: 'En progreso' },
-    { value: 'resolved', label: 'Resueltos' },
-    { value: 'closed', label: 'Cerrados' },
+    { value: 'open' as const, label: 'Abiertos' },
+    { value: 'done' as const, label: 'Resueltos' },
+    { value: 'all' as const, label: 'Todos' },
   ];
   readonly statusOptions = Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label }));
   form = { subject: '', category: 'general', priority: 'medium', description: '' };
@@ -332,7 +380,7 @@ export class SupportPage implements OnInit {
     this.loading.set(true);
     try {
       this.tickets.set(
-        await this.api.get<Ticket[]>('tickets', { status: this.filter() || undefined }),
+        await this.api.get<Ticket[]>('tickets'),
       );
     } catch (e) {
       this.toasts.error('No se pudieron cargar los tickets', errorMessage(e));
@@ -341,9 +389,8 @@ export class SupportPage implements OnInit {
     }
   }
 
-  setFilter(f: string) {
+  setFilter(f: 'open' | 'done' | 'all') {
     this.filter.set(f);
-    this.load();
   }
 
   openCreate() {

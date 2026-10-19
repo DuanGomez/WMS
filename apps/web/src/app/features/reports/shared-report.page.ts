@@ -28,7 +28,7 @@ interface Shared {
   styleUrl: '../auth/auth.scss',
   template: `
     <section class="auth-card glass-thick" style="width:min(520px,100%)">
-      <app-logo class="auth-logo" [size]="52" style="width:52px;height:52px" />
+      <app-logo class="auth-logo" [size]="40" />
       @if (data(); as d) {
         <p class="auth-sub" style="margin:0 0 4px">{{ d.company }} compartió contigo</p>
         <h1 class="auth-title">{{ d.name }}</h1>

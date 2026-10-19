@@ -130,27 +130,27 @@ interface Pt {
     }
     .trip {
       text-align: left;
-      border: 0;
-      border-radius: 14px;
+      border-radius: 12px;
       padding: 10px 12px;
-      background: var(--bg-elevated);
+      background: var(--wms-input);
+      color: var(--wms-text);
       cursor: pointer;
-      border: 0.5px solid var(--hairline);
-      transition:
-        background 160ms,
-        box-shadow 160ms;
+      border: 1px solid var(--wms-border);
+      transition: background var(--dur-1);
     }
     .trip:hover {
       background: var(--bg-hover);
     }
     .trip.active {
-      box-shadow: inset 0 0 0 2px var(--tint);
+      background: var(--wms-card-hi);
+      box-shadow: inset 0 0 0 1.5px var(--wms-text);
     }
     .stage {
       position: relative;
-      border-radius: 18px;
+      border-radius: 16px;
       overflow: hidden;
       min-height: 300px;
+      border: 1px solid var(--wms-border);
     }
     .pbmap {
       position: absolute;

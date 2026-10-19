@@ -1,128 +1,229 @@
-.narrow {
-  max-width: 860px;
+/* Ajustes con la tarjeta genérica del prototipo (24/26 px, gap 12, título 13/11 px, botones al pie) */
+.sgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
 }
-.section-label {
-  margin-top: 26px;
+.sgrid > * {
+  animation: wms-in var(--dur-4) var(--ease) backwards;
 }
-.me {
+@for $i from 1 through 6 {
+  .sgrid > :nth-child(#{$i}) {
+    animation-delay: #{120 + ($i - 1) * 80}ms;
+  }
+}
+.sc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.sc.span2 {
+  grid-column: span 2;
+}
+.sc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sc-t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sc-t > span {
+  font-size: 13px;
+  font-weight: 600;
+}
+.sc-t small {
+  font-size: 11px;
+  color: var(--wms-muted);
+  text-wrap: pretty;
+}
+.sform {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+.fld {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--wms-muted);
+}
+.fld .input {
+  height: 38px;
+  font-size: 13px;
+}
+.err {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wms-text);
+}
+.sbtns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 4px;
+}
+.sbtns .btn {
+  height: 36px;
+  border-radius: 10px;
+}
+.sbtns .btn.sm {
+  height: 32px;
+  font-size: 12px;
+}
+.tgl {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  padding: 6px 0;
 }
-.me .avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
+.tgl .content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tgl .title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.tgl .sub {
+  font-size: 11px;
+  color: var(--wms-muted);
+  text-wrap: pretty;
+}
+.sg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sg .lbl {
+  font-size: 12px;
+  color: var(--wms-muted);
+}
+.pills.stretch button {
+  flex: 1;
+  justify-content: center;
+}
+/* Filas del simulador (prototipo: 8px 10px, radio 12, fondo suave) */
+.srow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--wms-soft);
+  border: 1px solid var(--wms-divider);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-1),
+    background var(--dur-1);
+}
+.srow:hover {
+  background: var(--wms-row-hover);
+}
+.srow.sel {
+  border-color: var(--wms-text);
+}
+.srow .tile {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  color: var(--wms-text);
   display: grid;
   place-items: center;
-  font-size: 24px;
+}
+.srow .tile.solid {
+  background: var(--wms-solid);
+  border-color: transparent;
+  color: var(--wms-solid-text);
+}
+.srow .content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.srow .title {
+  font-size: 13px;
   font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, var(--blue), var(--indigo));
-  flex: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.form-list .lbl {
-  width: 170px;
-  flex: none;
-  font-weight: 500;
+.srow .sub {
+  font-size: 11px;
+  color: var(--wms-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.input.bare {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  height: 30px;
+.srow .right {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--wms-divider);
+}
+.kv span {
+  flex: none;
+  color: var(--wms-muted);
+}
+.kv b {
+  font-weight: 600;
   text-align: right;
 }
-.input.bare:focus {
-  box-shadow: none;
-  background: transparent;
-  border: 0;
-}
-.form-list .list-item:focus-within {
-  background: var(--tint-soft);
+.note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wms-muted);
+  text-wrap: pretty;
 }
 .warn {
-  margin-top: 12px;
+  margin: 0;
   padding: 10px 12px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--orange) 14%, transparent);
-  font-size: 13.5px;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-soft);
+  font-size: 12px;
 }
-.vehicles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
-.veh-card {
-  border-radius: 16px;
-  padding: 14px;
-  background: var(--bg);
-  border: 0.5px solid var(--hairline);
-}
-.progress {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--fill);
-  margin: 12px 0 6px;
-  overflow: hidden;
-}
-.progress div {
-  height: 100%;
-  background: var(--blue);
-  border-radius: 3px;
-  transition: width 1.8s linear;
-}
-.scenarios {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.sc-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 12px;
-  border: 0;
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-1);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-  transition: transform 160ms var(--ease);
-}
-.sc-btn .icon-tile {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-}
-.sc-btn:hover {
-  transform: translateY(-1px);
-}
-.sc-btn:active {
-  transform: scale(0.97);
-}
-.sc-btn:disabled {
-  opacity: 0.4;
-  pointer-events: none;
-}
-.active-sc {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--purple) 14%, transparent);
-  color: var(--purple);
-  font-size: 14px;
-}
-@media (max-width: 760px) {
-  .vehicles {
-    grid-template-columns: 1fr;
+@media (max-width: 1099px) {
+  .sgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .form-list .lbl {
-    width: 120px;
+  .sc.span2 {
+    grid-column: auto;
+  }
+}
+@media (max-width: 759px) {
+  .sgrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 }

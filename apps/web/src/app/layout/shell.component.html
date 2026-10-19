@@ -1,153 +1,143 @@
 <a class="skip" href="#main">Saltar al contenido</a>
 
-<aside class="sidebar glass" [class.collapsed]="collapsed.get()" aria-label="Navegación principal">
-  <div class="brand">
-    <div class="logo" aria-hidden="true">
-      <svg viewBox="0 0 32 32" width="30" height="30">
-        <defs>
-          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#34C7FF" />
-            <stop offset="1" stop-color="#007AFF" />
-          </linearGradient>
-        </defs>
-        <rect width="32" height="32" rx="8" fill="url(#g)" />
-        <path
-          d="M16 6.5c-3.9 0-7 3-7 6.8 0 5 7 12.2 7 12.2s7-7.2 7-12.2c0-3.8-3.1-6.8-7-6.8Z"
-          fill="#fff"
-        />
-        <circle cx="16" cy="13.3" r="2.8" fill="#007AFF" />
-      </svg>
-    </div>
-    <div class="brand-text">
-      <strong>WMS</strong>
-      <span class="truncate">{{ auth.user()?.company?.name }}</span>
-    </div>
-    <button
-      class="btn icon sm plain collapse-btn"
-      type="button"
-      (click)="collapsed.set(!collapsed.get())"
-      [attr.aria-label]="collapsed.get() ? 'Expandir barra lateral' : 'Contraer barra lateral'"
-    >
-      <app-icon [name]="collapsed.get() ? 'chevron-right' : 'arrow-left'" [size]="16" />
+<header class="bar" aria-label="Navegación principal">
+  <div class="bar-in">
+    <button class="wms-ctl menu-btn only-mobile" type="button" aria-label="Abrir menú" (click)="moreOpen.set(true)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"></path></svg>
     </button>
-  </div>
 
-  <nav class="nav">
-    @for (g of groups(); track g.name) {
-      <div class="nav-group">
-        <div class="nav-group-label">{{ g.name }}</div>
+    <a class="brand" routerLink="/" aria-label="WMS · Inicio">
+      <app-logo [compact]="true" />
+      <strong class="hide-mobile">WMS</strong>
+    </a>
+    <span class="cur-title only-mobile">{{ current() }}</span>
+
+    <nav class="nav hide-mobile" wmsNavPill>
+      @for (g of groups(); track g.name) {
         @for (it of g.items; track it.path) {
           <a
             class="nav-item"
             [routerLink]="it.path"
             routerLinkActive="active"
-            [attr.title]="collapsed.get() ? it.label : null"
+            [attr.title]="it.label"
+            [attr.aria-label]="it.label"
           >
-            <app-icon [name]="it.icon" [size]="18" />
+            <app-icon [name]="it.icon" [size]="15" />
             <span class="nav-label">{{ it.label }}</span>
             @if (it.badge && live.openAlerts() > 0) {
-              <span class="count-badge">{{
-                live.openAlerts() > 99 ? '99+' : live.openAlerts()
-              }}</span>
+              <span class="count-badge">{{ live.openAlerts() > 99 ? '99+' : live.openAlerts() }}</span>
             }
           </a>
         }
-      </div>
-    }
-  </nav>
+      }
+    </nav>
 
-  <div class="sidebar-foot">
-    @if (auth.can('map')) {
-      <div class="live-pill" [attr.data-mode]="live.mode()" role="status">
-        <span
-          class="dot"
-          [class.green]="live.mode() === 'sse' || live.mode() === 'polling'"
-          [class.pulse]="live.mode() === 'sse'"
-        ></span>
-        <span class="nav-label">{{ liveLabel() }}</span>
+    <div class="bar-right">
+      <div class="gsearch hide-mobile" [class.open]="searchOpen()">
+        <app-icon name="search" [size]="14" class="gs-ic" />
+        <input
+          #gs
+          [value]="q()"
+          (input)="q.set($any($event.target).value)"
+          (focus)="searchOpen.set(true)"
+          (blur)="closeSearchSoon()"
+          (keydown.enter)="goFirst()"
+          (keydown.escape)="gs.blur()"
+          placeholder="Buscar"
+          aria-label="Buscar"
+        />
+        @if (q()) {
+          <button type="button" class="gs-clear" aria-label="Limpiar" (mousedown)="$event.preventDefault()" (click)="q.set('')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          </button>
+        } @else if (!searchOpen()) {
+          <span class="kbd">⌘K</span>
+        }
+        @if (searchOpen() && q()) {
+          <div class="gs-pop glass-thick" role="listbox">
+            @for (r of results(); track r.path) {
+              <a class="gs-item" [routerLink]="r.path" (mousedown)="$event.preventDefault()" (click)="q.set(''); gs.blur()">
+                <app-icon [name]="r.icon" [size]="15" />
+                <span>{{ r.label }}</span>
+              </a>
+            } @empty {
+              <div class="gs-empty">Sin resultados</div>
+            }
+          </div>
+        }
       </div>
-    }
-    <div class="me">
-      <a
-        routerLink="/ajustes"
-        class="avatar"
-        [attr.aria-label]="'Perfil de ' + auth.user()?.name"
-        >{{ initials() }}</a
-      >
-      <div class="me-text">
-        <strong class="truncate">{{ auth.user()?.name }}</strong>
-        <span class="truncate">{{ auth.user()?.roleLabel }}</span>
+
+      <span class="hide-mobile" style="display:contents"><app-lang-toggle /></span>
+      <app-theme-toggle />
+
+      <div class="pf">
+        <button type="button" class="wms-ctl round" aria-label="Perfil" (click)="pfOpen.set(!pfOpen())">{{ initials() }}</button>
+        <div class="pf-pop glass-thick" [class.open]="pfOpen()" [attr.aria-hidden]="!pfOpen()">
+          <div class="pf-head">
+            <span class="pf-av">{{ initials() }}</span>
+            <div class="pf-txt">
+              <strong class="truncate">{{ auth.user()?.name }}</strong>
+              <span class="truncate">{{ auth.user()?.roleLabel }} · {{ auth.user()?.company?.name }}</span>
+            </div>
+          </div>
+          <div class="pf-rows">
+            <div><span>Correo</span><b class="truncate">{{ auth.user()?.email }}</b></div>
+            <div><span>Teléfono</span><b class="truncate">{{ $any(auth.user())?.phone || '—' }}</b></div>
+            <div><span>Empresa</span><b class="truncate">{{ auth.user()?.company?.name }}</b></div>
+            <div><span>Plan</span><b class="truncate">{{ auth.user()?.company?.planName || '—' }}</b></div>
+          </div>
+          <button type="button" class="pf-btn" (click)="pfOpen.set(false); logout()">Cerrar sesión</button>
+        </div>
       </div>
-      <button
-        class="btn icon sm plain"
-        type="button"
-        aria-label="Cerrar sesión"
-        title="Cerrar sesión"
-        (click)="logout()"
-      >
-        <app-icon name="log-out" [size]="17" />
-      </button>
     </div>
   </div>
-</aside>
+</header>
 
-<main id="main" class="main" [class.bleed]="fullBleed()" [class.wide-left]="!collapsed.get()">
+<main id="main" class="main" [class.bleed]="fullBleed()">
   <router-outlet />
 </main>
 
-<!-- Tab bar inferior estilo iOS (móvil) -->
-<nav class="tabbar glass" aria-label="Navegación inferior">
-  @for (t of tabs(); track t.path) {
-    <a class="tab" [routerLink]="t.path" routerLinkActive="active">
-      <span class="tab-icon">
-        <app-icon [name]="t.icon" [size]="22" />
-        @if (t.badge && live.openAlerts() > 0) {
-          <span class="count-badge tab-badge">{{
-            live.openAlerts() > 99 ? '99+' : live.openAlerts()
-          }}</span>
-        }
-      </span>
-      <span>{{ t.label === 'Mapa en vivo' ? 'Mapa' : t.label }}</span>
-    </a>
-  }
-  <button
-    class="tab"
-    type="button"
-    [class.active]="moreOpen()"
-    (click)="moreOpen.set(!moreOpen())"
-    aria-label="Más opciones"
-  >
-    <span class="tab-icon"><app-icon name="ellipsis" [size]="22" /></span>
-    <span>Más</span>
-  </button>
-</nav>
-
-@if (moreOpen()) {
-  <div class="backdrop" (click)="moreOpen.set(false)"></div>
-  <section class="sheet more-sheet" role="dialog" aria-label="Más opciones">
-    <div class="sheet-handle"></div>
-    <div class="sheet-body" style="padding-top: 12px">
-      <div class="me-card">
-        <div class="avatar lg">{{ initials() }}</div>
-        <div>
-          <div class="headline">{{ auth.user()?.name }}</div>
-          <div class="footnote">
-            {{ auth.user()?.roleLabel }} · {{ auth.user()?.company?.name }}
-          </div>
-        </div>
+<!-- Menú lateral (móvil). Reutiliza el signal moreOpen. -->
+<div class="drawer-scrim only-mobile" [class.open]="moreOpen()" (click)="moreOpen.set(false)"></div>
+<aside class="drawer only-mobile" [class.open]="moreOpen()" aria-label="Menú" [attr.aria-hidden]="!moreOpen()">
+  <div class="dr-head">
+    <app-logo [compact]="true" />
+    <strong>WMS</strong>
+    <button type="button" class="wms-ctl flat" aria-label="Cerrar menú" (click)="moreOpen.set(false)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+    </button>
+  </div>
+  <nav class="dr-nav">
+    @for (g of groups(); track g.name) {
+      <span class="dr-group">{{ g.name }}</span>
+      @for (it of g.items; track it.path) {
+        <a class="dr-item" [routerLink]="it.path" routerLinkActive="active">
+          <app-icon [name]="it.icon" [size]="17" />
+          <span class="truncate">{{ it.label }}</span>
+          @if (it.badge && live.openAlerts() > 0) {
+            <span class="count-badge">{{ live.openAlerts() > 99 ? '99+' : live.openAlerts() }}</span>
+          }
+        </a>
+      }
+    }
+  </nav>
+  <div class="dr-foot">
+    <div class="dr-me">
+      <span class="pf-av sm">{{ initials() }}</span>
+      <div class="pf-txt">
+        <strong class="truncate">{{ auth.user()?.name }}</strong>
+        <span class="truncate">{{ auth.user()?.roleLabel }} · {{ auth.user()?.company?.name }}</span>
       </div>
-      <div class="list" style="margin-top: 14px">
-        @for (it of moreItems(); track it.path) {
-          <a class="list-item clickable" [routerLink]="it.path">
-            <span class="icon-tile bg-blue"><app-icon [name]="it.icon" [size]="17" /></span>
-            <span class="content title">{{ it.label }}</span>
-            <app-icon name="chevron-right" [size]="16" class="faint" />
-          </a>
-        }
-      </div>
-      <button class="btn block lg danger" type="button" style="margin-top: 16px" (click)="logout()">
-        Cerrar sesión
-      </button>
     </div>
-  </section>
-}
+    @if (auth.can('map')) {
+      <div class="live-pill" [attr.data-mode]="live.mode()" role="status">
+        <span class="dot" [class.green]="live.mode() === 'sse' || live.mode() === 'polling'" [class.pulse]="live.mode() === 'sse'"></span>
+        <span>{{ liveLabel() }}</span>
+      </div>
+    }
+    <div class="dr-actions">
+      <app-lang-toggle />
+      <button type="button" class="pf-btn grow" (click)="logout()">Cerrar sesión</button>
+    </div>
+  </div>
+</aside>

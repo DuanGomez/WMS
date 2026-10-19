@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   inject,
   OnDestroy,
   OnInit,
@@ -16,6 +17,7 @@ import { Driver, Trip, Vehicle } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
 import { EmptyComponent } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
+import { CountDirective } from '../../ui/wms-fx';
 
 interface Me {
   driver: Driver;
@@ -26,127 +28,87 @@ interface Me {
 /** Conductor (Repartidor): iniciarRecorrido, finalizarRecorrido y enviarAlertaEmergencia del modelo de dominio. */
 @Component({
   selector: 'app-my-shift',
-  imports: [RouterLink, IconComponent, EmptyComponent, DtPipe, NumPipe],
+  imports: [RouterLink, IconComponent, EmptyComponent, DtPipe, NumPipe, CountDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page" style="max-width:760px">
+    <div class="page">
       <header class="page-head">
         <div>
-          <div class="eyebrow">Hola, {{ auth.user()?.name?.split(' ')?.[0] }}</div>
-          <h1 class="large-title">Mi turno</h1>
+          <div class="eyebrow">Mi turno</div>
+          <h1 class="large-title">Hola, {{ auth.user()?.name?.split(' ')?.[0] }}</h1>
+          <p>
+            @if (me()?.vehicle; as v) {
+              {{ v.plate }} · {{ types[v.type].label }} {{ v.brand }} {{ v.model }}
+            } @else {
+              No tienes vehículo asignado. Pídeselo a tu supervisor.
+            }
+          </p>
         </div>
       </header>
 
       @if (me(); as m) {
         @if (m.vehicle; as v) {
-          <section class="card hero">
-            <div class="row">
-              <span class="icon-tile lg bg-blue"
-                ><app-icon [name]="types[v.type].icon" [size]="24"
-              /></span>
-              <div style="flex:1">
-                <div class="title-1 tabular">{{ v.plate }}</div>
-                <div class="footnote">{{ types[v.type].label }} · {{ v.brand }} {{ v.model }}</div>
+          <div class="mgrid">
+            <section class="card mc">
+              <div class="mc-head">
+                <div class="mc-t">
+                  <span>{{ m.driver.openTripId && m.driver.shiftActive ? 'Recorrido en curso' : 'Listo para empezar' }}</span>
+                  <small>{{ m.driver.openTripId && m.driver.shiftActive ? 'Tu empresa te ve en el mapa.' : 'Inicia un recorrido cuando salgas.' }}</small>
+                </div>
+                <span class="badge" [class.solid]="m.driver.shiftActive">{{ m.driver.shiftActive ? 'En turno' : (driverStatus[m.driver.status] ?? 'Disponible') }}</span>
               </div>
-              <span
-                class="badge"
-                [class.green]="m.driver.shiftActive"
-                [class.blue]="!m.driver.shiftActive"
-                >{{ m.driver.shiftActive ? 'Turno activo' : 'Fuera de turno' }}</span
-              >
-            </div>
-            <div class="metrics">
-              <div>
-                <span class="caption">Velocidad</span
-                ><strong class="tabular">{{ speed() | num: 0 }} km/h</strong>
+              <div class="big"><b [wmsCount]="speed()"></b><small>km/h</small></div>
+              <div class="kv"><span>Velocidad</span><b>{{ speed() | num: 0 }} km/h</b></div>
+              <div class="kv"><span>GPS</span><b>{{ online() ? 'En línea' : 'Sin señal' }}</b></div>
+              <div class="kv"><span>Último reporte</span><b>{{ lastTs() | dt: 'relative' }}</b></div>
+              <div class="mbtns">
+                @if (m.driver.openTripId && m.driver.shiftActive) {
+                  <button class="btn primary lg" type="button" (click)="finish()" [disabled]="busy()">
+                    <app-icon name="clock" [size]="16" />Finalizar recorrido
+                  </button>
+                } @else {
+                  <button class="btn primary lg" type="button" (click)="start()" [disabled]="busy()">
+                    <app-icon name="navigation" [size]="16" />Iniciar recorrido
+                  </button>
+                }
+                <a class="btn lg" routerLink="/mapa" [queryParams]="{ v: v.id }"><app-icon name="map" [size]="16" />Mapa</a>
               </div>
-              <div>
-                <span class="caption">GPS</span
-                ><strong [class.c-green]="online()" [class.c-red]="!online()">{{
-                  online() ? 'En línea' : 'Sin señal'
-                }}</strong>
-              </div>
-              <div>
-                <span class="caption">Último reporte</span
-                ><strong>{{ lastTs() | dt: 'relative' }}</strong>
-              </div>
-            </div>
-            <div class="row" style="gap:10px">
-              @if (m.driver.openTripId && m.driver.shiftActive) {
-                <button
-                  class="btn lg"
-                  style="flex:1"
-                  type="button"
-                  (click)="finish()"
-                  [disabled]="busy()"
-                >
-                  <app-icon name="circle-check" [size]="18" />Finalizar recorrido
-                </button>
-              } @else {
-                <button
-                  class="btn primary lg"
-                  style="flex:1"
-                  type="button"
-                  (click)="start()"
-                  [disabled]="busy()"
-                >
-                  <app-icon name="play" [size]="18" />Iniciar recorrido
-                </button>
-              }
-              <a class="btn lg" routerLink="/mapa" [queryParams]="{ v: v.id }"
-                ><app-icon name="map" [size]="18" />Mapa</a
-              >
-            </div>
-          </section>
+            </section>
 
-          <button
-            class="sos"
-            type="button"
-            (click)="sos()"
-            [disabled]="busy()"
-            aria-label="Enviar alerta de emergencia"
-          >
-            <app-icon name="siren" [size]="28" />
-            <span
-              ><strong>Emergencia</strong
-              ><small>Avisa de inmediato a tu empresa con tu ubicación</small></span
-            >
-          </button>
+            <section class="card mc sos-card">
+              <div class="mc-t"><span>Emergencia</span></div>
+              <p class="note">Avisa de inmediato a tu empresa con tu ubicación.</p>
+              <button class="btn primary lg sos" type="button" (click)="sos()" [disabled]="busy()" aria-label="Enviar alerta de emergencia">
+                <app-icon name="siren" [size]="16" />Enviar alerta de emergencia
+              </button>
+            </section>
 
-          <div class="section-label" style="margin-top:22px">Mis últimos recorridos</div>
-          <div class="list">
-            @for (t of m.trips; track t.id) {
-              <div class="list-item">
-                <span
-                  class="icon-tile"
-                  [class.bg-green]="t.status === 'open'"
-                  [class.bg-gray]="t.status !== 'open'"
-                  ><app-icon name="route" [size]="16"
-                /></span>
-                <span class="content">
-                  <span class="title" style="display:block">{{ t.startedAt | dt }}</span>
-                  <span class="sub"
-                    >{{ t.distanceKm | num }} km · {{ t.movingMinutes }} min en marcha · máx
-                    {{ t.maxSpeed }} km/h</span
-                  >
-                </span>
-                @if (t.status === 'open') {
-                  <span class="badge green">En curso</span>
+            <section class="card mc full">
+              <div class="mc-t"><span>Mis últimos recorridos</span></div>
+              <div class="trips">
+                @for (t of m.trips.slice(0, 5); track t.id) {
+                  @if (t.status === 'open') {
+                    <div class="trip">
+                      <span class="tile solid"><app-icon name="navigation" [size]="14" /></span>
+                      <span class="cell-txt"><b>En curso</b><small>Iniciado {{ t.startedAt | dt: 'shortTime' }}</small></span>
+                      <b class="tkm">{{ t.distanceKm | num }} km</b>
+                    </div>
+                  } @else {
+                    <div class="trip">
+                      <span class="tile"><app-icon name="route" [size]="14" /></span>
+                      <span class="cell-txt"><b>{{ t.startedAt | dt: 'shortTime' }}</b><small>{{ t.movingMinutes }} min · máx. {{ t.maxSpeed }} km/h</small></span>
+                      <b class="tkm">{{ t.distanceKm | num }} km</b>
+                    </div>
+                  }
+                } @empty {
+                  <p class="note">Aún no tienes recorridos.</p>
                 }
               </div>
-            } @empty {
-              <div class="list-item">
-                <span class="content sub">Aún no tienes recorridos.</span>
-              </div>
-            }
+            </section>
           </div>
         } @else {
           <div class="card">
-            <app-empty
-              icon="car"
-              title="Sin vehículo asignado"
-              text="Pídele a tu administrador que te asigne un vehículo en Conductores."
-            />
+            <app-empty icon="car" title="Sin vehículo asignado" text="Pídele a tu administrador que te asigne un vehículo en Conductores." />
           </div>
         }
       } @else if (error()) {
@@ -159,65 +121,44 @@ interface Me {
     </div>
   `,
   styles: `
-    .hero {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      padding: 22px;
-    }
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-    .metrics div {
-      display: flex;
-      flex-direction: column;
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: var(--fill-2);
-    }
-    .metrics strong {
-      font-size: 17px;
-    }
-    .sos {
-      margin-top: 16px;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 18px 20px;
-      border: 0;
-      border-radius: 22px;
-      background: linear-gradient(135deg, #ff453a, #ff2d55);
-      color: #fff;
-      cursor: pointer;
-      text-align: left;
-      box-shadow: 0 10px 30px rgba(255, 59, 48, 0.35);
-      transition: transform 180ms var(--ease);
-    }
-    .sos:active {
-      transform: scale(0.98);
-    }
-    .sos strong {
-      display: block;
-      font-size: 19px;
-    }
-    .sos small {
-      opacity: 0.9;
-      font-size: 13px;
-    }
-    @media (max-width: 520px) {
-      .metrics {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
+    .mgrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
+    .mgrid > * { animation: wms-in var(--dur-4) var(--ease) backwards; }
+    .mgrid > :nth-child(1) { animation-delay: 120ms; } .mgrid > :nth-child(2) { animation-delay: 200ms; } .mgrid > :nth-child(3) { animation-delay: 280ms; }
+    .mc { display: flex; flex-direction: column; gap: 12px; }
+    .mc.full { grid-column: 1 / -1; }
+    .mc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .mc-t { display: flex; flex-direction: column; gap: 2px; }
+    .mc-t > span { font-size: 13px; font-weight: 600; }
+    .mc-t small { font-size: 11px; color: var(--wms-muted); }
+    .big { display: flex; align-items: baseline; gap: 6px; }
+    .big b { font-size: 34px; line-height: 1; font-weight: 600; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+    .big small { font-size: 13px; color: var(--wms-muted); }
+    .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 8px 0; border-bottom: 1px solid var(--wms-divider); }
+    .kv span { color: var(--wms-muted); }
+    .kv b { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+    .note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--wms-muted); text-wrap: pretty; }
+    .mbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
+    .mbtns > * { flex: 1; height: 36px; border-radius: 10px; }
+    .sos-card { background: var(--wms-card-hi); box-shadow: inset 0 0 0 1.5px var(--wms-text), var(--wms-card-shadow); }
+    /* Prototipo: botón principal normal (monocromo), sin rojo */
+    .sos { margin-top: auto; height: 44px; }
+    .trips { display: flex; flex-direction: column; gap: 12px; }
+    /* Filas del prototipo: 8px 10px, radio 12, fondo suave con borde */
+    .trip { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--wms-soft); border: 1px solid var(--wms-divider); animation: wms-row-in var(--dur-4) var(--ease) backwards; }
+    .trip .tile { width: 30px; height: 30px; border-radius: 9px; }
+    .trip .cell-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .trip .cell-txt b { font-size: 13px; font-weight: 600; line-height: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .trip .cell-txt small { font-size: 11px; line-height: normal; color: var(--wms-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tkm { flex: none; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .none { padding: 18px; border-radius: 12px; border: 1px dashed var(--wms-border); text-align: center; font-size: 12px; color: var(--wms-muted); }
+    @media (max-width: 1000px) { .mgrid { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
   `,
 })
 export class MyShiftPage implements OnInit, OnDestroy {
   private api = inject(Api);
   readonly auth = inject(Auth);
   private live = inject(Live);
+  private destroyRef = inject(DestroyRef);
   private toasts = inject(Toasts);
   private confirm = inject(Confirm);
   readonly me = signal<Me | null>(null);
@@ -227,10 +168,13 @@ export class MyShiftPage implements OnInit, OnDestroy {
   readonly online = signal(false);
   readonly lastTs = signal<string | null>(null);
   readonly types = VEHICLE_TYPES;
+  readonly driverStatus: Record<string, string> = { disponible: 'Disponible', en_ruta: 'En ruta', descanso: 'Descanso', inactivo: 'Inactivo' };
   private sub?: Subscription;
 
   async ngOnInit() {
     await this.load();
+    // Si se salió de la vista mientras cargaba, no se abre la suscripción (quedaría viva).
+    if (this.destroyRef.destroyed) return;
     this.sub = this.live.positions$.subscribe((p) => {
       if (p.vehicleId !== this.me()?.vehicle?.id) return;
       this.speed.set(p.speed);

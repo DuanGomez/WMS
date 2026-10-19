@@ -24,8 +24,30 @@ const rtf = new Intl.RelativeTimeFormat('es-CO', { numeric: 'auto', style: 'shor
 export const fmt = {
   dateTime: (v?: string | Date | null) => (v ? dtf.format(new Date(v)) : '—'),
   date: (v?: string | Date | null) => (v ? df.format(new Date(v)) : '—'),
+  /** Fecha corta del rediseño ("21 de nov de 2027"); las fechas sin hora (AAAA-MM-DD) se leen en UTC para no correrse un día. */
+  short: (v?: string | Date | null) =>
+    v
+      ? new Date(v).toLocaleDateString('es-CO', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          timeZone: typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? 'UTC' : 'America/Bogota',
+        })
+      : '—',
+  /** Fecha y hora cortas del rediseño ("17 de oct, 01:09 a. m."). */
+  shortTime: (v?: string | Date | null) =>
+    v
+      ? new Date(v).toLocaleString('es-CO', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'America/Bogota',
+        })
+      : '—',
   time: (v?: string | Date | null) => (v ? tf.format(new Date(v)) : '—'),
-  cop: (v?: number | null) => (v == null ? '—' : cop.format(v)),
+  /** Como el prototipo: "$249.000" (sin espacio entre el símbolo y el número). */
+  cop: (v?: number | null) => (v == null ? '—' : cop.format(v).replace(/^\$\s+/, '$').replace(/^(-?)\$\s/, '$1$')),
   num: (v?: number | null, d = 1) =>
     v == null ? '—' : new Intl.NumberFormat('es-CO', { maximumFractionDigits: d }).format(v),
   km: (v?: number | null) => (v == null ? '—' : `${fmt.num(v)} km`),
@@ -60,9 +82,13 @@ export const fmt = {
 export class DtPipe implements PipeTransform {
   transform(
     v: string | Date | null | undefined,
-    mode: 'datetime' | 'date' | 'time' | 'relative' = 'datetime',
+    mode: 'datetime' | 'date' | 'short' | 'shortTime' | 'time' | 'relative' = 'datetime',
   ) {
-    return mode === 'date'
+    return mode === 'shortTime'
+      ? fmt.shortTime(v)
+      : mode === 'short'
+      ? fmt.short(v)
+      : mode === 'date'
       ? fmt.date(v)
       : mode === 'time'
         ? fmt.time(v)
@@ -90,7 +116,7 @@ export const VEHICLE_TYPES: Record<string, { label: string; icon: string }> = {
   moto: { label: 'Moto', icon: 'bike' },
   carro: { label: 'Carro', icon: 'car' },
   camion: { label: 'Camión', icon: 'truck' },
-  furgon: { label: 'Furgón', icon: 'bus' },
+  furgon: { label: 'Furgón', icon: 'truck' },
 };
 
 export const VEHICLE_STATUS: Record<string, { label: string; tone: string }> = {
@@ -115,16 +141,16 @@ export const PRIORITY: Record<string, { label: string; tone: string }> = {
 };
 
 export const ALERT_ICONS: Record<string, { icon: string; color: string }> = {
-  geofence_enter: { icon: 'log-in', color: 'green' },
-  geofence_exit: { icon: 'log-out', color: 'orange' },
-  prolonged_stop: { icon: 'timer', color: 'orange' },
-  signal_loss: { icon: 'satellite-dish', color: 'red' },
+  geofence_enter: { icon: 'hexagon', color: 'green' },
+  geofence_exit: { icon: 'hexagon', color: 'orange' },
+  prolonged_stop: { icon: 'clock', color: 'orange' },
+  signal_loss: { icon: 'wifi-off', color: 'red' },
   route_deviation: { icon: 'route', color: 'purple' },
   speeding: { icon: 'gauge', color: 'orange' },
   theft: { icon: 'siren', color: 'red' },
   low_battery: { icon: 'battery-low', color: 'orange' },
   emergency: { icon: 'siren', color: 'red' },
-  signal_restored: { icon: 'satellite', color: 'green' },
+  signal_restored: { icon: 'wifi', color: 'green' },
 };
 
 export const MODULE_LABELS: Record<string, string> = {

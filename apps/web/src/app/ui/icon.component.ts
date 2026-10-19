@@ -9,10 +9,10 @@ import {
 import {
   Activity,
   ArrowLeft,
+  ArrowRight,
   Battery,
   BatteryLow,
   Bell,
-  Bike,
   Building2,
   Bus,
   Car,
@@ -39,9 +39,9 @@ import {
   Info,
   KeyRound,
   Layers,
-  LayoutDashboard,
   LifeBuoy,
   Link,
+  Lock,
   LocateFixed,
   LogIn,
   LogOut,
@@ -67,7 +67,6 @@ import {
   SatelliteDish,
   Search,
   Send,
-  Settings,
   Share,
   Shield,
   Siren,
@@ -93,14 +92,25 @@ import {
   type IconNode,
 } from 'lucide';
 
+/** Trazos propios del prototipo (IC/IW) donde no coinciden con Lucide. */
+const proto = (...d: string[]): IconNode => d.filter(Boolean).map((p) => ['path', { d: p }]);
+const PROTO_GRID = proto('M3 3h7v7H3zM14 3h7v7h-7z', 'M14 14h7v7h-7zM3 14h7v7H3z');
+const PROTO_GEAR = proto('M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3', 'M14 2v4M8 10v4M16 18v4');
+const PROTO_EYE_CLOSED = proto('m15 18-.722-3.25', 'M2 8a10.645 10.645 0 0 0 20 0', 'm20 15-1.726-2.05', 'm4 15 1.726-2.05', 'm9 18 .722-3.25');
+const PROTO_BIKE = proto(
+  'M3 16a3 3 0 1 0 6 0a3 3 0 1 0-6 0M15 16a3 3 0 1 0 6 0a3 3 0 1 0-6 0',
+  'M6 16l3-6h5l4 6M12 10l-2-4H8M15 6h2l1 4',
+);
+
 /** Registro de íconos (trazo fino estilo SF Symbols). Sólo se empaquetan los usados. */
 export const ICONS: Record<string, IconNode> = {
   activity: Activity,
   'arrow-left': ArrowLeft,
+  'arrow-right': ArrowRight,
   battery: Battery,
   'battery-low': BatteryLow,
   bell: Bell,
-  bike: Bike,
+  bike: PROTO_BIKE,
   building: Building2,
   bus: Bus,
   car: Car,
@@ -117,6 +127,7 @@ export const ICONS: Record<string, IconNode> = {
   ellipsis: Ellipsis,
   eye: Eye,
   'eye-off': EyeOff,
+  'eye-closed': PROTO_EYE_CLOSED,
   'file-spreadsheet': FileSpreadsheet,
   'file-text': FileText,
   filter: Filter,
@@ -127,9 +138,10 @@ export const ICONS: Record<string, IconNode> = {
   info: Info,
   key: KeyRound,
   layers: Layers,
-  dashboard: LayoutDashboard,
+  dashboard: PROTO_GRID,
   'life-buoy': LifeBuoy,
   link: Link,
+  lock: Lock,
   locate: LocateFixed,
   'log-in': LogIn,
   'log-out': LogOut,
@@ -155,7 +167,7 @@ export const ICONS: Record<string, IconNode> = {
   'satellite-dish': SatelliteDish,
   search: Search,
   send: Send,
-  settings: Settings,
+  settings: PROTO_GEAR,
   share: Share,
   shield: Shield,
   siren: Siren,
@@ -198,7 +210,7 @@ export function iconSvg(name: string, size = 16, stroke = 2): string {
 export class IconComponent {
   readonly name = input.required<string>();
   readonly size = input(18);
-  readonly stroke = input(1.9);
+  readonly stroke = input(2);
   private host = inject(ElementRef<HTMLElement>);
 
   constructor() {

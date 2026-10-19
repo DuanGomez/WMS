@@ -3,6 +3,7 @@
     <div>
       <div class="eyebrow">Flota</div>
       <h1 class="large-title">Vehículos</h1>
+      <p>Arrastra un vehículo entre columnas para cambiar su estado.</p>
     </div>
     <div class="actions">
       @if (canWrite()) {
@@ -13,31 +14,27 @@
     </div>
   </header>
 
-  <div class="row wrap" style="margin-bottom: 14px; gap: 12px">
-    <label class="search" style="flex: 1; min-width: 220px; max-width: 360px">
-      <app-icon name="search" [size]="16" />
-      <input
-        class="input"
-        type="search"
-        placeholder="Buscar placa, marca o conductor"
-        aria-label="Buscar vehículos"
-        [ngModel]="q()"
-        (ngModelChange)="q.set($event)"
-      />
+  <!-- Barra del prototipo: interruptor · conteo del plan y buscador (la búsqueda también filtra por tipo) -->
+  <div class="mod-tool">
+    <label class="mod-toggle">
+      <app-toggle [value]="showRetired()" (changed)="toggleRetired($event)" label="Mostrar dados de baja" />
+      <span>Mostrar dados de baja</span>
     </label>
-    <app-segmented
-      [options]="typeOptions"
-      [value]="typeFilter()"
-      (valueChange)="typeFilter.set($event)"
-    />
-    <span class="spacer"></span>
-    <label class="row footnote" style="gap: 8px"
-      >Mostrar dados de baja
-      <app-toggle
-        [value]="showRetired()"
-        (changed)="toggleRetired($event)"
-        label="Mostrar dados de baja"
-    /></label>
+    <div class="mod-right">
+      <span class="mod-count">{{ activeCount() }}{{ planMax() != null ? ' / ' + planMax() + ' vehículos de tu plan' : (activeCount() === 1 ? ' vehículo' : ' vehículos') }}</span>
+      <label class="search">
+        <app-icon name="search" [size]="14" />
+        <input
+          class="input"
+          type="search"
+          placeholder="Buscar placa o conductor"
+          aria-label="Buscar placa o conductor"
+          [ngModel]="q()"
+          wmsDebounce
+          (debounced)="q.set($event)"
+        />
+      </label>
+    </div>
   </div>
 
   @if (loading()) {
@@ -59,133 +56,87 @@
       </app-empty>
     </div>
   } @else {
-    <div class="table-wrap hide-mobile">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Vehículo</th>
-            <th>Estado</th>
-            <th>Conductor</th>
-            <th>Dispositivo GPS</th>
-            <th>Última posición</th>
-            <th class="actions-cell"><span class="sr-only">Acciones</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (v of filtered(); track v.id) {
-            <tr>
-              <td>
-                <div class="row">
-                  <span
-                    class="icon-tile"
-                    [class]="'icon-tile bg-' + (v.retiredAt ? 'gray' : 'blue')"
-                    ><app-icon [name]="types[v.type].icon" [size]="16"
-                  /></span>
-                  <div>
-                    <div class="tabular" style="font-weight: 600">{{ v.plate }}</div>
-                    <div class="caption">
-                      {{ types[v.type].label }} · {{ v.brand }} {{ v.model }} {{ v.year ?? '' }}
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <span class="badge" [class]="'badge ' + statuses[v.status].tone">{{
-                  statuses[v.status].label
-                }}</span>
-                @if (v.retiredReason) {
-                  <div class="caption">{{ v.retiredReason }}</div>
-                }
-              </td>
-              <td>{{ v.driver?.name ?? '—' }}</td>
-              <td>
+    <div class="wms-board" wmsBoard [boardDisabled]="!canWrite()" (moved)="moveTo($event.id, $event.col)">
+      @for (col of board(); track col.key) {
+        <section class="bcol" [attr.data-col]="col.key" [attr.aria-label]="col.label">
+          <header class="bcol-head">
+            <div class="row" style="gap: 8px">
+              <span class="bdot" [style.background]="col.color"></span>
+              <span class="bname">{{ col.label }}</span>
+              <span class="bcount">{{ col.items.length }}</span>
+            </div>
+            <span class="bsub">{{ col.sub }}</span>
+            <div class="bshare"><div [style.width.%]="col.share" wmsMorphWidth></div></div>
+          </header>
+          @for (v of col.items; track v.id) {
+            <article
+              class="vcard"
+              tabindex="0"
+              [attr.data-card]="v.id"
+              [class.movable]="canWrite() && !v.retiredAt"
+              (click)="detail.set(v)"
+              (keydown.enter)="detail.set(v)"
+            >
+              @let ls = liveState(v);
+              <div class="vc-top">
+                <span class="icon-tile" [class.solid]="ls === 'moving'" [class.muted]="ls === 'nogps'"
+                  ><app-icon [name]="types[v.type].icon" [size]="16"
+                /></span>
+                <span class="vc-id">
+                  <span class="vc-plate">{{ v.plate }}</span>
+                  <span class="vc-sub">{{ types[v.type].label }} · {{ v.brand }} {{ v.model }} {{ v.year ?? '' }}</span>
+                </span>
                 @if (v.device) {
-                  <div class="row" style="gap: 6px">
-                    <span class="dot" [class]="'dot ' + connTone(v)"></span
-                    ><span class="mono">{{ v.device.serial }}</span>
-                  </div>
-                  <div class="caption">{{ v.device.model }} · {{ v.device.battery ?? '—' }}%</div>
+                  <span class="badge" [class.solid]="ls === 'moving'">{{
+                    ls === 'moving' ? 'En marcha' : ls === 'offline' ? 'Sin señal' : 'Detenido'
+                  }}</span>
                 } @else {
-                  <span class="muted">Sin GPS</span>
+                  <span class="badge off">Sin GPS</span>
                 }
-              </td>
-              <td class="caption">{{ v.live?.ts ? (v.live!.ts | dt: 'relative') : '—' }}</td>
-              <td class="actions-cell">
-                @if (!v.retiredAt) {
-                  <button
-                    class="btn sm icon plain"
-                    type="button"
-                    title="Ver en el mapa"
-                    aria-label="Ver en el mapa"
-                    (click)="goMap(v)"
-                  >
-                    <app-icon name="map-pin" [size]="16" />
-                  </button>
-                }
-                <button
-                  class="btn sm icon plain"
-                  type="button"
-                  title="Recorridos"
-                  aria-label="Recorridos"
-                  (click)="openTrips(v)"
+              </div>
+              <div class="vc-lines">
+                <span [class.dim]="!v.driver"><app-icon name="id-card" [size]="12" />{{ v.driver?.name ?? 'Sin conductor' }}</span>
+                <span [class.dim]="!v.device"><app-icon name="satellite-dish" [size]="12" />{{ v.device ? v.device.serial : 'Sin dispositivo' }}</span>
+                <span class="dim"
+                  ><app-icon name="clock" [size]="12" />{{
+                    v.live?.ts ? 'Última posición ' + (v.live!.ts | dt: 'relative') : 'Sin posición'
+                  }}</span
                 >
-                  <app-icon name="history" [size]="16" />
-                </button>
-                @if (canWrite() && !v.retiredAt) {
-                  <button
-                    class="btn sm icon plain"
-                    type="button"
-                    title="Editar"
-                    aria-label="Editar"
-                    (click)="openEdit(v)"
-                  >
-                    <app-icon name="pencil" [size]="16" />
-                  </button>
-                  <button
-                    class="btn sm icon plain danger"
-                    type="button"
-                    title="Dar de baja"
-                    aria-label="Dar de baja"
-                    (click)="retire(v)"
-                  >
-                    <app-icon name="trash" [size]="16" />
-                  </button>
-                }
-              </td>
-            </tr>
+              </div>
+            </article>
+          } @empty {
+            <div class="bempty">{{ canWrite() && col.key !== 'retired' ? 'Suelta un vehículo aquí' : 'Sin vehículos' }}</div>
           }
-        </tbody>
-      </table>
-    </div>
-
-    <div class="list only-mobile">
-      @for (v of filtered(); track v.id) {
-        <button
-          class="list-item"
-          type="button"
-          (click)="canWrite() && !v.retiredAt ? openEdit(v) : openTrips(v)"
-        >
-          <span class="icon-tile" [class]="'icon-tile bg-' + (v.retiredAt ? 'gray' : 'blue')"
-            ><app-icon [name]="types[v.type].icon" [size]="16"
-          /></span>
-          <span class="content">
-            <span class="title tabular" style="display: block"
-              >{{ v.plate }}
-              <span class="badge" [class]="'badge ' + statuses[v.status].tone">{{
-                statuses[v.status].label
-              }}</span></span
-            >
-            <span class="sub" style="display: block"
-              >{{ v.driver?.name ?? 'Sin conductor' }} ·
-              {{ v.device ? v.device.serial : 'Sin GPS' }}</span
-            >
-          </span>
-          <app-icon name="chevron-right" [size]="16" class="faint" />
-        </button>
+        </section>
       }
     </div>
   }
 </div>
+
+<!-- Detalle del vehículo (clic en la tarjeta, como el prototipo) con las acciones que tenía la tarjeta -->
+@if (detail(); as v) {
+  <app-detail
+    [open]="true"
+    (openChange)="!$event && detail.set(null)"
+    [title]="v.plate"
+    [sub]="types[v.type].label + ' · ' + v.brand + ' ' + v.model"
+    [icon]="types[v.type].icon"
+    [chip]="statuses[v.status].label"
+    [chipTone]="v.status === 'active' ? 'solid' : v.status === 'maintenance' ? 'on' : 'off'"
+    [rows]="detailRows(v)"
+  >
+    @if (canWrite() && !v.retiredAt) {
+      <button class="btn primary" type="button" (click)="detail.set(null); openEdit(v)"><app-icon name="pencil" [size]="14" />Editar</button>
+    }
+    <button class="btn" type="button" (click)="detail.set(null); openTrips(v)"><app-icon name="history" [size]="14" />Recorridos</button>
+    @if (!v.retiredAt) {
+      <button class="btn" type="button" (click)="detail.set(null); goMap(v)"><app-icon name="map" [size]="14" />Ver en el mapa</button>
+    }
+    @if (canWrite() && !v.retiredAt) {
+      <button class="btn danger" type="button" (click)="detail.set(null); retire(v)"><app-icon name="trash" [size]="14" />Dar de baja</button>
+    }
+  </app-detail>
+}
 
 <app-sheet
   [(open)]="sheetOpen"
@@ -311,7 +262,10 @@
   cancelText="Cerrar"
   [wide]="true"
 >
-  @if (tripsOpen() && tripsVehicle()) {
-    <app-playback [vehicleId]="tripsVehicle()!.id" [plate]="tripsVehicle()!.plate" />
+  <!-- Carga diferida: el código de la reproducción (y su mapa) se descarga en reposo, no con la página -->
+  @defer (on idle) {
+    @if (tripsOpen() && tripsVehicle()) {
+      <app-playback [vehicleId]="tripsVehicle()!.id" [plate]="tripsVehicle()!.plate" />
+    }
   }
 </app-sheet>

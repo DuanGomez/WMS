@@ -258,4 +258,60 @@ export const trackingRepo = {
       })),
     };
   },
+
+  /**
+   * Analítica por periodo para "Actividad de la flota".
+   * days = 7 | 30 | 90. Buckets diarios (7 y 30) o semanales (90), en hora de Bogotá.
+   * Devuelve el periodo actual, el anterior (misma duración) y el top 5 de conductores por km.
+   */
+  analytics(tenantId: string, days: 7 | 30 | 90) {
+    const DAY = 86400_000;
+    const bucketDays = days === 90 ? 7 : 1;
+    const buckets = Math.ceil(days / bucketDays);
+    const end = new Date(bogotaDayStart().getTime() + DAY); // mañana 00:00 Bogotá
+    const start = new Date(end.getTime() - buckets * bucketDays * DAY);
+    const prevStart = new Date(start.getTime() - buckets * bucketDays * DAY);
+    const sum = (f: Date, t: Date) =>
+      get<any>(
+        `SELECT COALESCE(SUM(distance_m),0) m, COUNT(*) n FROM trips
+         WHERE company_id=@cid AND started_at >= @f AND started_at < @t`,
+        { cid: tenantId, f: f.toISOString(), t: t.toISOString() },
+      );
+    const series = (from: Date) => {
+      const out: { day: string; km: number; trips: number }[] = [];
+      for (let i = 0; i < buckets; i++) {
+        const f = new Date(from.getTime() + i * bucketDays * DAY);
+        const t = new Date(f.getTime() + bucketDays * DAY);
+        const r = sum(f, t);
+        out.push({ day: f.toISOString(), km: Math.round(r.m / 100) / 10, trips: r.n });
+      }
+      return out;
+    };
+    const cur = series(start);
+    const prev = series(prevStart);
+    const topDrivers = all<any>(
+      `SELECT u.id, u.name, COALESCE(SUM(t.distance_m),0) m, COUNT(t.id) n
+       FROM trips t JOIN users u ON u.id = t.driver_id
+       WHERE t.company_id=@cid AND t.started_at >= @f AND t.started_at < @t
+       GROUP BY u.id ORDER BY m DESC LIMIT 5`,
+      { cid: tenantId, f: start.toISOString(), t: end.toISOString() },
+    );
+    const tot = (l: { km: number; trips: number }[]) => ({
+      km: Math.round(l.reduce((s, x) => s + x.km, 0) * 10) / 10,
+      trips: l.reduce((s, x) => s + x.trips, 0),
+    });
+    return {
+      range: days,
+      bucket: bucketDays === 1 ? 'day' : 'week',
+      days: cur,
+      prevDays: prev,
+      totals: { ...tot(cur), prevKm: tot(prev).km, prevTrips: tot(prev).trips },
+      topDrivers: topDrivers.map((r) => ({
+        id: r.id,
+        name: r.name,
+        km: Math.round(r.m / 100) / 10,
+        trips: r.n,
+      })),
+    };
+  },
 };

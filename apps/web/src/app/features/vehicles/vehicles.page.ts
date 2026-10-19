@@ -11,7 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
-import { DtPipe, VEHICLE_STATUS, VEHICLE_TYPES } from '../../core/format';
+import { DtPipe, fmt, VEHICLE_STATUS, VEHICLE_TYPES } from '../../core/format';
 import { Device, Driver, Vehicle, VehicleType } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
 import {
@@ -21,8 +21,11 @@ import {
   SkeletonListComponent,
   ToggleComponent,
 } from '../../ui/components';
+import { DetailComponent, DetailRow } from '../../ui/detail.component';
 import { IconComponent } from '../../ui/icon.component';
+import { DebounceInputDirective, MorphWidthDirective } from '../../ui/motion-directives';
 import { PlaybackComponent } from '../map/playback.component';
+import { BoardDragDirective } from '../../ui/wms-fx';
 
 interface Form {
   plate: string;
@@ -52,6 +55,8 @@ const empty = (): Form => ({
 @Component({
   selector: 'app-vehicles',
   imports: [
+    MorphWidthDirective,
+    DebounceInputDirective,
     FormsModule,
     IconComponent,
     SheetComponent,
@@ -61,9 +66,12 @@ const empty = (): Form => ({
     ToggleComponent,
     PlaybackComponent,
     DtPipe,
+    BoardDragDirective,
+    DetailComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './vehicles.page.html',
+  styleUrl: './vehicles.page.scss',
 })
 export class VehiclesPage implements OnInit {
   private api = inject(Api);
@@ -110,11 +118,98 @@ export class VehiclesPage implements OnInit {
       (v) =>
         (this.typeFilter() === 'all' || v.type === this.typeFilter()) &&
         (!q ||
-          [v.plate, v.brand, v.model, v.driver?.name ?? ''].some((x) =>
+          // El tipo también se busca ("moto", "camión"…): reemplaza los botones de tipo que el prototipo no tiene
+          [v.plate, v.brand, v.model, v.driver?.name ?? '', this.types[v.type]?.label ?? ''].some((x) =>
             x.toLowerCase().includes(q),
           )),
     );
   });
+  /** Máximo de vehículos del plan (prototipo: "4 / 15 vehículos de tu plan"); solo si el rol puede ver la suscripción. */
+  readonly planMax = signal<number | null>(null);
+  readonly activeCount = computed(() => this.vehicles().filter((v) => !v.retiredAt).length);
+  /** Vehículo abierto en el panel de detalle (clic en la tarjeta, como el prototipo). */
+  readonly detail = signal<Vehicle | null>(null);
+
+  /** Estado en vivo para la tarjeta (prototipo: vStatusLive). */
+  liveState(v: Vehicle): 'moving' | 'parked' | 'offline' | 'nogps' {
+    if (!v.device || v.retiredAt) return 'nogps';
+    if (v.device.connection !== 'online') return 'offline';
+    return (v.live?.speed ?? 0) >= 2 ? 'moving' : 'parked';
+  }
+  detailRows(v: Vehicle): DetailRow[] {
+    return [
+      { k: 'Tipo', v: this.types[v.type]?.label ?? v.type },
+      { k: 'Marca y modelo', v: [v.brand, v.model].filter(Boolean).join(' ') || '—' },
+      { k: 'Año', v: v.year ? String(v.year) : '—' },
+      { k: 'Color', v: v.color || '—' },
+      { k: 'Conductor', v: v.driver?.name ?? 'Sin conductor' },
+      { k: 'Dispositivo GPS', v: v.device ? v.device.serial : 'Sin dispositivo', mono: !!v.device },
+      { k: 'Batería GPS', v: v.device?.battery != null ? v.device.battery + '%' : '—' },
+      { k: 'Última posición', v: v.live?.ts ? fmt.relative(v.live.ts) : 'Sin posición' },
+      ...(v.retiredReason ? [{ k: 'Motivo de baja', v: v.retiredReason }] : []),
+    ];
+  }
+
+  /** Tablero por estado (rediseño). Mismos datos que la tabla: `filtered()`. */
+  readonly board = computed(() => {
+    const COLS: { key: Vehicle['status']; color: string }[] = [
+      { key: 'active', color: 'var(--wms-text)' },
+      { key: 'maintenance', color: 'var(--wms-muted)' },
+      { key: 'inactive', color: 'var(--wms-faint)' },
+    ];
+    if (this.showRetired()) COLS.push({ key: 'retired', color: 'var(--wms-faint)' });
+    const list = this.filtered();
+    const tot = Math.max(1, list.length);
+    return COLS.map((c) => {
+      const items = list.filter((v) => v.status === c.key);
+      const sub =
+        c.key === 'active'
+          ? `${items.filter((v) => this.liveState(v) === 'moving').length} en movimiento ahora`
+          : c.key === 'maintenance'
+            ? 'Fuera de operación'
+            : c.key === 'inactive'
+              ? 'Sin uso'
+              : 'Solo historial';
+      return {
+        key: c.key,
+        color: c.color,
+        label: this.statuses[c.key].label,
+        sub,
+        items,
+        share: (items.length / tot) * 100,
+      };
+    });
+  });
+
+  /**
+   * Arrastrar una tarjeta a otra columna = cambiar el estado del vehículo.
+   * Usa el mismo endpoint y el mismo cuerpo que save() (PATCH vehicles/:id).
+   */
+  async moveTo(id: string, status: string) {
+    const v = this.vehicles().find((x) => x.id === id);
+    if (!v || v.retiredAt || !this.canWrite()) return;
+    if (status === 'retired') return this.retire(v);
+    if (!['active', 'maintenance', 'inactive'].includes(status) || v.status === status) return;
+    const prev = this.vehicles();
+    this.vehicles.set(prev.map((x) => (x.id === id ? { ...x, status: status as Vehicle['status'] } : x)));
+    try {
+      await this.api.patch(`vehicles/${v.id}`, {
+        plate: v.plate,
+        type: v.type,
+        brand: v.brand,
+        model: v.model,
+        year: v.year,
+        color: v.color,
+        status,
+        deviceId: v.device?.id ?? null,
+        driverId: v.driver?.id ?? null,
+      });
+      this.toasts.success('Vehículo actualizado', `${v.plate} · ${this.statuses[status].label}`);
+    } catch (e) {
+      this.vehicles.set(prev);
+      this.toasts.error('No se pudo actualizar', errorMessage(e));
+    }
+  }
 
   /** Dispositivos libres + el actual del vehículo en edición. */
   readonly availableDevices = computed(() =>
@@ -144,6 +239,8 @@ export class VehiclesPage implements OnInit {
       this.vehicles.set(v);
       this.devices.set(d);
       this.drivers.set(dr);
+      if (this.auth.can('billing') && this.planMax() == null)
+        this.api.get<{ plan: { maxVehicles: number } }>('subscription').then((s) => this.planMax.set(s.plan.maxVehicles), () => {});
     } catch (e) {
       this.toasts.error('No se pudieron cargar los vehículos', errorMessage(e));
     } finally {

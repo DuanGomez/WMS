@@ -5,57 +5,63 @@ import { Api, errorMessage } from '../../core/api.service';
 import { Toasts } from '../../core/ui.services';
 import { IconComponent } from '../../ui/icon.component';
 import { LogoComponent } from '../../ui/logo.component';
+import { LangToggleComponent } from '../../ui/lang';
+import { FlipCardDirective, ThemeToggleComponent, TiltDirective } from '../../ui/wms-fx';
 
 /** RF27 – Crear nueva contraseña desde el enlace de recuperación. */
 @Component({
   selector: 'app-reset',
-  imports: [FormsModule, RouterLink, IconComponent, LogoComponent],
+  imports: [FormsModule, RouterLink, IconComponent, LogoComponent, TiltDirective, FlipCardDirective, ThemeToggleComponent, LangToggleComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './auth.scss',
   template: `
-    <section class="auth-card glass-thick" aria-labelledby="t">
-      <app-logo class="auth-logo" />
-      <h1 class="auth-title" id="t">Nueva contraseña</h1>
-      <p class="auth-sub">Mínimo 8 caracteres, con letras y números.</p>
-      <form (ngSubmit)="submit()" novalidate>
-        <div class="field">
-          <label for="p1">Nueva contraseña</label>
-          <input
-            id="p1"
-            class="input"
-            type="password"
-            name="p1"
-            [(ngModel)]="p1"
-            autocomplete="new-password"
-          />
+    <div class="a-bg"></div>
+    <div class="a-glow-top"></div>
+    <div class="a-glow-a"></div>
+    <div class="a-glow-b"></div>
+    <div class="auth-ctl"><app-lang-toggle /><app-theme-toggle [labeled]="true" /></div>
+    <div class="auth-stage">
+      <div wmsTilt>
+        <div wmsFlipCard>
+          <section class="auth-card" wmsFlipFace aria-labelledby="t">
+            <div class="hatch"></div>
+            <div class="auth-head">
+              <app-logo class="auth-logo" />
+              <h1 class="auth-title" id="t">Nueva contraseña</h1>
+              <p class="auth-sub">Mínimo 8 caracteres, con letras y números.</p>
+            </div>
+            <form (ngSubmit)="submit()" novalidate>
+              <div class="fields">
+                <div class="ifield">
+                  <app-icon name="lock" [size]="16" />
+                  <input id="p1" type="password" name="p1" [(ngModel)]="p1" autocomplete="new-password" placeholder="Nueva contraseña" aria-label="Nueva contraseña" />
+                </div>
+                <div class="ifield">
+                  <app-icon name="lock" [size]="16" />
+                  <input id="p2" type="password" name="p2" [(ngModel)]="p2" autocomplete="new-password" placeholder="Confirmar contraseña" aria-label="Confirmar contraseña" />
+                </div>
+              </div>
+              @if (!token()) {
+                <div class="form-error"><app-icon name="triangle-alert" [size]="16" /><span>El enlace no contiene un token válido.</span></div>
+              }
+              @if (error()) {
+                <div class="form-error" role="alert">
+                  <app-icon name="triangle-alert" [size]="16" /><span>{{ error() }}</span>
+                </div>
+              }
+              <button class="abtn" type="submit" [disabled]="busy() || !token()">
+                @if (busy()) {
+                  <span class="spinner"></span>
+                } @else {
+                  <span>Guardar contraseña</span><app-icon name="arrow-right" [size]="12" />
+                }
+              </button>
+              <p class="alt"><a class="muted" routerLink="/login">Volver a iniciar sesión</a></p>
+            </form>
+          </section>
         </div>
-        <div class="field">
-          <label for="p2">Confirmar contraseña</label>
-          <input
-            id="p2"
-            class="input"
-            type="password"
-            name="p2"
-            [(ngModel)]="p2"
-            autocomplete="new-password"
-          />
-        </div>
-        @if (!token()) {
-          <div class="form-error">El enlace no contiene un token válido.</div>
-        }
-        @if (error()) {
-          <div class="form-error" role="alert">
-            <app-icon name="triangle-alert" [size]="16" />{{ error() }}
-          </div>
-        }
-        <button class="btn primary lg block" type="submit" [disabled]="busy() || !token()">
-          Guardar contraseña
-        </button>
-        <div class="links" style="justify-content:center">
-          <a routerLink="/login">Volver a iniciar sesión</a>
-        </div>
-      </form>
-    </section>
+      </div>
+    </div>
   `,
 })
 export class ResetPage {

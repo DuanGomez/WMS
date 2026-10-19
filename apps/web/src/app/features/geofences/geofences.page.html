@@ -1,3 +1,56 @@
+<!-- Vista del prototipo: módulo con lista de geocercas -->
+<div class="page gf-page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Flota</div>
+      <h1 class="large-title">Geocercas</h1>
+      <p>Zonas y corredores que generan alertas de entrada, salida y desvío.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" type="button" (click)="showMap()"><app-icon name="map" [size]="16" />Ver en el mapa</button>
+      @if (canWrite()) {
+        <button class="btn primary" type="button" (click)="showMap(); startCreate()"><app-icon name="plus" [size]="16" />Nueva geocerca</button>
+      }
+    </div>
+  </header>
+  <div class="mod-tool">
+    <div class="mod-right">
+      <span class="mod-count">{{ activeCount() }} activas</span>
+      <label class="search">
+        <app-icon name="search" [size]="14" />
+        <input class="input" type="search" placeholder="Buscar geocerca" aria-label="Buscar geocerca" [value]="q()" wmsDebounce (debounced)="q.set($event)" />
+      </label>
+    </div>
+  </div>
+  @if (loading()) {
+    <div class="card"><div class="skeleton" style="height: 56px"></div></div>
+  } @else if (!shownList().length) {
+    <div class="card">
+      <app-empty icon="hexagon" title="Sin geocercas" text="Crea una zona para recibir alertas de entrada y salida." />
+    </div>
+  } @else {
+    <div class="list gf-list">
+      @for (g of shownList(); track g.id) {
+        <div class="list-item clickable gf-li" [class.inactive]="!g.active" (click)="showMap(g)">
+          <span class="gf-tag">
+            <app-icon name="hexagon" [size]="13" />
+            <span class="truncate">{{ shapes[g.shape].label }}</span>
+          </span>
+          <span class="content">
+            <span class="title truncate">{{ g.name }}</span>
+            <span class="sub truncate">{{ geoText(g) }}</span>
+          </span>
+          <span class="gf-sw-cell" (click)="$event.stopPropagation()">
+            <app-toggle [value]="g.active" [disabled]="!canWrite()" (changed)="toggleActive(g, $event)" [label]="'Activar ' + g.name" />
+          </span>
+          <span class="gf-when"></span>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<div class="mapview" [attr.aria-hidden]="!mapMode()">
 <div
   class="map"
   #map
@@ -145,6 +198,7 @@
   } @else {
     <header class="panel-head">
       <div class="row">
+        <button class="btn icon sm" type="button" aria-label="Volver a la lista" title="Volver a la lista" (click)="backToList()"><app-icon name="arrow-left" [size]="16" /></button>
         <h1 class="title-2" style="flex: 1">Geocercas</h1>
         @if (canWrite()) {
           <button class="btn primary sm" type="button" (click)="startCreate()">
@@ -152,9 +206,8 @@
           </button>
         }
       </div>
-      <p class="footnote">
-        Zonas y rutas autorizadas. Generan alertas de entrada, salida y desvío.
-      </p>
+      <p class="footnote">Zonas y corredores que generan alertas de entrada, salida y desvío.</p>
+      <p class="mod-count">{{ activeCount() }} activas · {{ geofences().length }} en total</p>
     </header>
     <div class="glist">
       @if (loading()) {
@@ -162,48 +215,31 @@
         <div class="skeleton" style="height: 64px"></div>
       }
       @for (g of geofences(); track g.id) {
-        <div class="gitem" [class.inactive]="!g.active">
+        <div class="gitem gf-row" [class.inactive]="!g.active">
           <button class="gmain" type="button" (click)="focus(g)">
-            <span class="icon-tile" [style.background]="g.color"
-              ><app-icon [name]="shapes[g.shape].icon" [size]="16"
-            /></span>
+            <span class="gf-tag">
+              <span class="gf-sw" [style.background]="g.color"></span>
+              <app-icon [name]="shapes[g.shape].icon" [size]="13" />
+              <span class="truncate">{{ shapes[g.shape].label }}</span>
+            </span>
             <span class="content">
-              <span class="title">{{ g.name }}</span>
-              <span class="sub">
-                {{ shapes[g.shape].label
-                }}{{ g.shape === 'circle' ? ' · ' + g.radiusM + ' m' : '' }} ·
-                {{ g.allVehicles ? 'Todos los vehículos' : g.vehicleIds.length + ' vehículo(s)' }}
+              <span class="title truncate">{{ g.name }}</span>
+              <span class="sub truncate">
+                {{ g.shape === 'circle' ? 'Radio ' + g.radiusM + ' m · ' : '' }}{{ g.allVehicles ? 'Todos los vehículos' : g.vehicleIds.length + ' vehículo(s)' }}
               </span>
               @if (g.vehiclesInside.length) {
-                <span class="inside"
-                  ><span class="dot green"></span>Dentro ahora:
-                  {{ g.vehiclesInside.map(plateOf).join(', ') }}</span
-                >
+                <span class="inside"><span class="dot green pulse"></span>Dentro ahora: {{ g.vehiclesInside.map(plateOf).join(', ') }}</span>
               }
             </span>
           </button>
           @if (canWrite()) {
             <div class="gactions">
-              <app-toggle
-                [value]="g.active"
-                (changed)="toggleActive(g, $event)"
-                [label]="'Activar ' + g.name"
-              />
-              <button
-                class="btn sm icon plain"
-                type="button"
-                aria-label="Editar geocerca"
-                (click)="startEdit(g)"
-              >
-                <app-icon name="pencil" [size]="15" />
+              <app-toggle [value]="g.active" (changed)="toggleActive(g, $event)" [label]="'Activar ' + g.name" />
+              <button class="btn sm icon" type="button" aria-label="Editar geocerca" title="Editar" (click)="startEdit(g)">
+                <app-icon name="pencil" [size]="14" />
               </button>
-              <button
-                class="btn sm icon plain danger"
-                type="button"
-                aria-label="Eliminar geocerca"
-                (click)="remove(g)"
-              >
-                <app-icon name="trash" [size]="15" />
+              <button class="btn sm icon danger" type="button" aria-label="Eliminar geocerca" title="Eliminar" (click)="remove(g)">
+                <app-icon name="trash" [size]="14" />
               </button>
             </div>
           }
@@ -220,3 +256,5 @@
     </div>
   }
 </section>
+
+</div>

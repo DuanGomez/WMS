@@ -14,6 +14,8 @@ export interface BarDatum {
   label: string;
   value: number;
   tip?: string;
+  /** Texto completo del tooltip (p. ej. "186,4 km · 9 recorridos"); si falta se usa el valor formateado. */
+  text?: string;
 }
 
 /**
@@ -24,22 +26,23 @@ export interface BarDatum {
   selector: 'app-bar-chart',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="chart" [style.height.px]="height()">
+    <div class="chart" [style.height.px]="height()" (mouseleave)="hover.set(null)">
       <svg [attr.width]="w()" [attr.height]="height()" role="img" [attr.aria-label]="ariaLabel()">
-        @for (g of grid(); track g.y) {
-          <line [attr.x1]="padL" [attr.x2]="w()" [attr.y1]="g.y" [attr.y2]="g.y" class="grid" />
-          <text [attr.x]="padL - 6" [attr.y]="g.y + 4" text-anchor="end" class="axis">
-            {{ g.label }}
-          </text>
-        }
         @for (b of bars(); track b.i) {
           <path
             [attr.d]="b.path"
-            [attr.fill]="color()"
-            [attr.opacity]="hover() === null || hover() === b.i ? 1 : 0.45"
             class="bar"
+            [class.on]="b.on"
+            [class.grown]="grown()"
+            [style.transition-delay]="grown() ? b.delay : '0ms'"
           />
-          <text [attr.x]="b.cx" [attr.y]="height() - 6" text-anchor="middle" class="axis">
+          <text
+            [attr.x]="b.cx"
+            [attr.y]="height() - 4"
+            text-anchor="middle"
+            class="axis"
+            [class.last]="b.last"
+          >
             {{ b.label }}
           </text>
           <rect
@@ -49,7 +52,6 @@ export interface BarDatum {
             [attr.height]="height() - padB"
             fill="transparent"
             (mouseenter)="hover.set(b.i)"
-            (mouseleave)="hover.set(null)"
             (focus)="hover.set(b.i)"
             (blur)="hover.set(null)"
             tabindex="0"
@@ -57,10 +59,10 @@ export interface BarDatum {
           />
         }
       </svg>
-      @if (hover() !== null) {
-        @let b = bars()[hover()!];
-        <div class="chart-tip glass-thick" [style.left.px]="b.cx" [style.top.px]="b.top">
-          <div class="caption">{{ b.tip }}</div>
+      <!-- Prototipo: el tooltip está siempre en la barra de hoy (la última) salvo que el cursor esté sobre otra -->
+      @if (grown() && bars().length) {
+        @let b = bars()[hover() ?? bars().length - 1];
+        <div class="chart-tip" [class.edge-l]="narrow() && b.i === 0" [class.edge-r]="narrow() && b.last" [style.--tip-x]="b.cx + 'px'" [style.--tip-y]="b.top + 'px'">
           <strong>{{ b.text }}</strong>
         </div>
       }
@@ -85,6 +87,7 @@ export interface BarDatum {
     :host {
       display: block;
       position: relative;
+      padding-top: 22px;
     }
     .chart {
       position: relative;
@@ -93,20 +96,45 @@ export interface BarDatum {
     svg {
       overflow: visible;
     }
-    .grid {
-      stroke: var(--separator);
-      stroke-width: 0.5;
-    }
     .axis {
-      fill: var(--label-2);
+      fill: var(--wms-muted);
       font-size: 11px;
+      font-weight: 400;
       font-variant-numeric: tabular-nums;
     }
+    .axis.last {
+      fill: var(--wms-text);
+      font-weight: 600;
+    }
     .bar {
-      transition: opacity 160ms;
+      fill: var(--wms-bar-fill);
+      transform-box: fill-box;
+      transform-origin: 50% 100%;
+      transform: scaleY(0);
+      transition:
+        transform var(--dur-4) var(--ease-out),
+        fill var(--dur-2);
+    }
+    .bar.grown {
+      transform: scaleY(1);
+    }
+    .bar.on {
+      fill: var(--wms-text);
     }
     rect:focus {
       outline: none;
+    }
+    /* Móvil (prototipo): el tooltip de la primera/última barra se ancla al 22 % / 78 % para no salirse */
+    .chart-tip.edge-l { transform: translate(var(--tip-x), var(--tip-y)) translate(-22%, calc(-100% - 8px)); }
+    .chart-tip.edge-r { transform: translate(var(--tip-x), var(--tip-y)) translate(-78%, calc(-100% - 8px)); }
+    .chart-tip span {
+      font-weight: 600;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bar {
+        transform: none;
+        transition: fill var(--dur-2);
+      }
     }
   `,
 })
@@ -119,16 +147,24 @@ export class BarChartComponent implements OnInit, OnDestroy {
   readonly ariaLabel = input('Gráfica de barras');
   readonly hover = signal<number | null>(null);
   readonly w = signal(300);
-  readonly padL = 34;
+  readonly padL = 0;
   readonly padB = 24;
+  /** Ancho angosto (móvil): ajusta el anclaje del tooltip en los extremos. */
+  readonly narrow = computed(() => this.w() < 520);
+  /** Activa el crecimiento de las barras tras el primer frame (animación de entrada). */
+  readonly grown = signal(false);
   private el = inject(ElementRef<HTMLElement>);
   private ro?: ResizeObserver;
 
   ngOnInit() {
     const RO: typeof ResizeObserver | undefined = (globalThis as any).ResizeObserver;
-    if (!RO) return; // p. ej. jsdom en pruebas
+    if (!RO) {
+      this.grown.set(true);
+      return; // p. ej. jsdom en pruebas
+    }
     this.ro = new RO(([e]) => this.w.set(Math.max(160, Math.floor(e.contentRect.width))));
     this.ro.observe(this.el.nativeElement);
+    requestAnimationFrame(() => requestAnimationFrame(() => this.grown.set(true)));
   }
   ngOnDestroy() {
     this.ro?.disconnect();
@@ -157,21 +193,24 @@ export class BarChartComponent implements OnInit, OnDestroy {
 
   readonly bars = computed(() => {
     const d = this.data();
-    const plotW = this.w() - this.padL;
-    const slot = plotW / Math.max(1, d.length);
-    const bw = Math.min(28, slot * 0.56);
-    const h = this.height() - this.padB - 8;
-    const base = 8 + h;
+    const n = Math.max(1, d.length);
+    const gap = 10;
+    const slot = this.w() / n;
+    const bw = Math.max(4, Math.min(46, slot - gap));
+    const h = this.height() - this.padB;
+    const mx = Math.max(1, ...d.map((x) => x.value));
+    const hov = this.hover();
     return d.map((x, i) => {
-      const bh = x.value > 0 ? Math.max(4, (x.value / this.max()) * h) : 0;
-      const bx = this.padL + slot * i + (slot - bw) / 2;
-      const r = Math.min(4, bw / 2, bh);
-      const top = base - bh;
-      // Rectángulo con esquinas superiores redondeadas (4 px) anclado a la línea base
+      const bh = x.value > 0 ? Math.max(4, (x.value / mx) * h) : 0;
+      const bx = slot * i + (slot - bw) / 2;
+      const top = h - bh;
+      const r = Math.min(8, bw / 2, bh / 2);
+      // Barra con las cuatro esquinas redondeadas (8 px), anclada a la base
       const path =
         bh === 0
-          ? ''
-          : `M${bx},${base} L${bx},${top + r} Q${bx},${top} ${bx + r},${top} L${bx + bw - r},${top} Q${bx + bw},${top} ${bx + bw},${top + r} L${bx + bw},${base} Z`;
+          ? `M${bx},${h} L${bx + bw},${h} Z`
+          : `M${bx + r},${top} L${bx + bw - r},${top} Q${bx + bw},${top} ${bx + bw},${top + r} L${bx + bw},${h - r} Q${bx + bw},${h} ${bx + bw - r},${h} L${bx + r},${h} Q${bx},${h} ${bx},${h - r} L${bx},${top + r} Q${bx},${top} ${bx + r},${top} Z`;
+      const last = i === d.length - 1;
       return {
         i,
         x: bx,
@@ -180,9 +219,12 @@ export class BarChartComponent implements OnInit, OnDestroy {
         cx: bx + bw / 2,
         top,
         path,
+        last,
+        on: last || hov === i,
+        delay: 300 + i * 60 + 'ms',
         label: x.label,
         tip: x.tip ?? x.label,
-        text: this.fmt(x.value),
+        text: x.text ?? this.fmt(x.value),
       };
     });
   });

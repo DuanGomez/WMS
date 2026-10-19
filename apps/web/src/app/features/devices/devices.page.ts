@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnDestroy,
   OnInit,
@@ -11,17 +12,18 @@ import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
-import { DEVICE_STATUS, DtPipe } from '../../core/format';
+import { DEVICE_STATUS, DtPipe, fmt } from '../../core/format';
 import { Live } from '../../core/live.service';
 import { Device, Vehicle } from '../../core/models';
 import { Confirm, Toasts } from '../../core/ui.services';
 import {
   EmptyComponent,
-  SegmentedComponent,
   SheetComponent,
   SkeletonListComponent,
 } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
+import { DebounceInputDirective, MorphWidthDirective } from '../../ui/motion-directives';
+import { DetailComponent, DetailRow } from '../../ui/detail.component';
 
 const REASONS: Record<string, string> = {
   robado: 'Robado',
@@ -34,14 +36,14 @@ const REASONS: Record<string, string> = {
 @Component({
   selector: 'app-devices',
   imports: [
+    MorphWidthDirective,
+    DebounceInputDirective,
     FormsModule,
     IconComponent,
     SheetComponent,
     EmptyComponent,
     SkeletonListComponent,
-    SegmentedComponent,
-    DtPipe,
-  ],
+    DtPipe, DetailComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -49,6 +51,7 @@ const REASONS: Record<string, string> = {
         <div>
           <div class="eyebrow">Flota</div>
           <h1 class="large-title">Dispositivos GPS</h1>
+          <p>Equipos GPS que reportan posiciones a WMS.</p>
         </div>
         <div class="actions">
           @if (canWrite()) {
@@ -59,36 +62,24 @@ const REASONS: Record<string, string> = {
         </div>
       </header>
 
-      <div class="grid grid-4" style="margin-bottom:16px">
-        <div class="card kpi">
-          <div class="kpi-head"><span class="dot green"></span>En línea</div>
-          <div class="kpi-value">{{ stats().online }}</div>
+      <div class="mod-tool">
+        <div class="pills" role="tablist" aria-label="Filtro">
+          @for (o of filterOptions; track o.value) {
+            <button type="button" [class.on]="filter() === o.value" (click)="setFilter(o.value)">{{ o.label }}@if (countF(o.value)) {<small>{{ countF(o.value) }}</small>}</button>
+          }
         </div>
-        <div class="card kpi">
-          <div class="kpi-head"><span class="dot red"></span>Sin señal / en falla</div>
-          <div class="kpi-value">{{ stats().failing }}</div>
+        <div class="mod-right">
+          <span class="mod-count">{{ shownQ().length }} {{ shownQ().length === 1 ? 'dispositivo' : 'dispositivos' }}</span>
+          <label class="search">
+            <app-icon name="search" [size]="14" />
+            <input class="input" type="search" placeholder="Buscar serial o modelo" aria-label="Buscar serial o modelo" [value]="q()" wmsDebounce (debounced)="q.set($event)" />
+          </label>
         </div>
-        <div class="card kpi">
-          <div class="kpi-head"><span class="dot"></span>Inactivos</div>
-          <div class="kpi-value">{{ stats().inactive }}</div>
-        </div>
-        <div class="card kpi">
-          <div class="kpi-head"><span class="dot blue"></span>Sin vehículo</div>
-          <div class="kpi-value">{{ stats().free }}</div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-bottom:14px">
-        <app-segmented
-          [options]="filterOptions"
-          [value]="filter()"
-          (valueChange)="setFilter($event)"
-        />
       </div>
 
       @if (loading()) {
         <app-skeleton-list />
-      } @else if (!shown().length) {
+      } @else if (!shownQ().length) {
         <div class="card">
           <app-empty
             icon="satellite-dish"
@@ -98,7 +89,7 @@ const REASONS: Record<string, string> = {
         </div>
       } @else {
         <div class="table-wrap">
-          <table class="table">
+          <table class="table grid" style="--cols: minmax(0,2fr) 120px 120px 130px 110px 130px; min-width: 820px">
             <thead>
               <tr>
                 <th>Serial / IMEI</th>
@@ -107,31 +98,25 @@ const REASONS: Record<string, string> = {
                 <th>Batería</th>
                 <th>Vehículo</th>
                 <th>Último reporte</th>
-                <th class="actions-cell"><span class="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
-              @for (d of shown(); track d.id) {
-                <tr>
-                  <td>
-                    <div class="mono" style="font-weight:600">{{ d.serial }}</div>
-                    <div class="caption">{{ d.model }}</div>
+              @for (d of shownQ(); track d.id) {
+                <tr class="clickable" (click)="detail.set(d)">
+                  <td data-label="Serial / IMEI">
+                    <div class="cell">
+                      <span class="tile" [class.solid]="d.connection === 'online' && d.status !== 'retired'" [class.muted]="d.status === 'retired'"><app-icon name="satellite-dish" [size]="15" /></span>
+                      <span class="cell-txt"><b class="mono">{{ d.serial }}</b><small>{{ d.model }}</small></span>
+                    </div>
                   </td>
-                  <td>
-                    <span class="badge" [class]="'badge ' + status[d.status].tone">{{
+                  <td data-label="Estado">
+                    <!-- El motivo de baja va en el título y en el panel de detalle (la celda solo lleva el chip, como el prototipo) -->
+                    <span class="badge" [class.solid]="d.status === 'faulty'" [class.off]="d.status !== 'active' && d.status !== 'faulty'" [attr.title]="d.retiredReason ? 'Motivo: ' + (reasons[d.retiredReason] ?? d.retiredReason) : null">{{
                       status[d.status].label
                     }}</span>
-                    @if (d.retiredReason) {
-                      <div class="caption">{{ reasons[d.retiredReason] ?? d.retiredReason }}</div>
-                    }
                   </td>
-                  <td>
-                    <span class="row" style="gap:6px"
-                      ><span
-                        class="dot"
-                        [class.green]="d.connection === 'online'"
-                        [class.red]="d.connection === 'offline'"
-                      ></span
+                  <td data-label="Conexión">
+                    <span class="badge" [class.solid]="d.connection === 'online'" [class.off]="d.connection !== 'online'"
                       >{{
                         d.connection === 'online'
                           ? 'En línea'
@@ -141,52 +126,15 @@ const REASONS: Record<string, string> = {
                       }}</span
                     >
                   </td>
-                  <td class="tabular">
+                  <td data-label="Batería" class="tabular">
                     @if (d.battery != null) {
-                      <span class="row" style="gap:6px"
-                        ><app-icon
-                          [name]="d.battery < 20 ? 'battery-low' : 'battery'"
-                          [size]="18"
-                          [class.c-red]="d.battery < 20"
-                        />{{ d.battery }}%</span
-                      >
+                      <span class="barcell" [class.low]="d.battery < 20"><b>{{ d.battery }}%</b><i><span [style.width.%]="d.battery" wmsMorphWidth></span></i></span>
                     } @else {
-                      —
+                      <span class="muted">—</span>
                     }
                   </td>
-                  <td>{{ d.vehicle?.plate ?? '—' }}</td>
-                  <td class="caption">{{ d.lastSeenAt | dt: 'relative' }}</td>
-                  <td class="actions-cell">
-                    @if (canWrite() && d.status !== 'retired') {
-                      <button
-                        class="btn sm icon plain"
-                        type="button"
-                        title="Editar / reasignar"
-                        aria-label="Editar o reasignar"
-                        (click)="openEdit(d)"
-                      >
-                        <app-icon name="pencil" [size]="16" />
-                      </button>
-                      <button
-                        class="btn sm icon plain"
-                        type="button"
-                        title="Ver API key"
-                        aria-label="Ver API key"
-                        (click)="showKey(d)"
-                      >
-                        <app-icon name="key" [size]="16" />
-                      </button>
-                      <button
-                        class="btn sm icon plain danger"
-                        type="button"
-                        title="Dar de baja"
-                        aria-label="Dar de baja"
-                        (click)="retire(d)"
-                      >
-                        <app-icon name="trash" [size]="16" />
-                      </button>
-                    }
-                  </td>
+                  <td data-label="Vehículo"><b class="tabular" [class.muted]="!d.vehicle">{{ d.vehicle?.plate ?? '—' }}</b></td>
+                  <td data-label="Último reporte" class="muted">{{ d.lastSeenAt | dt: 'relative' }}</td>
                 </tr>
               }
             </tbody>
@@ -195,6 +143,24 @@ const REASONS: Record<string, string> = {
       }
     </div>
 
+    @if (detail(); as d) {
+      <app-detail
+        [open]="true"
+        (openChange)="!$event && detail.set(null)"
+        [title]="d.serial"
+        [sub]="d.model"
+        icon="satellite-dish"
+        [chip]="d.connection === 'online' ? 'En línea' : d.connection === 'offline' ? 'Sin señal' : 'Sin datos'"
+        [chipTone]="d.connection === 'online' ? 'solid' : 'off'"
+        [rows]="deviceRows(d)"
+      >
+        @if (canWrite() && d.status !== 'retired') {
+          <button class="btn primary" type="button" (click)="detail.set(null); openEdit(d)"><app-icon name="pencil" [size]="14" />Editar / reasignar</button>
+          <button class="btn" type="button" (click)="detail.set(null); showKey(d)"><app-icon name="key" [size]="14" />Ver API key</button>
+          <button class="btn danger" type="button" (click)="detail.set(null); retire(d)"><app-icon name="trash" [size]="14" />Dar de baja</button>
+        }
+      </app-detail>
+    }
     <app-sheet
       [(open)]="sheetOpen"
       [title]="editing() ? 'Dispositivo ' + editing()!.serial : 'Registrar dispositivo GPS'"
@@ -292,11 +258,24 @@ const REASONS: Record<string, string> = {
   `,
 })
 export class DevicesPage implements OnInit, OnDestroy {
+  // --- Solo presentación (rediseño): panel Detalle ---
+  readonly detail = signal<Device | null>(null);
+  deviceRows(d: Device): DetailRow[] {
+    return [
+      { k: 'Estado', v: this.status[d.status].label },
+      { k: 'Batería', v: d.battery != null ? d.battery + '%' : '—' },
+      { k: 'Vehículo', v: d.vehicle?.plate ?? 'Ninguno (en bodega)' },
+      { k: 'Último reporte', v: fmt.relative(d.lastSeenAt) },
+      ...(d.retiredReason ? [{ k: 'Motivo de baja', v: this.reasons[d.retiredReason] ?? d.retiredReason }] : []),
+    ];
+  }
+
   private api = inject(Api);
   readonly auth = inject(Auth);
   private toasts = inject(Toasts);
   private confirm = inject(Confirm);
   private live = inject(Live);
+  private destroyRef = inject(DestroyRef);
   readonly devices = signal<Device[]>([]);
   readonly vehicles = signal<Vehicle[]>([]);
   readonly loading = signal(true);
@@ -311,13 +290,28 @@ export class DevicesPage implements OnInit, OnDestroy {
   readonly status = DEVICE_STATUS;
   readonly reasons = REASONS;
   readonly canWrite = computed(() => this.auth.can('devices', 'write'));
+  /** Filtros del prototipo (los dados de baja se ven en Todos e Inactivos). */
   readonly filterOptions = [
     { value: 'all', label: 'Todos' },
-    { value: 'active', label: 'Activos' },
-    { value: 'faulty', label: 'En falla' },
+    { value: 'online', label: 'En línea' },
+    { value: 'fail', label: 'Sin señal / en falla' },
     { value: 'inactive', label: 'Inactivos' },
-    { value: 'retired', label: 'Dados de baja' },
+    { value: 'free', label: 'Sin vehículo' },
   ];
+  private matches(d: Device, f: string) {
+    switch (f) {
+      case 'online':
+        return d.connection === 'online' && d.status !== 'retired';
+      case 'fail':
+        return d.status === 'faulty' || (d.status === 'active' && d.connection !== 'online');
+      case 'inactive':
+        return d.status === 'inactive' || d.status === 'retired';
+      case 'free':
+        return !d.vehicle && d.status !== 'retired';
+      default:
+        return true;
+    }
+  }
   readonly sample = `POST /api/tracking/ingest
 Content-Type: application/json
 x-device-key: <API key>
@@ -330,14 +324,22 @@ x-device-key: <API key>
 
   readonly shown = computed(() => {
     const f = this.filter();
-    return this.devices().filter((d) =>
-      f === 'all'
-        ? d.status !== 'retired'
-        : f === 'faulty'
-          ? d.status === 'faulty' || (d.status === 'active' && d.connection === 'offline')
-          : d.status === f,
+    return this.devices().filter((d) => this.matches(d, f));
+  });
+  // --- Solo presentación (rediseño): búsqueda y conteo por filtro sobre la lista ya cargada ---
+  readonly q = signal('');
+  readonly shownQ = computed(() => {
+    const q = this.q().trim().toLowerCase();
+    return this.shown().filter(
+      (d) => !q || [d.serial, d.model, d.vehicle?.plate ?? ''].some((x) => (x ?? '').toLowerCase().includes(q)),
     );
   });
+  countF(f: string) {
+    const q = this.q().trim().toLowerCase();
+    return this.devices().filter(
+      (d) => this.matches(d, f) && (!q || [d.serial, d.model, d.vehicle?.plate ?? ''].some((x) => (x ?? '').toLowerCase().includes(q))),
+    ).length;
+  }
   readonly stats = computed(() => {
     const live = this.devices().filter((d) => d.status !== 'retired');
     return {
@@ -352,6 +354,8 @@ x-device-key: <API key>
 
   async ngOnInit() {
     await this.load();
+    // Si se salió de la vista mientras cargaba, no se abre la suscripción (quedaría viva).
+    if (this.destroyRef.destroyed) return;
     this.sub = this.live.devices$.subscribe((ev) =>
       this.devices.update((l) =>
         l.map((d) =>
