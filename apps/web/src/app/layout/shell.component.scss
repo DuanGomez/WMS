@@ -17,10 +17,12 @@
 }
 
 /* ---------------- Navbar de vidrio ---------------- */
+/* z-index: sobre los paneles flotantes de las páginas (ficha del mapa 510), para que el menú de perfil y el
+   buscador no queden tapados; bajo las hojas y diálogos (2000+), que deben cubrir la barra. */
 .bar {
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 1000;
   background: var(--wms-bar);
   -webkit-backdrop-filter: var(--glass);
   backdrop-filter: var(--glass);
@@ -87,15 +89,16 @@
   opacity: 1;
   color: var(--wms-text);
 }
-.nav-item.active {
+.nav-item:is(.active:not(.off), .on) {
   color: var(--wms-text);
 }
-/* Prototipo: solo la sección activa muestra su etiqueta (en cualquier ancho); el resto es un ícono de 34 px. */
-.nav-item:not(.active) {
+/* Prototipo: solo la sección activa muestra su etiqueta (en cualquier ancho); el resto es un ícono de 34 px.
+   .on/.off las pone NavPillDirective al elegir otra sección, antes de que termine de cargar. */
+.nav-item:not(.on):is(:not(.active), .off) {
   padding: 0;
 }
 /* Oculta a la vista, pero sigue dando nombre al enlace para lectores de pantalla y control por voz. */
-.nav-item:not(.active) .nav-label {
+.nav-item:not(.on):is(:not(.active), .off) .nav-label {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -104,7 +107,7 @@
   white-space: nowrap;
 }
 @media (max-width: 1099px) {
-  .nav-item.active {
+  .nav-item:is(.active:not(.off), .on) {
     padding: 0 12px;
   }
 }
@@ -116,7 +119,7 @@
     background var(--dur-2),
     color var(--dur-2);
 }
-.nav-item.active .count-badge {
+.nav-item:is(.active:not(.off), .on) .count-badge {
   background: var(--wms-solid);
   color: var(--wms-solid-text);
 }
@@ -288,7 +291,9 @@
     flex-basis: 180px;
     min-width: 140px;
   }
-  .gsearch:not(.open):not(:focus-within):not(:has(input:not(:placeholder-shown))) {
+  /* .filled (hay texto) en lugar de :has(input:not(:placeholder-shown)): ese :not(:has()) hacía recalcular
+     estilos de media página con cada nodo insertado (−45 % de recálculo al entrar a Inicio en el celular). */
+  .gsearch:not(.open):not(:focus-within):not(.filled) {
     flex-basis: 36px;
     min-width: 36px;
     input {
@@ -306,7 +311,7 @@
 /* Pantallas estrechas: ya no queda sitio libre para el buscador abierto. Se queda en su hueco de 36 px
    y el campo se superpone a los controles de la derecha (idioma, tema, perfil), nunca a la navegación. */
 @media (max-width: 960px) {
-  .gsearch:is(.open, :focus-within, :has(input:not(:placeholder-shown))) {
+  .gsearch:is(.open, :focus-within, .filled) {
     flex-basis: 36px;
     min-width: 36px;
     z-index: 5;
@@ -486,10 +491,12 @@
 .menu-btn {
   order: -1;
 }
+/* Por encima de los paneles de cada página (ficha del mapa 510, hojas 2000-2001), que ya no quedan dentro de
+   una capa de <main>; por debajo de la confirmación (3001), que se abre desde aquí al cerrar sesión, y los avisos. */
 .drawer-scrim {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 2500;
   background: var(--wms-scrim);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
@@ -506,7 +513,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  z-index: 61;
+  z-index: 2501;
   width: min(300px, 84vw);
   display: flex;
   flex-direction: column;
@@ -648,10 +655,10 @@
 /* Laptop pequeña y tablet: solo íconos también en la sección activa, para que quepan todas las secciones.
    La etiqueta sigue disponible para lectores de pantalla y como título al pasar el mouse. */
 @media (max-width: 1180px) {
-  .nav-item.active {
+  .nav-item:is(.active:not(.off), .on) {
     padding: 0;
   }
-  .nav-item.active .nav-label {
+  .nav-item:is(.active:not(.off), .on) .nav-label {
     position: absolute;
     width: 1px;
     height: 1px;

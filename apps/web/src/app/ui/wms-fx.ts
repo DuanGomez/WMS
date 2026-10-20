@@ -14,7 +14,7 @@ import {
   output,
   untracked,
 } from '@angular/core';
-import { NavigationCancel, NavigationEnd, NavigationError, Router } from '@angular/router';
+import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, Router } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
 import { Theme } from '../core/ui.services';
 
@@ -55,6 +55,7 @@ export class BgComponent implements AfterViewInit, OnDestroy {
 
   constructor() {
     startRowReplay(inject(NgZone));
+    trackKeyboard(inject(NgZone));
     const theme = inject(Theme);
     try {
       if (!localStorage.getItem('wms.theme')) theme.set('dark');
@@ -256,7 +257,6 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
     this.zone.runOutsideAngular(() => {
       this.host.addEventListener('mouseover', this.over);
       this.host.addEventListener('mouseleave', this.out);
-      this.host.addEventListener('pointerdown', this.press);
       this.host.addEventListener('click', this.go);
       // También observa cada sección: su ancho cambia al activarse, al cargar la fuente o al traducir a inglés,
       // y la píldora debe seguirla (antes se quedaba con la medida vieja y aparecía desplazada).
@@ -266,9 +266,19 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
       this.observeItems();
     });
     this.sub = this.router.events
-      .pipe(filter((e) => e instanceof NavigationEnd || e instanceof NavigationCancel || e instanceof NavigationError))
+      .pipe(
+        filter(
+          (e) =>
+            e instanceof NavigationEnd ||
+            e instanceof NavigationError ||
+            // Si se eligió otra sección antes de que cargara la primera, esa sigue en curso: no se vuelve atrás.
+            (e instanceof NavigationCancel && e.code !== NavigationCancellationCode.SupersededByNewNavigation),
+        ),
+      )
       .subscribe(() => requestAnimationFrame(() => {
-        this.pending = null;
+        this.pending = this.chosen = null;
+        // RouterLinkActive ya movió .active: se quitan las marcas provisionales (si se canceló, vuelve la anterior).
+        this.mark(this.host, null);
         // La sección recién activada empieza ahora a crecer: se mantiene la medida final mientras dura.
         const act = this.host.querySelector('.nav-item.active');
         if (this.goal && this.goal.el === act) this.holdGoal(this.goal, 550);
@@ -289,37 +299,22 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
     this.hov.style.opacity = '0';
   };
   /** Al hacer clic la píldora sale ya hacia la sección elegida, con el hilo libre: si esperara al final de la
-   *  navegación, la carga y el pintado de la página nueva le quitarían los frames y parecería un salto. */
+   *  navegación, la carga y el pintado de la página nueva le quitarían los frames y parecería un salto.
+   *  Píldora y etiquetas arrancan juntas en el clic (ya soltado): si la píldora saliera al presionar, mientras se
+   *  mantiene el botón quedaba ancha sobre una sección todavía cerrada (estirada entre las dos), y si las etiquetas
+   *  cambiaran al presionar, las secciones se correrían bajo el puntero y el clic se perdería. */
   private go = (e: Event) => {
-    this.clicked = true;
     const it = this.itemOf(e);
-    if (it && !(e as MouseEvent).metaKey && !(e as MouseEvent).ctrlKey && it !== this.pending) {
+    if (!it || (e as MouseEvent).metaKey || (e as MouseEvent).ctrlKey) return;
+    if (it !== this.pending) {
       this.pending = it;
       this.place(true, it);
     }
+    this.chosen = it;
+    this.mark(this.host, it);
   };
-  /** Al presionar (antes del clic) ya arranca el deslizamiento; si se suelta fuera y no hay clic, vuelve. */
-  private press = (e: PointerEvent) => {
-    const it = this.itemOf(e);
-    if (!it || e.button !== 0 || e.metaKey || e.ctrlKey) return;
-    this.clicked = false;
-    this.pending = it;
-    this.place(true, it);
-    this.pressAbort?.abort();
-    const ac = (this.pressAbort = new AbortController());
-    const done = () => {
-      ac.abort();
-      setTimeout(() => {
-        if (this.clicked) return;
-        this.pending = null;
-        this.place(true);
-      });
-    };
-    window.addEventListener('pointerup', done, { signal: ac.signal });
-    window.addEventListener('pointercancel', done, { signal: ac.signal });
-  };
-  private clicked = false;
-  private pressAbort?: AbortController;
+  /** Sección elegida con clic cuya navegación sigue en curso (lleva la marca .on). */
+  private chosen: HTMLElement | null = null;
   private itemOf(e: Event) {
     const it = (e.target as HTMLElement).closest('.nav-item') as HTMLElement | null;
     return it && this.host.contains(it) ? it : null;
@@ -331,9 +326,19 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
   private geometry(a: HTMLElement) {
     const now = performance.now();
     if (this.goal?.el === a && now < this.goal.until) return this.goal;
-    if (a.classList.contains('active')) return { left: a.offsetLeft, width: a.offsetWidth };
+    if (a.classList.contains('active') && !this.host.querySelector('.nav-item:is(.on, .off)'))
+      return { left: a.offsetLeft, width: a.offsetWidth };
     this.holdGoal({ el: a, ...this.predict(a), until: 0 }, 900);
     return this.goal!;
+  }
+  /** Marca provisional mientras carga la sección elegida: .on la muestra ya abierta (con su etiqueta) y .off
+   *  cierra la activa anterior. Sin esto la etiqueta vieja seguía abierta hasta que terminaba la navegación y
+   *  la píldora, ya en su medida final, quedaba estirada entre las dos secciones. */
+  private mark(root: HTMLElement, t: HTMLElement | null) {
+    root.querySelectorAll('.nav-item:is(.on, .off)').forEach((e) => e.classList.remove('on', 'off'));
+    if (!t || t.classList.contains('active')) return;
+    t.classList.add('on');
+    root.querySelectorAll('.nav-item.active').forEach((e) => e.classList.add('off'));
   }
   private holdGoal(goal: { el: HTMLElement; left: number; width: number; until: number }, ms: number) {
     goal.until = performance.now() + ms;
@@ -344,20 +349,19 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
       this.place(true);
     }, ms + 50);
   }
-  /** Geometría final de una sección si estuviera activa: cambia la clase sin transición, mide y la devuelve
-   *  en el mismo frame (no llega a pintarse). */
+  /** Geometría final de una sección si estuviera activa, medida en una copia invisible de la barra: tocar las
+   *  clases de la real cortaría sus transiciones en curso y movería las secciones bajo el puntero. */
   private predict(t: HTMLElement) {
-    const cur = this.host.querySelector('.nav-item.active') as HTMLElement | null;
-    const els = cur ? [cur, t] : [t];
-    const prev = els.map((e) => e.style.transition);
-    els.forEach((e) => (e.style.transition = 'none'));
-    cur?.classList.remove('active');
-    t.classList.add('active');
-    const g = { left: t.offsetLeft, width: t.offsetWidth };
-    t.classList.remove('active');
-    cur?.classList.add('active');
-    void this.host.offsetWidth;
-    els.forEach((e, i) => (e.style.transition = prev[i]));
+    const i = Array.from(this.host.querySelectorAll('.nav-item')).indexOf(t);
+    const copy = this.host.cloneNode(true) as HTMLElement;
+    copy.setAttribute('aria-hidden', 'true');
+    copy.style.cssText = `position:absolute;left:0;top:0;width:${this.host.clientWidth}px;visibility:hidden;pointer-events:none`;
+    const items = Array.from(copy.querySelectorAll<HTMLElement>('.nav-item'));
+    items.forEach((e) => (e.style.transition = 'none'));
+    this.mark(copy, items[i]);
+    this.host.after(copy);
+    const g = { left: items[i].offsetLeft, width: items[i].offsetWidth };
+    copy.remove();
     return g;
   }
   private observeItems() {
@@ -396,8 +400,6 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
     this.host.removeEventListener('mouseover', this.over);
     this.host.removeEventListener('mouseleave', this.out);
     this.host.removeEventListener('click', this.go);
-    this.host.removeEventListener('pointerdown', this.press);
-    this.pressAbort?.abort();
     clearTimeout(this.goalTimer);
   }
 }
@@ -789,6 +791,34 @@ export class BoardDragDirective implements OnInit, OnDestroy {
     this.host.removeEventListener('contextmenu', this.noMenu);
     this.host.removeEventListener('scroll', this.scrolled);
   }
+}
+
+/**
+ * Alto del teclado en pantalla como --kb (en <html>), para subir las hojas fijas abajo y que no tapen el campo
+ * donde se escribe. En Android ya lo resuelve interactive-widget=resizes-content (index.html) y --kb queda en 0;
+ * Safari (iOS) ignora esa opción y solo encoge el visualViewport, que es lo que se mide aquí.
+ */
+function trackKeyboard(zone: NgZone) {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  let last = -1;
+  const update = () => {
+    const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    if (kb === last) return;
+    last = kb;
+    document.documentElement.style.setProperty('--kb', kb + 'px');
+  };
+  // .wms-typing en <html> mientras se escribe en un campo de texto (styles.scss sube los avisos para que no lo tapen)
+  const typing = (t: EventTarget | null) =>
+    t instanceof HTMLElement &&
+    (t.isContentEditable ||
+      t.matches('textarea, select, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit])'));
+  zone.runOutsideAngular(() => {
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    document.addEventListener('focusin', (e) => document.documentElement.classList.toggle('wms-typing', typing(e.target)));
+    document.addEventListener('focusout', () => document.documentElement.classList.remove('wms-typing'));
+  });
 }
 
 /**

@@ -168,6 +168,11 @@ interface Pt {
       padding: 10px 12px;
       border-radius: 18px;
     }
+    /* Play/pausa rellenos, como en los reproductores: el ícono de solo contorno (trazo de 2 px en 18 px) se veía
+       dentado en pantallas con escala 1–1,5x (p. ej. Windows al 125 %). */
+    .timeline .btn.icon ::ng-deep svg :is(path, polygon, rect) {
+      fill: currentColor;
+    }
     .tl-main {
       flex: 1;
       min-width: 0;

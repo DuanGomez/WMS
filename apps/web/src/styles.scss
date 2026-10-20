@@ -574,8 +574,11 @@ textarea::placeholder {
     background var(--dur-3),
     border-color var(--dur-3);
 }
-.card:not(:has(input, select, textarea, .leaflet-container)):hover {
-  transform: translateY(-3px) scale(1.008);
+/* Solo con mouse: en pantallas táctiles no hay hover y el :has() costaba recálculo de estilos al cambiar el DOM. */
+@media (hover: hover) {
+  .card:not(:has(input, select, textarea, .leaflet-container)):hover {
+    transform: translateY(-3px) scale(1.008);
+  }
 }
 .card-title {
   display: flex;
@@ -1616,7 +1619,7 @@ table.table {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.96);
+    transform: translateY(var(--toast-y, 18px)) scale(0.96);
   }
 }
 @keyframes toast-out {
@@ -2354,13 +2357,14 @@ table.table {
   .btn.sm {
     min-height: 32px;
   }
+  /* --kb: alto del teclado en iOS (trackKeyboard en wms-fx.ts); la hoja sube con él y no tapa el campo. */
   .sheet {
     top: auto;
     left: 8px;
     right: 8px;
-    bottom: 8px;
+    bottom: calc(8px + var(--kb, 0px));
     width: auto;
-    max-height: 90dvh;
+    max-height: calc(90dvh - var(--kb, 0px));
     border-radius: 22px;
     animation: sheet-up var(--dur-3) var(--ease-out) both;
     padding-bottom: env(safe-area-inset-bottom);
@@ -2378,6 +2382,14 @@ table.table {
   }
   .toasts {
     bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  /* Con una hoja abierta o escribiendo (teclado arriba), abajo tapan el campo y el botón Guardar: van arriba.
+     Clases en <html> (SheetComponent y trackKeyboard) en lugar de :root:has(), que recalculaba estilos al cambiar el DOM. */
+  :root:is(.wms-typing, .wms-sheet-open) .toasts {
+    top: calc(12px + env(safe-area-inset-top));
+    bottom: auto;
+    flex-direction: column;
+    --toast-y: -18px;
   }
   .hide-mobile {
     display: none !important;
@@ -2611,15 +2623,27 @@ table.table {
   place-items: center;
   color: #fff;
 }
-.drv:not(.off) .drv-dot {
+/* Pulso: anillo en un pseudo-elemento con transform + opacity (va en la GPU). Animar box-shadow repintaba en el
+   hilo principal en cada frame y arrastraba con él al resto de animaciones del mapa. Equivale al box-shadow
+   0 → 14 px de antes: 28 px + 2 × 14 px = 56 px → scale(2). */
+.drv:not(.off) .drv-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--drv-color) 55%, transparent);
+  pointer-events: none;
   animation: drv-ping 2.4s ease-out infinite;
 }
 @keyframes drv-ping {
   0% {
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35), 0 0 0 0 color-mix(in srgb, var(--drv-color) 55%, transparent);
+    opacity: 1;
+    transform: scale(1);
   }
   100% {
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35), 0 0 0 14px transparent;
+    opacity: 0;
+    transform: scale(2);
   }
 }
 .drv .drv-label {
