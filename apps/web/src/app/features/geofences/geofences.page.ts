@@ -51,7 +51,7 @@ const SHAPE_META: Record<Shape, { label: string; icon: string }> = {
   freehand: { label: 'Dibujo libre', icon: 'pencil' },
   circle: { label: 'Círculo', icon: 'circle' },
   polygon: { label: 'Por puntos', icon: 'pentagon' },
-  corridor: { label: 'Corredor de ruta', icon: 'spline' },
+  corridor: { label: 'Corredor', icon: 'spline' },
 };
 
 /** RE2 / RF5-RF8 – Geocercas dibujables sobre el mapa (círculo, polígono o corredor de ruta). */

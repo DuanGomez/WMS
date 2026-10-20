@@ -35,30 +35,32 @@ import { cssMs, cssVar, reducedMotion } from './motion';
         [class.wide]="wide()"
         role="dialog"
         aria-modal="true"
-        [attr.aria-label]="title()"
+        [attr.aria-labelledby]="titleId"
+        tabindex="-1"
+        #panel
+        (keydown.tab)="trap($event)"
+        (keydown.shift.tab)="trap($event)"
       >
-        <div class="sheet-handle"></div>
+        <div class="sheet-handle" aria-hidden="true"></div>
         <header class="sheet-header">
-          <button class="btn plain" type="button" (click)="close()">{{ cancelText() }}</button>
-          <h2>{{ title() }}</h2>
-          @if (actionText()) {
-            <button
-              class="btn plain"
-              type="button"
-              style="font-weight:650"
-              [disabled]="busy() || actionDisabled()"
-              (click)="action.emit()"
-            >
+          <h2 [id]="titleId">{{ title() }}</h2>
+          <button class="sheet-close" type="button" [attr.aria-label]="actionText() ? 'Cerrar sin guardar' : cancelText()" (click)="close()">
+            <app-icon name="x" [size]="16" />
+          </button>
+        </header>
+        <div class="sheet-body"><ng-content /></div>
+        <!-- Acciones siempre visibles al pie del panel (aunque el formulario sea largo) -->
+        @if (actionText()) {
+          <footer class="sheet-foot">
+            <button class="btn" type="button" (click)="close()">{{ cancelText() }}</button>
+            <button class="btn primary" type="button" [disabled]="busy() || actionDisabled()" (click)="action.emit()">
               @if (busy()) {
                 <app-icon name="refresh" [size]="16" class="spin" />
               }
               {{ actionText() }}
             </button>
-          } @else {
-            <span style="min-width:82px"></span>
-          }
-        </header>
-        <div class="sheet-body"><ng-content /></div>
+          </footer>
+        }
       </section>
     }
   `,
@@ -73,10 +75,50 @@ export class SheetComponent {
   readonly wide = input(false);
   readonly action = output<void>();
   readonly closed = output<void>();
+  readonly titleId = 'sheet-t-' + Math.random().toString(36).slice(2, 8);
+  private panel = viewChild<ElementRef<HTMLElement>>('panel');
+  private opener: HTMLElement | null = null;
+
+  constructor() {
+    // Accesibilidad: al abrir, el foco pasa al primer campo; al cerrar, vuelve al botón que abrió el panel.
+    effect(() => {
+      if (this.open()) {
+        this.opener = document.activeElement as HTMLElement | null;
+        setTimeout(() => {
+          const el = this.panel()?.nativeElement;
+          const first = el?.querySelector<HTMLElement>('.sheet-body input:not([type=hidden]):not([disabled]), .sheet-body select, .sheet-body textarea');
+          (first ?? el)?.focus({ preventScroll: true });
+        }, 60);
+      } else if (this.opener) {
+        this.opener.focus?.({ preventScroll: true });
+        this.opener = null;
+      }
+    });
+  }
 
   close() {
     this.open.set(false);
     this.closed.emit();
+  }
+
+  /** Mantiene el foco del teclado dentro del panel mientras está abierto (diálogo modal). */
+  trap(e: Event) {
+    const ev = e as KeyboardEvent;
+    const el = this.panel()?.nativeElement;
+    if (!el) return;
+    const items = Array.from(
+      el.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+    ).filter((n) => n.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (ev.shiftKey && (document.activeElement === first || document.activeElement === el)) {
+      ev.preventDefault();
+      last.focus();
+    } else if (!ev.shiftKey && document.activeElement === last) {
+      ev.preventDefault();
+      first.focus();
+    }
   }
 
   @HostListener('document:keydown.escape')

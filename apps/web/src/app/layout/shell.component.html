@@ -6,9 +6,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"></path></svg>
     </button>
 
-    <a class="brand" routerLink="/" aria-label="WMS · Inicio">
-      <app-logo [compact]="true" />
+    <a class="brand" routerLink="/">
+      <app-logo [compact]="true" aria-hidden="true" />
       <strong class="hide-mobile">WMS</strong>
+      <span class="sr-only only-mobile">WMS</span><span class="sr-only">, ir al inicio</span>
     </a>
     <span class="cur-title only-mobile">{{ current() }}</span>
 
@@ -20,12 +21,11 @@
             [routerLink]="it.path"
             routerLinkActive="active"
             [attr.title]="it.label"
-            [attr.aria-label]="it.label"
           >
             <app-icon [name]="it.icon" [size]="15" />
             <span class="nav-label">{{ it.label }}</span>
             @if (it.badge && live.openAlerts() > 0) {
-              <span class="count-badge">{{ live.openAlerts() > 99 ? '99+' : live.openAlerts() }}</span>
+              &ngsp;<span class="count-badge">{{ live.openAlerts() > 99 ? '99+' : live.openAlerts() }}</span>
             }
           </a>
         }
@@ -71,8 +71,8 @@
       <app-theme-toggle />
 
       <div class="pf">
-        <button type="button" class="wms-ctl round" aria-label="Perfil" (click)="pfOpen.set(!pfOpen())">{{ initials() }}</button>
-        <div class="pf-pop glass-thick" [class.open]="pfOpen()" [attr.aria-hidden]="!pfOpen()">
+        <button type="button" class="wms-ctl round" [attr.aria-label]="'Perfil: ' + initials()" [attr.aria-expanded]="pfOpen()" (click)="pfOpen.set(!pfOpen())">{{ initials() }}</button>
+        <div class="pf-pop glass-thick" [class.open]="pfOpen()" [attr.aria-hidden]="!pfOpen()" [attr.inert]="pfOpen() ? null : ''">
           <div class="pf-head">
             <span class="pf-av">{{ initials() }}</span>
             <div class="pf-txt">
@@ -99,7 +99,7 @@
 
 <!-- Menú lateral (móvil). Reutiliza el signal moreOpen. -->
 <div class="drawer-scrim only-mobile" [class.open]="moreOpen()" (click)="moreOpen.set(false)"></div>
-<aside class="drawer only-mobile" [class.open]="moreOpen()" aria-label="Menú" [attr.aria-hidden]="!moreOpen()">
+<aside class="drawer only-mobile" [class.open]="moreOpen()" aria-label="Menú" [attr.aria-hidden]="!moreOpen()" [attr.inert]="moreOpen() ? null : ''">
   <div class="dr-head">
     <app-logo [compact]="true" />
     <strong>WMS</strong>

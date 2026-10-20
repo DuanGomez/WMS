@@ -63,9 +63,9 @@ const REASONS: Record<string, string> = {
       </header>
 
       <div class="mod-tool">
-        <div class="pills" role="tablist" aria-label="Filtro">
+        <div class="pills" role="group" aria-label="Filtrar por estado">
           @for (o of filterOptions; track o.value) {
-            <button type="button" [class.on]="filter() === o.value" (click)="setFilter(o.value)">{{ o.label }}@if (countF(o.value)) {<small>{{ countF(o.value) }}</small>}</button>
+            <button type="button" [class.on]="filter() === o.value" [attr.aria-pressed]="filter() === o.value" (click)="setFilter(o.value)">{{ o.label }}@if (countF(o.value)) {<small>{{ countF(o.value) }}</small>}</button>
           }
         </div>
         <div class="mod-right">
@@ -88,7 +88,7 @@ const REASONS: Record<string, string> = {
           />
         </div>
       } @else {
-        <div class="table-wrap">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla">
           <table class="table grid" style="--cols: minmax(0,2fr) 120px 120px 130px 110px 130px; min-width: 820px">
             <thead>
               <tr>

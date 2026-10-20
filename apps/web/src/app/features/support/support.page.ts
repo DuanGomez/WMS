@@ -76,9 +76,9 @@ const CATEGORIES: Record<string, string> = {
       </header>
 
       <div class="mod-tool">
-        <div class="pills" role="tablist" aria-label="Estado">
+        <div class="pills" role="group" aria-label="Filtrar por estado">
           @for (o of filterOptions; track o.value) {
-            <button type="button" [class.on]="filter() === o.value" (click)="setFilter(o.value)">{{ o.label }}@if (countF(o.value)) {<small>{{ countF(o.value) }}</small>}</button>
+            <button type="button" [class.on]="filter() === o.value" [attr.aria-pressed]="filter() === o.value" (click)="setFilter(o.value)">{{ o.label }}@if (countF(o.value)) {<small>{{ countF(o.value) }}</small>}</button>
           }
         </div>
         <div class="mod-right">
@@ -105,7 +105,7 @@ const CATEGORIES: Record<string, string> = {
           />
         </div>
       } @else {
-        <div class="table-wrap">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla">
           <table class="table grid" style="--cols: 70px minmax(0,2.4fr) 110px 100px 120px 120px; min-width: 760px">
             <thead>
               <tr>

@@ -104,7 +104,7 @@ export class BgComponent implements AfterViewInit, OnDestroy {
       class="wms-ctl"
       [class.wide]="labeled()"
       (click)="toggle()"
-      aria-label="Cambiar modo"
+      [attr.aria-label]="labeled() ? null : 'Cambiar modo'"
     >
       @if (theme.isDark()) {
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>

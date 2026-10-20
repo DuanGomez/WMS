@@ -25,7 +25,7 @@
   --wms-page: #000;
   --wms-text: #fff;
   --wms-muted: rgba(255, 255, 255, 0.6);
-  --wms-faint: rgba(255, 255, 255, 0.4);
+  --wms-faint: rgba(255, 255, 255, 0.52);
   --wms-border: rgba(255, 255, 255, 0.1);
   --wms-divider: rgba(255, 255, 255, 0.08);
   --wms-input: rgba(255, 255, 255, 0.05);
@@ -136,7 +136,7 @@
 
   --wms-page: #d2d2d0;
   --wms-text: #242424;
-  --wms-muted: rgba(0, 0, 0, 0.55);
+  --wms-muted: rgba(0, 0, 0, 0.62);
   --wms-faint: rgba(0, 0, 0, 0.4);
   --wms-border: rgba(0, 0, 0, 0.06);
   --wms-divider: rgba(0, 0, 0, 0.06);
@@ -1418,20 +1418,58 @@ table.table {
 .sheet-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 16px 10px;
+  gap: 12px;
+  padding: 14px 14px 12px 20px;
   min-height: 60px;
   border-bottom: 1px solid var(--wms-divider);
 }
 .sheet-header h2 {
   flex: 1;
-  text-align: center;
-  font-size: 15px;
+  min-width: 0;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.sheet-header .btn {
-  min-width: 82px;
+.sheet-close {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--wms-border);
+  background: var(--wms-input);
+  color: var(--wms-text);
+  cursor: pointer;
+  transition: background var(--dur-1), transform var(--dur-1) var(--ease);
+}
+.sheet-close:hover {
+  background: var(--wms-row-hover);
+}
+.sheet-close:active {
+  transform: scale(0.94);
+}
+.sheet:focus {
+  outline: none;
+}
+/* Pie con las acciones del formulario: siempre a la vista */
+.sheet-foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--wms-divider);
+  background: var(--wms-panel);
+}
+.sheet-foot .btn {
+  min-width: 112px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 14px;
 }
 .sheet-body {
   overflow: auto;
@@ -2064,7 +2102,8 @@ table.table {
 }
 .pills button small {
   font-size: 10px;
-  opacity: 0.6;
+  font-weight: 600;
+  color: var(--wms-muted);
 }
 .cell {
   display: flex;
@@ -2613,4 +2652,77 @@ table.table {
 }
 .leaflet-tile-pane .tiles-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.45);
+}
+
+/* ---------------- Accesibilidad y responsive (auditoría axe-core + Playwright) ---------------- */
+/* Píldoras con más opciones que ancho: se desplazan con el dedo y un desvanecido indica que hay más. */
+@media (max-width: 760px) {
+  .pills {
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    scroll-snap-type: x proximity;
+  }
+  .pills button {
+    scroll-snap-align: start;
+  }
+  .pills button:last-child {
+    margin-right: 22px;
+  }
+}
+/* Enlaces de texto sueltos con área de toque de al menos 24 px (WCAG 2.5.8). */
+.links a,
+.alt a,
+.right > a,
+.card-title a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 8px;
+}
+/* Foco visible y consistente en todos los controles. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--wms-text);
+  outline-offset: 2px;
+}
+/* Contenedores con scroll accesibles desde el teclado. */
+.table-wrap:focus-visible {
+  outline: 2px solid var(--wms-text);
+  outline-offset: -2px;
+}
+/* Botón «Ver en el mapa» de la columna de ubicación (Conductores): área de toque cómoda */
+.cell.loc .btn.icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+@media (max-width: 760px) {
+  .sheet-foot .btn {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* Tablet (2 columnas): la última tarjeta que queda sola ocupa todo el ancho, sin huecos. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .grid-3 > .span-2 + :last-child:nth-child(2),
+  .grid-3 > :last-child:nth-child(odd):not(.span-2) {
+    grid-column: 1 / -1;
+  }
+}
+/* Móvil: buscador a todo el ancho y el conteo a su lado. */
+@media (max-width: 760px) {
+  .mod-tool .mod-right {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+  .mod-tool .mod-right .search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  .mod-tool .mod-right .mod-count {
+    flex: none;
+  }
 }

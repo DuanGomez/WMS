@@ -46,6 +46,7 @@ export interface BarDatum {
             {{ b.label }}
           </text>
           <rect
+            role="img"
             [attr.x]="b.x - b.gap / 2"
             y="0"
             [attr.width]="b.w + b.gap"

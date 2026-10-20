@@ -147,9 +147,8 @@ function tr(k: string): string | null {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { style: 'display:contents', 'data-no-i18n': '' },
   template: `
-    <button type="button" class="wms-lang" (click)="lang.toggle()" aria-label="Cambiar idioma">
-      <span [class.on]="lang.code() === 'es'">ES</span>
-      <span [class.on]="lang.code() === 'en'">EN</span>
+    <button type="button" class="wms-lang" (click)="lang.toggle()" title="Cambiar idioma">
+      <span class="sr-only">Idioma:&ngsp;</span><span [class.on]="lang.code() === 'es'">ES</span>&ngsp;<span [class.on]="lang.code() === 'en'">EN</span>
     </button>
   `,
 })

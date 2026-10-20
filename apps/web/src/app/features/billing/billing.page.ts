@@ -124,7 +124,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
           </section>
         </div>
 
-        <div class="table-wrap" style="margin-top:18px">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla" style="margin-top:18px">
           <div class="tt"><span>Facturas</span><small>{{ invoices().length }} {{ invoices().length === 1 ? 'factura' : 'facturas' }}</small></div>
           <table class="table grid" style="--cols: 110px minmax(0,1.6fr) 80px 100px 100px 110px minmax(0,1.4fr) 90px; min-width: 900px">
             <thead>

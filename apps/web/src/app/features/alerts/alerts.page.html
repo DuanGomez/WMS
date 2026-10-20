@@ -29,9 +29,9 @@
       }
     </div>
     @if (tab() === 'history') {
-      <div class="pills" role="tablist" aria-label="Estado">
+      <div class="pills" role="group" aria-label="Filtrar por estado">
         @for (o of stateOptions; track o.value) {
-          <button type="button" [class.on]="state() === o.value" (click)="setFilter('state', o.value)">
+          <button type="button" [class.on]="state() === o.value" [attr.aria-pressed]="state() === o.value" (click)="setFilter('state', o.value)">
             {{ o.label }}@if (countOf(o.value)) {<small>{{ countOf(o.value) }}</small>}
           </button>
         }

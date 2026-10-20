@@ -50,10 +50,10 @@ const STATUS: Record<string, { label: string; tone: string }> = {
       </header>
 
       <div class="mod-tool">
-        <div class="pills" role="tablist" aria-label="Estado">
-          <button type="button" [class.on]="stF() === 'all'" (click)="stF.set('all')">Todos@if (base().length) {<small>{{ base().length }}</small>}</button>
+        <div class="pills" role="group" aria-label="Filtrar por estado">
+          <button type="button" [class.on]="stF() === 'all'" [attr.aria-pressed]="stF() === 'all'" (click)="stF.set('all')">Todos@if (base().length) {<small>{{ base().length }}</small>}</button>
           @for (k of statusKeys; track k) {
-            <button type="button" [class.on]="stF() === k" (click)="stF.set(k)">{{ status[k].label }}@if (countSt(k)) {<small>{{ countSt(k) }}</small>}</button>
+            <button type="button" [class.on]="stF() === k" [attr.aria-pressed]="stF() === k" (click)="stF.set(k)">{{ status[k].label }}@if (countSt(k)) {<small>{{ countSt(k) }}</small>}</button>
           }
         </div>
         <div class="mod-right">
@@ -76,7 +76,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
           />
         </div>
       } @else {
-        <div class="table-wrap">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla">
           <table class="table grid" style="--cols: minmax(0,2fr) 130px minmax(0,1.4fr) 120px minmax(0,1.3fr) 120px; min-width: 900px">
             <thead>
               <tr>

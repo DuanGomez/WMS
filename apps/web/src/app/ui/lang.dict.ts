@@ -2,6 +2,12 @@
    Para añadir una traducción basta con agregar una línea; no requiere tocar ningún template. */
 
 export const EN: Record<string, string> = {
+  "Cerrar sin guardar": "Close without saving",
+  "ES EN, cambiar idioma": "ES EN, change language",
+  "WMS, ir al inicio": "WMS, go to home",
+  "Filtrar por estado": "Filter by status",
+  "Tabla": "Table",
+  "Corredor": "Corridor",
   "Ubicación": "Location",
   "Aún no comparte": "Not sharing yet",
   "Celular en vivo": "Phone live",

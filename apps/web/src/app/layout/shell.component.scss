@@ -94,8 +94,14 @@
 .nav-item:not(.active) {
   padding: 0;
 }
+/* Oculta a la vista, pero sigue dando nombre al enlace para lectores de pantalla y control por voz. */
 .nav-item:not(.active) .nav-label {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 @media (max-width: 1099px) {
   .nav-item.active {
@@ -455,9 +461,10 @@
 }
 
 /* ---------------- Contenido ---------------- */
+/* Sin z-index propio: si <main> creara una capa, los paneles y diálogos de cada página (z-index 2000+)
+   quedarían por debajo de la navbar y taparía su encabezado (Guardar / Cancelar). */
 .main {
   position: relative;
-  z-index: 1;
   min-height: calc(100dvh - var(--nav-h));
 }
 .main.bleed {
@@ -635,5 +642,21 @@
   }
   .pf-pop {
     width: min(288px, calc(100vw - 24px));
+  }
+}
+
+/* Laptop pequeña y tablet: solo íconos también en la sección activa, para que quepan todas las secciones.
+   La etiqueta sigue disponible para lectores de pantalla y como título al pasar el mouse. */
+@media (max-width: 1180px) {
+  .nav-item.active {
+    padding: 0;
+  }
+  .nav-item.active .nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }

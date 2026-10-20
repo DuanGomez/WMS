@@ -66,9 +66,9 @@ const ROLE_TONE: Record<string, string> = {
       </header>
 
       <div class="mod-tool">
-        <div class="pills" role="tablist" aria-label="Estado">
+        <div class="pills" role="group" aria-label="Filtrar por estado">
           @for (o of actOptions; track o.value) {
-            <button type="button" [class.on]="actF() === o.value" (click)="actF.set(o.value)">{{ o.label }}@if (countAct(o.value)) {<small>{{ countAct(o.value) }}</small>}</button>
+            <button type="button" [class.on]="actF() === o.value" [attr.aria-pressed]="actF() === o.value" (click)="actF.set(o.value)">{{ o.label }}@if (countAct(o.value)) {<small>{{ countAct(o.value) }}</small>}</button>
           }
         </div>
         <div class="mod-right">
@@ -91,7 +91,7 @@ const ROLE_TONE: Record<string, string> = {
           />
         </div>
       } @else {
-        <div class="table-wrap">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla">
           <table class="table grid" style="--cols: minmax(0,2.2fr) minmax(0,1.3fr) minmax(0,1.2fr) 120px 140px; min-width: 780px">
             <thead>
               <tr>
