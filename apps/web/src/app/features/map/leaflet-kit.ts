@@ -196,6 +196,10 @@ export class VehicleMarker {
     this.trailPts.push({ p, t: now });
     const cutoff = now - this.trailMinutes * 60_000;
     while (this.trailPts.length && this.trailPts[0].t < cutoff) this.trailPts.shift();
+    const px = this.map.latLngToLayerPoint(this.from).distanceTo(this.map.latLngToLayerPoint(this.to));
+    this.msPerPx = this.duration / Math.max(px, 1e-6);
+    clearTimeout(this.timer);
+    this.timer = 0;
     if (!this.raf) this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -212,12 +216,32 @@ export class VehicleMarker {
     const e = k; // velocidad constante: el movimiento entre reportes se ve continuo
     const lat = this.from[0] + (this.to[0] - this.from[0]) * e;
     const lng = this.from[1] + (this.to[1] - this.from[1]) * e;
-    this.marker.setLatLng([lat, lng]);
-    const pts = this.trailPts.map((x) => x.p);
-    if (pts.length) pts[pts.length - 1] = [lat, lng];
-    this.trail.setLatLngs(pts);
-    this.raf = k < 1 ? requestAnimationFrame(this.frame) : 0;
+    // Leaflet coloca el marcador en píxeles enteros: a velocidad de ciudad avanza 1–2 px por segundo, así que la
+    // mayoría de los frames no cambian nada. Solo se redibuja (marcador y estela de ~600 puntos) al cambiar de píxel.
+    const p = this.map.latLngToLayerPoint([lat, lng]).round();
+    const px = `${p.x},${p.y}`;
+    if (px !== this.lastPx || k >= 1) {
+      this.lastPx = px;
+      this.marker.setLatLng([lat, lng]);
+      const pts = this.trailPts.map((x) => x.p);
+      if (pts.length) pts[pts.length - 1] = [lat, lng];
+      this.trail.setLatLngs(pts);
+    }
+    this.raf = 0;
+    if (k >= 1) return;
+    // Movimiento lento (menos de ~15 px/s, lo normal en ciudad): se espera medio píxel en lugar de pedir un frame
+    // en cada vsync, que mantenía ocupado el hilo principal y sacaba de la GPU el halo y los pulsos.
+    if (this.msPerPx > 68) {
+      const wait = Math.min(this.msPerPx / 2, this.start + this.duration - performance.now());
+      this.timer = window.setTimeout(() => {
+        this.timer = 0;
+        this.raf = requestAnimationFrame(this.frame);
+      }, Math.max(0, wait - 8));
+    } else this.raf = requestAnimationFrame(this.frame);
   };
+  private lastPx = '';
+  private msPerPx = 0;
+  private timer = 0;
 
   current(): LatLng {
     const ll = this.marker.getLatLng();
@@ -226,6 +250,7 @@ export class VehicleMarker {
 
   remove() {
     cancelAnimationFrame(this.raf);
+    clearTimeout(this.timer);
     this.marker.remove();
     this.trail.remove();
   }

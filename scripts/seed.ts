@@ -103,6 +103,10 @@ function seedPlans() {
   );
 }
 
+/** Todas las cuentas demo comparten contraseña: se hashea una vez. bcrypt (costo 10) por cada usuario tardaba
+ *  ~3 s del primer arranque de la demo de GitHub Pages en un celular (corre en el navegador). */
+let demoHash: Promise<string> | null = null;
+
 async function user(
   companyId: string,
   name: string,
@@ -121,7 +125,7 @@ async function user(
       cid: companyId,
       name,
       email,
-      hash: await hashPassword(DEMO_PASSWORD),
+      hash: await (demoHash ??= hashPassword(DEMO_PASSWORD)),
       role,
       perms: JSON.stringify(permissions),
       phone,
@@ -254,23 +258,14 @@ function seedHistory(
           n: pts.length,
         },
       );
-      for (const p of pts) {
+      // Por lotes de 80 puntos (una sentencia por punto eran ~12 000 en total: en la demo de GitHub Pages cada una
+      // se compila de nuevo en el navegador y era la mayor parte del primer arranque en un celular).
+      for (let i = 0; i < pts.length; i += 80) {
+        const chunk = pts.slice(i, i + 80);
         run(
           `INSERT INTO positions (company_id, vehicle_id, device_id, trip_id, lat, lng, speed, heading, accuracy, battery, ignition, ts)
-           VALUES (@cid,@vid,@did,@tid,@lat,@lng,@speed,@heading,@acc,@battery,1,@ts)`,
-          {
-            cid: companyId,
-            vid: vehicleId,
-            did: deviceId,
-            tid: tripId,
-            lat: p.lat,
-            lng: p.lng,
-            speed: p.speed,
-            heading: p.heading,
-            acc: p.accuracy,
-            battery: p.battery,
-            ts: p.ts,
-          },
+           VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,1,?)').join(',')}`,
+          chunk.flatMap((p) => [companyId, vehicleId, deviceId, tripId, p.lat, p.lng, p.speed, p.heading, p.accuracy, p.battery, p.ts]),
         );
       }
       lastPoint = pts[pts.length - 1];

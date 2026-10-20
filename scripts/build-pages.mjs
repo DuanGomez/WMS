@@ -71,7 +71,20 @@ fs.copyFileSync(
   path.join(root, 'api/src/functions/gps-simulator/route-medellin.geojson'),
   path.join(demoDir, 'route-medellin.geojson'),
 );
+// Precarga de la API, el motor SQLite y la ruta: sin esto se pedían en cadena (main.js → API → wasm y ruta)
+// y en un celular con 4G lenta el arranque esperaba cada descarga por separado.
+const indexHtml = path.join(out, 'index.html');
+fs.writeFileSync(
+  indexHtml,
+  fs.readFileSync(indexHtml, 'utf8').replace(
+    '</head>',
+    '  <link rel="modulepreload" href="demo/wms-demo-api.js" />\n' +
+      '  <link rel="preload" href="demo/sql-wasm.wasm" as="fetch" type="application/wasm" crossorigin />\n' +
+      '  <link rel="preload" href="demo/route-medellin.geojson" as="fetch" crossorigin />\n' +
+      '</head>',
+  ),
+);
 // GitHub Pages: rutas profundas (/WMS/mapa) se sirven con 404.html → la SPA las resuelve.
-fs.copyFileSync(path.join(out, 'index.html'), path.join(out, '404.html'));
+fs.copyFileSync(indexHtml, path.join(out, '404.html'));
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
 console.log(`✅ Sitio listo en ${path.relative(root, out)} (base ${base})`);
