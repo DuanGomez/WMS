@@ -29,10 +29,14 @@ describe('Ubicación del celular del conductor', () => {
 
   it('pausar deja de compartir; otra empresa nunca ve al conductor', async () => {
     const driver = await login(app, 'conductor@la72.co');
+    const since = new Date(Date.now() - 1).toISOString();
     await request(app).delete('/api/me/location').set(bearer(driver.accessToken)).expect(204);
     const admin = await login(app, 'admin@la72.co');
     const list = await request(app).get('/api/drivers/locations').set(bearer(admin.accessToken)).expect(200);
     expect(list.body.find((d: any) => d.name === 'Juan Pérez').sharing).toBe(false);
+    // Sin SSE (demo de GitHub Pages) el mapa se entera de la pausa por polling.
+    const poll = await request(app).get(`/api/tracking/poll?since=${encodeURIComponent(since)}`).set(bearer(admin.accessToken)).expect(200);
+    expect(poll.body.drivers.find((d: any) => d.name === 'Juan Pérez')?.sharing).toBe(false);
     const other = await login(app, 'admin@eltrigal.co');
     const theirs = await request(app).get('/api/drivers/locations').set(bearer(other.accessToken)).expect(200);
     expect(theirs.body.some((d: any) => d.name === 'Juan Pérez')).toBe(false);

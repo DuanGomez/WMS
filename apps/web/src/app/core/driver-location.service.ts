@@ -85,7 +85,6 @@ export class DriverLocation {
 
   private onError(e: GeolocationPositionError) {
     if (e.code === e.PERMISSION_DENIED) {
-      this.status.set('denied');
       this.stop();
       this.status.set('denied');
     } else {

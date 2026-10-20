@@ -1,3 +1,4 @@
+import { config } from '../../shared/config';
 import { all, get, id, now, run } from '../../shared/db';
 import { badRequest, forbidden, notFound } from '../../shared/errors';
 import { created, defineHttp, ok, Req } from '../../shared/http';
@@ -7,9 +8,8 @@ import { SCENARIOS, ScenarioType, SIM_FLEET } from './fleet';
 /**
  * Funciones de control del simulador GPS (panel "Simulador" de la UI).
  * El proceso simulador (run.ts) consulta /simulator/control y reporta /simulator/heartbeat
- * usando una clave compartida (SIMULATOR_KEY). La UI usa /simulator/state con JWT.
+ * usando una clave compartida (config.simulatorKey). La UI usa /simulator/state con JWT.
  */
-export const SIMULATOR_KEY = process.env.SIMULATOR_KEY ?? 'wms-simulator-local-key';
 
 export interface SimState {
   paused: boolean;
@@ -45,7 +45,7 @@ function writeState(s: SimState) {
 }
 
 function checkKey(req: Req) {
-  if (req.headers.get('x-simulator-key') !== SIMULATOR_KEY) throw forbidden('Clave del simulador inválida.');
+  if (req.headers.get('x-simulator-key') !== config.simulatorKey) throw forbidden('Clave del simulador inválida.');
 }
 
 /** Vehículos simulados que pertenecen al tenant (para no exponer los de otras empresas). */

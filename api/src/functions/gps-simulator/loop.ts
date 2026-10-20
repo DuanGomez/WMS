@@ -1,3 +1,4 @@
+import { config } from '../../shared/config';
 import { loadRoute, SimVehicle } from './engine';
 import { SCENARIOS, SIM_FLEET } from './fleet';
 
@@ -9,8 +10,6 @@ export type SimCall = (
   path: string,
   init?: { method?: string; headers?: Record<string, string>; body?: string },
 ) => Promise<unknown>;
-
-export const SIMULATOR_KEY = (typeof process !== 'undefined' && process.env?.SIMULATOR_KEY) || 'wms-simulator-local-key';
 
 export function createSimulator(opts: { call: SimCall; target: string; log?: (m: string) => void; warn?: (m: string) => void }) {
   const log = opts.log ?? console.log;
@@ -25,7 +24,7 @@ export function createSimulator(opts: { call: SimCall; target: string; log?: (m:
   let tickNo = 0;
 
   async function syncControl() {
-    const s: any = await opts.call('/simulator/control', { headers: { 'x-simulator-key': SIMULATOR_KEY } });
+    const s: any = await opts.call('/simulator/control', { headers: { 'x-simulator-key': config.simulatorKey } });
     paused = !!s.paused;
     speedFactor = Math.min(4, Math.max(1, Number(s.speedFactor) || 1));
     for (const sc of s.scenarios ?? []) {
@@ -82,7 +81,7 @@ export function createSimulator(opts: { call: SimCall; target: string; log?: (m:
       await opts
         .call('/simulator/heartbeat', {
           method: 'POST',
-          headers: { 'x-simulator-key': SIMULATOR_KEY },
+          headers: { 'x-simulator-key': config.simulatorKey },
           body: JSON.stringify({
             vehicles: vehicles.map((v) => ({
               key: v.cfg.key,
