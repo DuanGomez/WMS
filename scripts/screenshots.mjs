@@ -1,7 +1,8 @@
 /**
  * Genera las capturas del README (docs/screenshots) con Playwright.
  * Requisitos: `npm run dev` corriendo y `npx playwright install chromium`.
- * Uso: npm run screenshots  [-- --only=mapa,inicio] [-- --dark | --light] [-- --mobile]
+ * Uso: npm run screenshots  [-- --only=mapa,inicio] [-- --dark | --light] [-- --mobile] [-- --all]
+ * Solo guarda las capturas que muestra el README (--all genera todas las variantes).
  */
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -16,6 +17,9 @@ const only = args
   .split(',');
 const themes = args.includes('--dark') ? ['dark'] : args.includes('--light') ? ['light'] : ['light', 'dark'];
 const mobile = args.includes('--mobile');
+// Las variantes que el README no usa pesaban ~17 MB en el repositorio sin mostrarse en ninguna parte.
+const all = args.includes('--all');
+const readme = fs.readFileSync('README.md', 'utf8');
 const ADMIN = 'admin@la72.co';
 const DRIVER = 'conductor@la72.co';
 
@@ -78,6 +82,8 @@ async function main() {
     page.on('pageerror', (e) => console.error(`  ⚠️  [${theme}] error en la página:`, e.message));
     for (const p of PAGES) {
       if (only && !only.includes(p.name)) continue;
+      const name = `${p.name}${mobile ? '-movil' : ''}${theme === 'dark' ? '-oscuro' : ''}.png`;
+      if (!all && !readme.includes(`docs/screenshots/${name}`)) continue;
       const session = p.auth === false ? null : await login(p.as ?? ADMIN);
       await page.goto(`${BASE}/login`);
       await page.evaluate(
@@ -97,10 +103,7 @@ async function main() {
       await sleep(1200);
       if (p.action) await p.action(page).catch((e) => console.error(`  ⚠️  acción de ${p.name}:`, e.message));
       await sleep(p.wait ?? 1500);
-      const file = path.join(
-        OUT,
-        `${p.name}${mobile ? '-movil' : ''}${theme === 'dark' ? '-oscuro' : ''}.png`,
-      );
+      const file = path.join(OUT, name);
       await page.screenshot({ path: file });
       console.log(`📸 ${path.relative(process.cwd(), file)}`);
     }

@@ -483,7 +483,7 @@ x-device-key: gps_xxxxxxxxxxxxxxxx
 | `npm run lint` | ESLint (typescript-eslint) en todo el monorepo. |
 | `npm run format` | Prettier. |
 | `npm run build:pages` | Build de la demo para GitHub Pages: Angular en modo demo + la API empaquetada para el navegador (sql.js). `node scripts/serve-pages.mjs` la sirve en local en `/WMS/`. |
-| `npm run screenshots` | Capturas del README con Playwright (`-- --dark`, `-- --mobile`, `-- --only=mapa`). |
+| `npm run screenshots` | Capturas del README con Playwright (`-- --dark`, `-- --mobile`, `-- --only=mapa`; `-- --all` guarda también las variantes que el README no muestra). |
 
 ---
 

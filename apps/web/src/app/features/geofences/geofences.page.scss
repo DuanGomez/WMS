@@ -56,9 +56,11 @@
   flex: none;
   min-width: 64px;
 }
+/* z-index 0: capa propia, para que los controles de Leaflet (z 800, crédito del mapa) no queden sobre el panel. */
 .map {
   position: absolute;
   inset: 0;
+  z-index: 0;
 }
 .map.drawing {
   cursor: crosshair;
@@ -78,7 +80,9 @@
   border-radius: 22px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* clip y no hidden: al enfocar un campo con el teclado abierto, el navegador desplazaba el panel entero y el
+     encabezado (Guardar) quedaba fuera de la vista; así solo se desplaza .panel-body. */
+  overflow: clip;
   background: var(--wms-panel);
   border: 1px solid var(--wms-card-border);
   box-shadow: var(--wms-pop-shadow);
@@ -100,8 +104,30 @@
   letter-spacing: -0.02em;
 }
 .panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 16px;
   overflow-y: auto;
+}
+/* Encabezado del formulario (cancelar, título, Guardar): fijo arriba mientras se desplaza el cuerpo, p. ej. con el
+   teclado abierto en el celular. Mismo lugar que antes: el margen negativo compensa el padding del cuerpo. */
+.panel-body > .row:first-child {
+  position: sticky;
+  top: -16px;
+  z-index: 2;
+  margin-top: -16px;
+  margin-inline: -16px;
+  padding: 16px 16px 0;
+  /* Fondo solo cuando el cuerpo se desplaza (en reposo se ve igual que antes). Tres capas del vidrio del panel
+     tapan lo que pasa por debajo (un vidrio dentro de otro no desenfoca). Sin scroll-timeline queda siempre puesto. */
+  animation: gf-stuck linear both;
+  animation-timeline: scroll(nearest block);
+  animation-range: 0 1px;
+}
+@keyframes gf-stuck {
+  to {
+    background: var(--wms-panel), var(--wms-panel), var(--wms-panel);
+  }
 }
 .panel-body ::ng-deep .segmented {
   width: 100%;

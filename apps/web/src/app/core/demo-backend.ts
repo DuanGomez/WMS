@@ -69,6 +69,9 @@ export class DemoHttpBackend implements HttpBackend {
 
   private async run(req: HttpRequest<unknown>): Promise<HttpEvent<unknown>> {
     const a = await demoApi();
+    // La API corre en el mismo hilo: se atiende en una tarea aparte para que el navegador pinte antes el cambio de
+    // sección (sin esto, crear la página, las consultas SQL y pintar los datos iban en un solo frame largo).
+    await new Promise((r) => setTimeout(r));
     const headers: Record<string, string> = {};
     for (const k of req.headers.keys()) headers[k] = req.headers.get(k) ?? '';
     const path = new URL(req.urlWithParams, location.origin).pathname.replace(/^.*?(\/api\/)/, '/api/');

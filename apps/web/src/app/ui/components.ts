@@ -79,14 +79,31 @@ export class SheetComponent {
   private panel = viewChild<ElementRef<HTMLElement>>('panel');
   private opener: HTMLElement | null = null;
 
+  /** Hojas abiertas: mientras haya alguna, <html> lleva .wms-sheet-open (los avisos suben en el celular). */
+  private static openCount = 0;
+  private counted = false;
+  private countOpen(on: boolean) {
+    if (on === this.counted) return;
+    this.counted = on;
+    SheetComponent.openCount += on ? 1 : -1;
+    document.documentElement.classList.toggle('wms-sheet-open', SheetComponent.openCount > 0);
+  }
+
   constructor() {
+    effect(() => this.countOpen(this.open()));
+    inject(DestroyRef).onDestroy(() => this.countOpen(false));
     // Accesibilidad: al abrir, el foco pasa al primer campo; al cerrar, vuelve al botón que abrió el panel.
+    // En pantallas táctiles el foco queda en el panel: enfocar un campo abría el teclado sin pedirlo
+    // (en el detalle de un ticket, sobre el chat).
     effect(() => {
       if (this.open()) {
         this.opener = document.activeElement as HTMLElement | null;
         setTimeout(() => {
           const el = this.panel()?.nativeElement;
-          const first = el?.querySelector<HTMLElement>('.sheet-body input:not([type=hidden]):not([disabled]), .sheet-body select, .sheet-body textarea');
+          const touch = matchMedia('(hover: none)').matches;
+          const first = touch
+            ? null
+            : el?.querySelector<HTMLElement>('.sheet-body input:not([type=hidden]):not([disabled]), .sheet-body select, .sheet-body textarea');
           (first ?? el)?.focus({ preventScroll: true });
         }, 60);
       } else if (this.opener) {

@@ -44,6 +44,8 @@ export const config = {
   port: Number(process.env.PORT ?? 7071),
   jwtSecret: process.env.JWT_SECRET ?? 'wms-dev-secret-cambiar',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET ?? 'wms-dev-refresh-secret-cambiar',
+  /** Clave compartida entre el simulador GPS (loop.ts) y sus funciones de control (/simulator/*). */
+  simulatorKey: process.env.SIMULATOR_KEY ?? 'wms-simulator-local-key',
   accessTtl: process.env.ACCESS_TOKEN_TTL ?? '15m',
   refreshTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 7),
   get dbPath() {

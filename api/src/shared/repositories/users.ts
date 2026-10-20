@@ -315,8 +315,13 @@ export const driversRepo = {
     );
   },
 
+  /** ts pasa a la hora de la pausa: así el polling (locations con `since`) también entrega el cambio. */
   stopSharing(tenantId: string, userId: string) {
-    run(`UPDATE driver_locations SET sharing=0 WHERE user_id=@uid AND company_id=@cid`, { uid: userId, cid: tenantId });
+    run(`UPDATE driver_locations SET sharing=0, ts=@ts WHERE user_id=@uid AND company_id=@cid`, {
+      uid: userId,
+      cid: tenantId,
+      ts: now(),
+    });
   },
 
   /** Conductores con ubicación conocida (para el mapa del administrador). */

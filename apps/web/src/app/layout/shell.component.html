@@ -33,7 +33,7 @@
     </nav>
 
     <div class="bar-right">
-      <div class="gsearch hide-mobile" [class.open]="searchOpen()">
+      <div class="gsearch hide-mobile" [class.open]="searchOpen()" [class.filled]="!!q()">
         <app-icon name="search" [size]="14" class="gs-ic" />
         <input
           #gs
@@ -111,7 +111,8 @@
     @for (g of groups(); track g.name) {
       <span class="dr-group">{{ g.name }}</span>
       @for (it of g.items; track it.path) {
-        <a class="dr-item" [routerLink]="it.path" routerLinkActive="active">
+        <!-- Se cierra al tocar, sin esperar a que cargue la sección (en conexiones lentas parecía no responder). -->
+        <a class="dr-item" [routerLink]="it.path" routerLinkActive="active" (click)="moreOpen.set(false)">
           <app-icon [name]="it.icon" [size]="17" />
           <span class="truncate">{{ it.label }}</span>
           @if (it.badge && live.openAlerts() > 0) {
