@@ -293,6 +293,13 @@ body {
     background var(--dur-3),
     color var(--dur-3);
 }
+/* Mientras cambia el tema (Theme.change) nada hace su propia transición de color: el cambio es uno solo. */
+.wms-theme-switch,
+.wms-theme-switch *,
+.wms-theme-switch *::before,
+.wms-theme-switch *::after {
+  transition: none !important;
+}
 body::before {
   content: '';
   position: fixed;

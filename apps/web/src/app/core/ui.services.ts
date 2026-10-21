@@ -104,6 +104,30 @@ export class Theme {
     } catch {}
     this.apply();
   }
+  /**
+   * Cambio de tema pedido por la persona: un solo fundido de toda la pantalla. Antes cada elemento cambiaba de
+   * color a su propio ritmo (fondo al instante, textos en 0,3 s, chips en 1,1 s) y a mitad del cambio quedaban
+   * textos sin contraste que desaparecían y volvían (titileo). Ahora se aplica el tema de golpe, sin esas
+   * transiciones (.wms-theme-switch), y la view transition funde la imagen vieja con la nueva.
+   */
+  change(p: ThemePref) {
+    const root = document.documentElement;
+    const doc = document as Document & {
+      startViewTransition?: (cb: () => void) => { ready: Promise<void>; finished: Promise<void> };
+    };
+    root.classList.add('wms-theme-switch');
+    const done = () => root.classList.remove('wms-theme-switch');
+    if (doc.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const t = doc.startViewTransition(() => this.set(p));
+      // Si el navegador la cancela (p. ej. cambia el tamaño de la ventana), ready y finished se rechazan pero el
+      // tema igual se aplica, sin fundido.
+      t.ready.catch(() => {});
+      t.finished.then(done, done);
+    } else {
+      this.set(p);
+      requestAnimationFrame(() => requestAnimationFrame(done));
+    }
+  }
   private apply() {
     const p = this.pref();
     if (p === 'auto') document.documentElement.removeAttribute('data-theme');
