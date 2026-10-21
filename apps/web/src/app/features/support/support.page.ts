@@ -315,13 +315,18 @@ const CATEGORIES: Record<string, string> = {
       color: var(--wms-solid-text);
       border-bottom-right-radius: 6px;
     }
+    /* Barra fija al pie del panel con fondo: transparente, los mensajes se veían a través de ella al desplazar el chat.
+       El sticky se ancla al borde interno del padding de .sheet-body (24 px abajo, 20 px a los lados): se extiende
+       sobre ese padding para que no quede un hueco por donde pase el texto. */
     .composer {
       display: flex;
       gap: 8px;
       position: sticky;
-      bottom: 0;
-      padding-top: 8px;
-      background: transparent;
+      bottom: -24px;
+      margin: 0 -20px -24px;
+      padding: 10px 20px 24px;
+      background: var(--wms-panel), var(--wms-panel), var(--wms-panel);
+      border-top: 1px solid var(--wms-divider);
     }
     .composer .input {
       border-radius: 999px;

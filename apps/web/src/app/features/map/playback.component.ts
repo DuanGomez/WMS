@@ -281,7 +281,10 @@ export class PlaybackComponent implements OnDestroy {
       99999,
     );
     this.marker.trail.remove();
-    this.map.fitBounds(this.full.getBounds().pad(0.15));
+    // La barra de tiempo flota sobre la parte de abajo del mapa: la ruta se encuadra por encima de ella
+    // (en el celular tapaba el final del recorrido). Si aún no se pintó, se usa su alto habitual.
+    const tl = this.mapEl().nativeElement.parentElement?.querySelector<HTMLElement>('.timeline');
+    this.map.fitBounds(this.full.getBounds().pad(0.15), { paddingBottomRight: [0, (tl?.offsetHeight ?? 60) + 12] });
     setTimeout(() => this.map?.invalidateSize(), 50);
   }
 

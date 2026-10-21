@@ -2,14 +2,7 @@
 
 <!-- Panel flotante (escritorio) / bottom sheet (móvil) -->
 <section class="panel glass-thick" [style.--sheet-h.px]="sheetH()" aria-label="Vehículos">
-  <div
-    class="grabber"
-    (pointerdown)="dragStart($event)"
-    (pointermove)="dragMove($event)"
-    (pointerup)="dragEnd()"
-    (pointercancel)="dragEnd()"
-    (dblclick)="cycleSheet()"
-  >
+  <div class="grabber" [wmsSheetDrag]="sheetH">
     <span></span>
   </div>
 
@@ -117,7 +110,16 @@
 
 <!-- Detalle del vehículo: panel lateral derecho (como el prototipo) -->
 @if (selected(); as s) {
-  <aside class="vdrawer glass-thick" animate.leave="wms-leave-sheet" [attr.aria-label]="'Detalle de ' + s.plate">
+  <aside
+    class="vdrawer glass-thick"
+    animate.leave="wms-leave-sheet"
+    [attr.aria-label]="'Detalle de ' + s.plate"
+    [style.--sheet-h.px]="detailH()"
+  >
+    <!-- Móvil: se arrastra como la hoja principal (minimizada deja ver solo placa y estado) -->
+    <div class="grabber" [wmsSheetDrag]="detailH" [peek]="detailPeek" (settled)="recenter()">
+      <span></span>
+    </div>
     <!-- Tarjeta de detalle del vehículo -->
     <div class="detail">
       <div class="detail-head">
