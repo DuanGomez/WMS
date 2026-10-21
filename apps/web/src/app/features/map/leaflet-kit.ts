@@ -52,6 +52,8 @@ export function createMap(el: HTMLElement, opts: { zoom?: number; center?: LatLn
     zoomDelta: 0.75,
     wheelPxPerZoomLevel: 90,
     preferCanvas: false,
+    // En pantallas táctiles las teselas aparecen sin fundido: menos repintados al desplazar el mapa en celulares.
+    fadeAnimation: !window.matchMedia('(hover: none) and (pointer: coarse)').matches,
   });
   map.attributionControl.setPrefix(false);
   return map;

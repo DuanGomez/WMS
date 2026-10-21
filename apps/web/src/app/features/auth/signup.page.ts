@@ -23,7 +23,7 @@ import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirecti
     <div class="a-glow-a"></div>
     <div class="a-glow-b"></div>
     <div class="auth-ctl"><app-lang-toggle /><app-theme-toggle [labeled]="true" /></div>
-    <div class="auth-stage" [class.wide]="true">
+    <main class="auth-stage" [class.wide]="true">
       <div wmsTilt>
         <div wmsFlipCard>
           <section class="auth-card" wmsFlipFace aria-labelledby="t">
@@ -127,7 +127,7 @@ import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirecti
           </section>
         </div>
       </div>
-    </div>
+    </main>
   `,
 })
 export class SignupPage implements OnInit {

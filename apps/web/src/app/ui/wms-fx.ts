@@ -25,6 +25,14 @@ import { Theme } from '../core/ui.services';
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const touch = () => window.matchMedia('(hover: none)').matches;
+/** Teléfono o tablet de gama baja: táctil y con 4 GB de RAM o menos, o 4 núcleos o menos (lo que informa el navegador). */
+const lowEnd = () => {
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  return (
+    window.matchMedia('(hover: none) and (pointer: coarse)').matches &&
+    ((mem !== undefined && mem <= 4) || (navigator.hardwareConcurrency || 8) <= 4)
+  );
+};
 
 /** Fondo animado (brillos difusos) + tema oscuro por defecto si el usuario no eligió. */
 @Component({
@@ -69,6 +77,13 @@ export class BgComponent implements AfterViewInit, OnDestroy {
    * los clics y el arrastre tengan todos los frames. Sin JS o con reduced-motion queda el CSS tal cual.
    */
   ngAfterViewInit() {
+    // Gama baja: sin brillos. Sin GPU suficiente, sus desenfoques (90–120 px) y el vidrio que los toma de fondo
+    // costaban más que todo lo demás (simulado: mapa quieto de ~25 % de frames perdidos a ~0 %, cambio de sección
+    // de ~47 % a ~24 %). En el resto de dispositivos se ven igual que siempre.
+    if (lowEnd()) {
+      this.host.style.display = 'none';
+      return;
+    }
     if (reduced() || typeof this.host.getAnimations !== 'function') return;
     requestAnimationFrame(() => {
       this.anims = this.host.getAnimations({ subtree: true });
