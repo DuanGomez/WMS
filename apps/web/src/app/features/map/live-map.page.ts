@@ -453,7 +453,7 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
 
   setBase(kind: BaseLayer) {
     this.base?.remove();
-    this.base = tileLayer(kind).addTo(this.map);
+    this.base = tileLayer(kind, this.map);
     this.base.bringToBack();
   }
 

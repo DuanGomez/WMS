@@ -303,6 +303,7 @@ export class UsersPage implements OnInit {
   private confirm = inject(Confirm);
   readonly users = signal<User[]>([]);
   readonly meta = signal<Meta | null>(null);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly q = signal('');
   readonly roleF = signal('all');
@@ -396,7 +397,6 @@ export class UsersPage implements OnInit {
   }
 
   async load() {
-    this.loading.set(true);
     try {
       this.users.set(await this.api.get<User[]>('users'));
       if (this.auth.can('billing') && this.planMax() == null)

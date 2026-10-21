@@ -108,7 +108,6 @@
             <div
               class="list-item alert-row clickable"
               (click)="detailAlert.set(a)"
-              animate.leave="wms-leave-row"
               [class.unread]="!a.attended"
               [class.al-leaving]="leaving().has(a.id)"
               [attr.data-priority]="a.priority"

@@ -182,31 +182,50 @@ export class TiltDirective implements OnDestroy {
   }
 }
 
-/* Giro 360° de la tarjeta entre login y registro (1150 ms, ease-in-out cúbico, cambio de cara a 90°). */
-const flip = { active: false, t0: 0, raf: 0, card: null as HTMLElement | null, face: null as HTMLElement | null };
-const D = 1150;
+/* Media vuelta de la tarjeta entre login y registro (650 ms, ease-in-out cúbico): la vieja se pone de canto, a los
+   90° cambia la página y la nueva se abre desde el canto. Antes era una vuelta entera y la tarjeta nueva se abría,
+   se cerraba y se volvía a abrir (parecía un doble parpadeo). */
+const flip = { active: false, t0: 0, last: 0, raf: 0, card: null as HTMLElement | null };
+/** Hay un giro en curso: el cambio de página ya es el giro (el router omite su fundido, ver app.config). */
+export const isFlipping = () => flip.active;
+const D = 650;
 const ez = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-function flipFrame(now: number) {
+function flipFrame(now: number, next = true) {
+  // Un solo ciclo de frames aunque lo retomen la tarjeta nueva y el fin de la navegación, y sin volver atrás:
+  // la hora de un frame puede ser anterior a la de una llamada directa con performance.now().
+  cancelAnimationFrame(flip.raf);
+  now = Math.max(now, flip.last);
+  flip.last = now;
   const p = Math.min((now - flip.t0) / D, 1);
   const e = ez(p);
-  const a = 360 * e;
+  const a = 180 * e;
   const s = 1 - 0.08 * Math.sin(Math.PI * e);
-  if (flip.card) flip.card.style.transform = p < 1 ? `rotateY(${a.toFixed(2)}deg) scale(${s.toFixed(4)})` : 'none';
-  if (flip.face) flip.face.style.transform = a > 90 && a < 270 ? 'scaleX(-1)' : 'none';
-  if (p < 1) flip.raf = requestAnimationFrame(flipFrame);
-  else flip.active = false;
+  // Pasados los 90° la tarjeta ya es la nueva: va de -90° a 0° (de canto a de frente), sin quedar al revés.
+  const r = a > 90 ? a - 180 : a;
+  if (flip.card) flip.card.style.transform = p < 1 ? `rotateY(${r.toFixed(2)}deg) scale(${s.toFixed(4)})` : 'none';
+  if (p >= 1) flip.active = false;
+  else if (next) flip.raf = requestAnimationFrame((t) => flipFrame(t));
   return a;
 }
 
-/** Tarjeta que participa en el giro. Va en el contenedor 3D; [wmsFlipFace] en la cara interior. */
+/** Tarjeta que participa en el giro. Va en el contenedor 3D (dentro de .auth-stage, que da la perspectiva). */
 @Directive({ selector: '[wmsFlipCard]' })
 export class FlipCardDirective implements OnInit, OnDestroy {
   private el = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   ngOnInit() {
     this.el.style.willChange = 'transform';
     flip.card = this.el;
-    flip.face = (this.el.querySelector('[wmsFlipFace]') ?? this.el.firstElementChild) as HTMLElement | null;
-    if (flip.active) flipFrame(performance.now());
+    const stage = this.el.closest<HTMLElement>('.auth-stage');
+    // Los brillos de fondo siguen el mismo reloj en todas las pantallas de acceso: al cambiar de pantalla
+    // continúan donde iban en vez de reiniciarse (antes el fondo daba un salto de brillo en cada cambio).
+    stage?.parentElement
+      ?.querySelectorAll<HTMLElement>(':scope > .a-glow-a, :scope > .a-glow-b')
+      .forEach((g) => g.getAnimations?.().forEach((a) => (a.startTime = 0)));
+    if (flip.active) {
+      // Llega a mitad del giro: la tarjeta ya está a la vista, sin la entrada desde transparente.
+      if (stage) stage.style.animation = 'none';
+      flipFrame(performance.now());
+    }
   }
   ngOnDestroy() {
     if (flip.card === this.el) flip.card = null;
@@ -229,17 +248,15 @@ export class FlipLinkDirective {
     }
     if (flip.active) return;
     flip.active = true;
-    flip.t0 = performance.now();
-    let swapped = false;
+    flip.t0 = flip.last = performance.now();
+    // Hasta los 90° avanza este ciclo; ahí navega y la tarjeta nueva retoma el giro (si la navegación falla,
+    // lo retoma la misma tarjeta al terminar).
     const step = (now: number) => {
-      const a = flipFrame(now);
-      if (!swapped && a >= 90) {
-        swapped = true;
-        cancelAnimationFrame(flip.raf);
-        this.router.navigateByUrl(url).then(() => requestAnimationFrame(flipFrame));
+      if (flipFrame(now, false) < 90) {
+        flip.raf = requestAnimationFrame(step);
         return;
       }
-      if (!swapped) flip.raf = requestAnimationFrame(step);
+      this.router.navigateByUrl(url).finally(() => flip.active && flipFrame(performance.now()));
     };
     cancelAnimationFrame(flip.raf);
     flip.raf = requestAnimationFrame(step);
@@ -860,18 +877,35 @@ function startRowReplay(zone: NgZone) {
     pending.clear();
   };
   zone.runOutsideAngular(() => {
+    // Filas de un lote de cambios (sin la capa del gesto de deslizar, que se inserta junto a la fila)
+    const rows = (n: NodeList) =>
+      Array.prototype.filter.call(n, (x: Node) => x.nodeType === 1 && !(x as Element).classList.contains('wms-swipe-bg')) as Element[];
     new MutationObserver((list) => {
+      // Filas que entran y salen en este lote, por lista
+      const batch = new Map<Element, { added: Set<Element>; removed: Set<Element> }>();
       for (const m of list) {
         if (!m.addedNodes.length && !m.removedNodes.length) continue;
         const t = m.target as Element;
         if (t.nodeType !== 1 || !t.matches(ROW_HOSTS)) continue;
-        // Solo cuando cambia el conjunto (filtros); la primera carga ya anima por CSS
+        // La primera carga ya anima por CSS
         if (!(t as HTMLElement).dataset['wmsSeen']) {
           (t as HTMLElement).dataset['wmsSeen'] = '1';
           continue;
         }
-        pending.add(t);
+        const c = batch.get(t) ?? { added: new Set<Element>(), removed: new Set<Element>() };
+        rows(m.addedNodes).forEach((e) => c.added.add(e));
+        rows(m.removedNodes).forEach((e) => c.removed.add(e));
+        batch.set(t, c);
       }
+      // Solo cuando cambia el conjunto (filtros: salen filas y el cambio toca más de dos). Si sale una sola fila
+      // (alerta atendida), entra una y sale otra (llegó una alerta nueva), solo se agregan o solo cambian de lugar
+      // (la lista del mapa se reordena en vivo), las demás no se repiten: antes toda la lista volvía a aparecer
+      // desde transparente y parpadeaba. Las que entran animan solas.
+      batch.forEach((c, t) => {
+        const out = [...c.removed].filter((e) => !e.isConnected).length;
+        const inn = [...c.added].filter((e) => !c.removed.has(e)).length;
+        if (out && out + inn > 2) pending.add(t);
+      });
       if (pending.size && !raf) raf = requestAnimationFrame(flush);
     }).observe(document.body, { childList: true, subtree: true });
   });

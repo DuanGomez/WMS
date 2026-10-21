@@ -26,7 +26,7 @@ import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirecti
     <main class="auth-stage" [class.wide]="true">
       <div wmsTilt>
         <div wmsFlipCard>
-          <section class="auth-card" wmsFlipFace aria-labelledby="t">
+          <section class="auth-card" aria-labelledby="t">
             <div class="hatch"></div>
             <div class="auth-head">
               <app-logo class="auth-logo" />

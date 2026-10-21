@@ -672,11 +672,24 @@ textarea::placeholder {
   transition: transform var(--dur-5);
   pointer-events: none;
 }
-.btn:hover {
-  color: var(--wms-fill-2-text);
-}
-.btn:hover::before {
-  transform: translate(0, 0) scale(2.5);
+/* Relleno al pasar el mouse. Solo con mouse: en táctil el toque activa :hover y el relleno barría el botón, le
+   invertía el texto y se quedaba pegado hasta tocar otra cosa (destello en cada toque). */
+@media (hover: hover) {
+  .btn:hover {
+    color: var(--wms-fill-2-text);
+  }
+  .btn:hover::before {
+    transform: translate(0, 0) scale(2.5);
+  }
+  .btn.primary:hover {
+    color: var(--wms-fill-1-text);
+  }
+  .btn.danger:hover {
+    color: var(--wms-solid-text);
+  }
+  .btn.plain:hover {
+    color: var(--wms-text);
+  }
 }
 .btn:active {
   transform: scale(0.97);
@@ -693,18 +706,12 @@ textarea::placeholder {
 .btn.primary::before {
   background: var(--wms-fill-1);
 }
-.btn.primary:hover {
-  color: var(--wms-fill-1-text);
-}
 /* Monocromo como el prototipo: las acciones destructivas no usan rojo. */
 .btn.danger {
   color: var(--wms-text);
 }
 .btn.danger::before {
   background: var(--wms-solid);
-}
-.btn.danger:hover {
-  color: var(--wms-solid-text);
 }
 .btn.plain {
   background: transparent;
@@ -713,9 +720,6 @@ textarea::placeholder {
 }
 .btn.plain::before {
   background: var(--wms-row-hover);
-}
-.btn.plain:hover {
-  color: var(--wms-text);
 }
 .btn.sm {
   height: 30px;
@@ -1175,11 +1179,14 @@ table.table {
   transform: translate(150%, 150%) scale(2.5);
   transition: transform var(--dur-5);
 }
-.chip:hover {
-  color: var(--wms-fill-2-text);
-}
-.chip:hover::before {
-  transform: translate(0, 0) scale(2.5);
+/* Solo con mouse (ver .btn:hover) */
+@media (hover: hover) {
+  .chip:hover {
+    color: var(--wms-fill-2-text);
+  }
+  .chip:hover::before {
+    transform: translate(0, 0) scale(2.5);
+  }
 }
 .chip:active {
   transform: scale(0.96);
@@ -1402,11 +1409,6 @@ table.table {
   z-index: 2000;
   animation: wms-fade var(--dur-3) var(--ease-fade) both;
 }
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
 /* Las hojas se presentan como panel lateral derecho (drawer "Detalle" del prototipo) */
 .sheet {
   position: fixed;
@@ -1518,12 +1520,6 @@ table.table {
   padding: 16px 20px 24px;
   flex: 1;
 }
-@keyframes sheet-in {
-  from {
-    opacity: 0;
-  }
-}
-
 .alert-dialog {
   position: fixed;
   z-index: 3001;
@@ -1705,12 +1701,6 @@ table.table {
   border-top: 1px solid var(--wms-divider);
   margin: 4px 6px;
 }
-@keyframes menu-in {
-  from {
-    opacity: 0;
-  }
-}
-
 /* Tooltip de gráficas: píldora sólida */
 .chart-tip {
   position: absolute;
@@ -2307,9 +2297,6 @@ table.table {
      mientras sigue en el DOM esperando al fondo, y vuelve a sonar su animación de entrada (destello). */
   animation: wms-out-dialog var(--dur-2) var(--ease-fade) forwards !important;
 }
-.wms-leave-row {
-  animation: wms-out-row var(--dur-2) var(--ease-fade) forwards !important;
-}
 @keyframes wms-out-fade {
   to {
     opacity: 0;
@@ -2329,22 +2316,20 @@ table.table {
     transform: translate(-50%, -50%) scale(0.96);
   }
 }
-@keyframes wms-out-row {
-  to {
-    opacity: 0;
-    filter: blur(4px);
-    transform: translateX(14px);
-  }
-}
 /* Pantallas táctiles: las mismas entradas y salidas sin el desenfoque (filter se repinta en cada frame; en gama
    media bajaba los frames perdidos al cambiar de sección de ~18 % a ~14 % con GPU y de ~41 % a 31 % sin ella).
-   Con mouse se mantienen como están. Va antes del bloque móvil de wms-out-sheet, que debe seguir ganando. */
+   Con mouse se mantienen como están. Va antes del bloque móvil de wms-out-sheet, que debe seguir ganando.
+   El contenido de las páginas y las filas entra solo con el movimiento, sin pasar por transparente: al cambiar de
+   sección la página vieja se va y la nueva aparecía desde 0, y la pantalla quedaba vacía un instante (parpadeo;
+   en celular, ~24 niveles de brillo; así, 0–3). */
 @media (hover: none) and (pointer: coarse) {
   @keyframes wms-in {
     from {
-      opacity: 0;
       transform: translateY(14px) scale(0.985);
     }
+  }
+  .page-head {
+    animation: none !important;
   }
   @keyframes wms-in-hero {
     from {
@@ -2354,7 +2339,6 @@ table.table {
   }
   @keyframes wms-row-in {
     from {
-      opacity: 0;
       transform: translateY(14px) scale(0.985);
     }
   }
@@ -2386,12 +2370,6 @@ table.table {
     to {
       opacity: 0;
       transform: translate(-50%, -50%) scale(0.96);
-    }
-  }
-  @keyframes wms-out-row {
-    to {
-      opacity: 0;
-      transform: translateX(14px);
     }
   }
 }
@@ -2772,6 +2750,17 @@ table.table {
 }
 
 /* Variantes de la capa OSM (antes CARTO, que ahora exige API key) */
+/* Fondo del mapa del tono medio de cada capa (teselas de Medellín, zoom 13–15, con su filtro): mientras cargan
+   no hay huecos negros o blancos que destellen al llegar cada tesela. Lo pone tileLayer() en leaflet-kit. */
+.leaflet-container[data-base='osm'] {
+  background: #dbdccd;
+}
+.leaflet-container[data-base='light'] {
+  background: #dcdcd6;
+}
+.leaflet-container[data-base='dark'] {
+  background: #2c2c28;
+}
 .leaflet-tile-pane .tiles-light {
   filter: grayscale(0.55) brightness(1.06) contrast(0.92);
 }

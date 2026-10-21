@@ -137,6 +137,7 @@ export class AlertsPage implements OnInit, OnDestroy {
   // Historial
   readonly alerts = signal<Alert[]>([]);
   readonly total = signal(0);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly state = signal<'open' | 'attended' | 'all'>('open');
   readonly typeF = signal('');
@@ -212,7 +213,6 @@ export class AlertsPage implements OnInit, OnDestroy {
   }
 
   async loadHistory(append = false) {
-    if (!append) this.loading.set(true);
     try {
       const r = await this.api.get<{ items: Alert[]; total: number; open: number }>('alerts', {
         attended: this.state() === 'all' ? undefined : this.state() === 'attended',

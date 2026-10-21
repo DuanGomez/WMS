@@ -278,6 +278,7 @@ export class DevicesPage implements OnInit, OnDestroy {
   private destroyRef = inject(DestroyRef);
   readonly devices = signal<Device[]>([]);
   readonly vehicles = signal<Vehicle[]>([]);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly filter = signal('all');
   readonly sheetOpen = signal(false);
@@ -374,7 +375,6 @@ x-device-key: <API key>
   }
 
   async load() {
-    this.loading.set(true);
     try {
       const [d, v] = await Promise.all([
         this.api.get<Device[]>('devices', { includeRetired: true }),
