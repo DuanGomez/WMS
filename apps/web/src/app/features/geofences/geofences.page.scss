@@ -239,9 +239,16 @@
     right: 8px;
     bottom: calc(8px + env(safe-area-inset-bottom));
     width: auto;
-    height: 46vh;
+    height: var(--sheet-h, 46vh);
     border-radius: 22px;
+    transition: height var(--dur-3) var(--ease);
     animation: sheet-up var(--dur-3) var(--ease-out) both;
+  }
+  .panel.dragging {
+    transition: none;
+  }
+  .glist {
+    min-height: 0;
   }
 }
 

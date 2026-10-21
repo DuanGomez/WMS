@@ -24,6 +24,7 @@ import { DriverMarker, Geofence, LivePosition, Vehicle } from '../../core/models
 import { pref, Theme } from '../../core/ui.services';
 import { IconComponent, iconSvg } from '../../ui/icon.component';
 import { SegmentedComponent, ToggleComponent } from '../../ui/components';
+import { SheetDragDirective } from '../../ui/motion-directives';
 import {
   BASE_LAYERS,
   BaseLayer,
@@ -68,10 +69,12 @@ type LayerPref = BaseLayer | 'auto';
     IconComponent,
     SegmentedComponent,
     ToggleComponent,
+    SheetDragDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './live-map.page.html',
   styleUrl: './live-map.page.scss',
+  host: { '[class.has-detail]': '!!selected()' },
 })
 export class LiveMapPage implements AfterViewInit, OnDestroy {
   readonly live = inject(Live);
@@ -112,7 +115,9 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
   readonly layerPref = pref<LayerPref>('mapLayer', 'osm');
   readonly showGeofences = pref('mapGeofences', true);
   readonly sheetH = signal(0);
-  private drag: { y: number; h: number } | null = null;
+  /** Altura de la ficha del vehículo en móvil (hoja arrastrable); minimizada deja ver placa y estado. */
+  readonly detailH = signal(0);
+  readonly detailPeek = 176;
 
   readonly filterOptions = [
     { value: 'all', label: 'Todos' },
@@ -198,6 +203,7 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     this.ro.observe(this.mapEl().nativeElement);
     this.clock = setInterval(() => this.now.set(Date.now()), 1000);
     this.sheetH.set(Math.round(window.innerHeight * 0.38));
+    this.detailH.set(Math.round(window.innerHeight * 0.45));
 
     try {
       const snap = await this.live.snapshot();
@@ -282,7 +288,8 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     if (!d || !m) return;
     this.selectedId.set(null);
     this.follow.set(false);
-    this.map.flyTo([d.lat, d.lng], Math.max(this.map.getZoom(), 16), { duration: 0.8 });
+    const z = Math.max(this.map.getZoom(), 16);
+    this.map.flyTo(this.visibleCenter([d.lat, d.lng], z), z, { duration: 0.8 });
     setTimeout(() => m.marker.openPopup(), 850);
   }
 
@@ -354,7 +361,7 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     }
     m?.moveTo([p.lat, p.lng], p.heading, interval);
     if (this.follow() && this.selectedId() === p.vehicleId)
-      this.map.panTo([p.lat, p.lng], {
+      this.map.panTo(this.visibleCenter([p.lat, p.lng], this.map.getZoom()), {
         animate: true,
         duration: Math.min(1.2, interval / 1000),
         easeLinearity: 1,
@@ -388,9 +395,38 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     if (!id) return;
     const v = this.vehicles()[id];
     this.follow.set(true);
-    if (v?.lat != null)
-      this.map.flyTo([v.lat, v.lng!], Math.max(this.map.getZoom(), 15), { duration: 0.8 });
+    if (v?.lat != null) {
+      const z = Math.max(this.map.getZoom(), 15);
+      this.map.flyTo(this.visibleCenter([v.lat, v.lng!], z), z, { duration: 0.8 });
+    }
     if (this.sheetH() < 260) this.sheetH.set(Math.round(window.innerHeight * 0.42));
+  }
+
+  /** Al cambiar la altura de la ficha, el vehículo seguido vuelve al centro de la zona que queda a la vista. */
+  recenter() {
+    const v = this.selected();
+    if (this.follow() && v?.lat != null)
+      this.map.panTo(this.visibleCenter([v.lat, v.lng!], this.map.getZoom()), { duration: 0.4 });
+  }
+
+  /** Lo que tapan los paneles sobre el mapa (px): en móvil la hoja de abajo; si no, la lista (izquierda) y la
+   *  ficha del vehículo (derecha). Hasta 1100 px la lista se oculta al abrir la ficha (clase has-detail). */
+  private covered() {
+    const w = window.innerWidth;
+    const sel = !!this.selectedId();
+    if (w <= 760) return { left: 0, right: 0, bottom: sel ? this.detailH() + 8 : this.sheetH() };
+    return {
+      left: sel && w <= 1100 ? 0 : 370,
+      right: sel ? Math.min(440, this.mapEl().nativeElement.clientWidth - 24) + 12 : 0,
+      bottom: 0,
+    };
+  }
+
+  /** Centro del mapa que deja `ll` en el medio de la zona que queda a la vista entre los paneles. */
+  private visibleCenter(ll: L.LatLngExpression, zoom: number): L.LatLng {
+    const c = this.covered();
+    if (!c.left && !c.right && !c.bottom) return L.latLng(ll);
+    return this.map.unproject(this.map.project(ll, zoom).add([(c.right - c.left) / 2, c.bottom / 2]), zoom);
   }
 
   fitAll(animate = true) {
@@ -399,13 +435,16 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
       .map((v) => [v.lat!, v.lng!] as [number, number]);
     if (!pts.length) return;
     this.follow.set(false);
-    if (pts.length === 1) this.map.setView(pts[0], 15, { animate });
-    else
+    if (pts.length === 1) this.map.setView(this.visibleCenter(pts[0], 15), 15, { animate });
+    else {
+      const c = this.covered();
       this.map.fitBounds(L.latLngBounds(pts).pad(0.25), {
         animate,
         maxZoom: 15,
-        paddingTopLeft: [window.innerWidth > 760 ? 420 : 0, 0],
+        paddingTopLeft: [c.left ? c.left + 50 : 0, 0],
+        paddingBottomRight: [c.right, c.bottom],
       });
+    }
   }
 
   zoom(d: number) {
@@ -421,34 +460,6 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
   setLayer(p: LayerPref) {
     this.layerPref.set(p);
     this.layersOpen.set(false);
-  }
-
-  /* Bottom sheet arrastrable (móvil): peek, medio y completo */
-  dragStart(e: PointerEvent) {
-    this.drag = { y: e.clientY, h: this.sheetH() };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }
-  dragMove(e: PointerEvent) {
-    if (!this.drag) return;
-    const h = this.drag.h - (e.clientY - this.drag.y);
-    this.sheetH.set(Math.max(120, Math.min(window.innerHeight * 0.9, h)));
-  }
-  dragEnd() {
-    if (!this.drag) return;
-    this.drag = null;
-    const vh = window.innerHeight;
-    const snaps = [150, vh * 0.45, vh * 0.88];
-    const h = this.sheetH();
-    this.sheetH.set(
-      Math.round(snaps.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a))),
-    );
-  }
-  cycleSheet() {
-    const vh = window.innerHeight;
-    const h = this.sheetH();
-    this.sheetH.set(
-      h < vh * 0.3 ? Math.round(vh * 0.45) : h < vh * 0.7 ? Math.round(vh * 0.88) : 150,
-    );
   }
 
   openTrips(id: string) {

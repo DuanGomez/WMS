@@ -1418,6 +1418,29 @@ table.table {
 .sheet .sheet-handle {
   display: none;
 }
+/* Asa de las hojas inferiores arrastrables del mapa y de geocercas (directiva wmsSheetDrag): solo en móvil. */
+.grabber {
+  display: none;
+}
+@media (max-width: 760px) {
+  .grabber {
+    display: grid;
+    place-items: center;
+    height: 24px;
+    cursor: grab;
+    touch-action: none;
+    flex: none;
+  }
+  .grabber:active {
+    cursor: grabbing;
+  }
+  .grabber span {
+    width: 38px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--wms-track);
+  }
+}
 .sheet-header {
   display: flex;
   align-items: center;
@@ -2383,14 +2406,6 @@ table.table {
   .toasts {
     bottom: calc(16px + env(safe-area-inset-bottom));
   }
-  /* Con una hoja abierta o escribiendo (teclado arriba), abajo tapan el campo y el botón Guardar: van arriba.
-     Clases en <html> (SheetComponent y trackKeyboard) en lugar de :root:has(), que recalculaba estilos al cambiar el DOM. */
-  :root:is(.wms-typing, .wms-sheet-open) .toasts {
-    top: calc(12px + env(safe-area-inset-top));
-    bottom: auto;
-    flex-direction: column;
-    --toast-y: -18px;
-  }
   .hide-mobile {
     display: none !important;
   }
@@ -2401,6 +2416,17 @@ table.table {
 @media (min-width: 761px) {
   .only-mobile {
     display: none !important;
+  }
+}
+/* Con una hoja abierta o escribiendo (teclado arriba), abajo tapan el campo y el botón Guardar: van arriba.
+   En celular y en cualquier pantalla táctil (en tablet el teclado también achica la vista y tapaba campos).
+   Clases en <html> (SheetComponent y trackKeyboard) en lugar de :root:has(), que recalculaba estilos al cambiar el DOM. */
+@media (max-width: 760px), (hover: none) and (pointer: coarse) {
+  :root:is(.wms-typing, .wms-sheet-open) .toasts {
+    top: calc(12px + env(safe-area-inset-top));
+    bottom: auto;
+    flex-direction: column;
+    --toast-y: -18px;
   }
 }
 @keyframes sheet-up {
@@ -2679,18 +2705,33 @@ table.table {
 }
 
 /* ---------------- Accesibilidad y responsive (auditoría axe-core + Playwright) ---------------- */
-/* Píldoras con más opciones que ancho: se desplazan con el dedo y un desvanecido indica que hay más. */
+/* Píldoras con más opciones que ancho: se desplazan con el dedo y un desvanecido indica que hay más.
+   El desvanecido va ligado al scroll de la propia fila: si todo cabe no hay scroll y no aparece (antes cortaba
+   la última píldora aunque sobrara espacio), y al llegar al final se retira. */
+@property --pills-fade {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes pills-fade {
+  from,
+  90% {
+    --pills-fade: 28px;
+  }
+  to {
+    --pills-fade: 0px;
+  }
+}
 @media (max-width: 760px) {
   .pills {
-    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - var(--pills-fade)), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - var(--pills-fade)), transparent);
+    animation: pills-fade linear both;
+    animation-timeline: scroll(self inline);
     scroll-snap-type: x proximity;
   }
   .pills button {
     scroll-snap-align: start;
-  }
-  .pills button:last-child {
-    margin-right: 22px;
   }
 }
 /* Enlaces de texto sueltos con área de toque de al menos 24 px (WCAG 2.5.8). */

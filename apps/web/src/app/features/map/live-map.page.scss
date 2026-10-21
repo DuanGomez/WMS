@@ -36,9 +36,6 @@
     transform: translateX(-14px) scale(0.99);
   }
 }
-.grabber {
-  display: none;
-}
 .panel-head {
   padding: 18px 16px 10px;
   display: flex;
@@ -349,6 +346,18 @@
   min-width: 260px;
 }
 
+/* Con un vehículo elegido se muestra su ficha y se oculta la lista, como en el prototipo móvil. Hasta 1100 px
+   no caben las dos sobre el mapa: en tablet o celular horizontal dejaban una franja y el vehículo quedaba
+   debajo de la ficha. Clase has-detail del componente en lugar de :has() (recalculaba estilos con cada cambio). */
+@media (max-width: 1100px) {
+  .panel {
+    transition: opacity var(--dur-2) var(--ease-fade);
+  }
+  :host(.has-detail) .panel {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
 @media (max-width: 760px) {
   .panel {
     /* Prototipo móvil: hoja pegada a los bordes y al fondo, radio solo arriba */
@@ -362,25 +371,7 @@
     max-height: none;
     border-radius: 16px 16px 0 0;
     border-bottom: 0;
-    transition: height var(--dur-3) var(--ease);
     animation: sheet-up var(--dur-3) var(--ease-out) both;
-  }
-  .grabber {
-    display: grid;
-    place-items: center;
-    height: 24px;
-    cursor: grab;
-    touch-action: none;
-    flex: none;
-  }
-  .grabber:active {
-    cursor: grabbing;
-  }
-  .grabber span {
-    width: 38px;
-    height: 5px;
-    border-radius: 3px;
-    background: var(--wms-track);
   }
   .panel-head {
     padding-top: 2px;
@@ -394,23 +385,31 @@
     opacity: 0;
     pointer-events: none;
   }
+  /* Ficha del vehículo: hoja arrastrable como la principal (antes ocupaba hasta el 78 % sin poder minimizarse);
+     el mapa centra el vehículo en la parte que queda a la vista (visibleCenter). */
   .vdrawer {
     top: auto;
     left: 8px;
     right: 8px;
     bottom: calc(8px + env(safe-area-inset-bottom));
     width: auto;
-    max-height: 78%;
+    height: var(--sheet-h, 45vh);
+    transition: height var(--dur-3) var(--ease);
     animation: sheet-up var(--dur-3) var(--ease-out) both;
   }
-  /* Como el prototipo móvil: con un vehículo elegido la hoja muestra el detalle, no la lista
-     (si no, la lista se transparenta detrás del panel de vidrio). */
-  .panel {
-    transition: opacity var(--dur-2) var(--ease-fade);
+  .vdrawer .detail {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-top: 2px;
   }
-  :host:has(.vdrawer) .panel {
-    opacity: 0;
-    pointer-events: none;
+  .panel.dragging,
+  .vdrawer.dragging {
+    transition: none;
+  }
+  .panel {
+    transition:
+      height var(--dur-3) var(--ease),
+      opacity var(--dur-2) var(--ease-fade);
   }
 }
 

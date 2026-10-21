@@ -1,4 +1,4 @@
-import { Directive, ElementRef, OnDestroy, OnInit, inject, output } from '@angular/core';
+import { Directive, ElementRef, OnDestroy, OnInit, WritableSignal, inject, input, output } from '@angular/core';
 import { cssMs, cssVar, reducedMotion } from './motion';
 
 /* Directivas de movimiento y de UI para las páginas (archivo aparte de motion.ts para no sumar
@@ -73,5 +73,62 @@ export class DebounceInputDirective implements OnDestroy {
   }
   ngOnDestroy() {
     if (this.t) clearTimeout(this.t);
+  }
+}
+
+/**
+ * Asa de una hoja inferior arrastrable (móvil): se arrastra entre tres alturas (minimizada, media y completa) y con
+ * doble toque pasa a la siguiente. Escribe la altura en el signal que recibe; la hoja la usa como --sheet-h.
+ * Mientras se arrastra, la hoja lleva .dragging para que siga al dedo sin la transición de altura.
+ * Uso: <div class="grabber" [wmsSheetDrag]="altura" (settled)="..."><span></span></div>
+ */
+@Directive({
+  selector: '[wmsSheetDrag]',
+  host: {
+    '(pointerdown)': 'start($event)',
+    '(pointermove)': 'move($event)',
+    '(pointerup)': 'end()',
+    '(pointercancel)': 'end()',
+    '(dblclick)': 'cycle()',
+  },
+})
+export class SheetDragDirective {
+  readonly height = input.required<WritableSignal<number>>({ alias: 'wmsSheetDrag' });
+  /** Altura minimizada (px): lo justo para ver el encabezado de la hoja. */
+  readonly peek = input(150);
+  /** Altura final al soltar o al cambiar con doble toque. */
+  readonly settled = output<number>();
+  private host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private drag: { y: number; h: number } | null = null;
+
+  private snaps() {
+    const vh = window.innerHeight;
+    return [this.peek(), Math.round(vh * 0.45), Math.round(vh * 0.88)];
+  }
+  private set(h: number) {
+    this.height().set(h);
+    this.settled.emit(h);
+  }
+  start(e: PointerEvent) {
+    this.drag = { y: e.clientY, h: this.height()() };
+    this.host.setPointerCapture(e.pointerId);
+    this.host.parentElement?.classList.add('dragging');
+  }
+  move(e: PointerEvent) {
+    if (!this.drag) return;
+    const h = this.drag.h - (e.clientY - this.drag.y);
+    this.height().set(Math.max(120, Math.min(window.innerHeight * 0.9, h)));
+  }
+  end() {
+    if (!this.drag) return;
+    this.drag = null;
+    this.host.parentElement?.classList.remove('dragging');
+    const h = this.height()();
+    this.set(this.snaps().reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a)));
+  }
+  cycle() {
+    const h = this.height()();
+    const snaps = this.snaps();
+    this.set(snaps.find((s) => s > h + 1) ?? snaps[0]);
   }
 }

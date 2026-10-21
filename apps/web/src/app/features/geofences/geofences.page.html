@@ -59,7 +59,11 @@
   aria-label="Mapa de geocercas"
 ></div>
 
-<section class="panel glass-thick" aria-label="Geocercas">
+<section class="panel glass-thick" aria-label="Geocercas" [style.--sheet-h.px]="panelH()">
+  <!-- Móvil: se arrastra para minimizarla (p. ej. para dibujar con más mapa a la vista) -->
+  <div class="grabber" [wmsSheetDrag]="panelH">
+    <span></span>
+  </div>
   @if (draft(); as d) {
     <div class="panel-body">
       <div class="row" style="margin-bottom: 12px">

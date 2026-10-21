@@ -19,7 +19,7 @@ import { Geofence, LatLng, Vehicle } from '../../core/models';
 import { Confirm, Theme, Toasts } from '../../core/ui.services';
 import { EmptyComponent, SegmentedComponent, ToggleComponent } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
-import { DebounceInputDirective } from '../../ui/motion-directives';
+import { DebounceInputDirective, SheetDragDirective } from '../../ui/motion-directives';
 import { createMap, geofenceLayer, tileLayer } from '../map/leaflet-kit';
 
 /** 'freehand' es solo de la interfaz: el trazo se guarda como polígono. */
@@ -57,7 +57,7 @@ const SHAPE_META: Record<Shape, { label: string; icon: string }> = {
 /** RE2 / RF5-RF8 – Geocercas dibujables sobre el mapa (círculo, polígono o corredor de ruta). */
 @Component({
   selector: 'app-geofences',
-  imports: [DebounceInputDirective, FormsModule, IconComponent, SegmentedComponent, ToggleComponent, EmptyComponent],
+  imports: [DebounceInputDirective, SheetDragDirective, FormsModule, IconComponent, SegmentedComponent, ToggleComponent, EmptyComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './geofences.page.html',
   styleUrl: './geofences.page.scss',
@@ -73,6 +73,8 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
    * «Ver en el mapa», al crear/editar o al elegir una geocerca; no se quita ninguna función.
    */
   readonly mapMode = signal(false);
+  /** Altura del panel en móvil (hoja arrastrable sobre el mapa). */
+  readonly panelH = signal(Math.round(window.innerHeight * 0.46));
   readonly q = signal('');
   readonly shownList = computed(() => {
     const q = this.q().trim().toLowerCase();
@@ -248,10 +250,13 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
     const b =
       (layer as L.Polygon).getBounds?.() ??
       (g.center ? L.latLng(g.center).toBounds((g.radiusM ?? 100) * 2) : null);
+    // En móvil el panel tapa la parte de abajo: la geocerca se encuadra en la zona que queda a la vista.
+    const mobile = window.innerWidth <= 760;
     if (b)
       this.map.flyToBounds(b.pad(0.3), {
         duration: 0.7,
-        paddingTopLeft: [window.innerWidth > 760 ? 380 : 0, 0],
+        paddingTopLeft: [mobile ? 0 : 380, 0],
+        paddingBottomRight: [0, mobile ? this.panelH() + 8 : 0],
       });
   }
 
