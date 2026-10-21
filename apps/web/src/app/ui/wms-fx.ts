@@ -140,7 +140,7 @@ export class ThemeToggleComponent {
   readonly theme = inject(Theme);
   readonly labeled = input(false);
   toggle() {
-    this.theme.set(this.theme.isDark() ? 'light' : 'dark');
+    this.theme.change(this.theme.isDark() ? 'light' : 'dark');
   }
 }
 

@@ -165,7 +165,7 @@ export class SettingsPage implements OnInit, OnDestroy {
   }
 
   setTheme(v: string) {
-    this.theme.set(v as ThemePref);
+    this.theme.change(v as ThemePref);
   }
 
   /* -------- Simulador GPS -------- */
