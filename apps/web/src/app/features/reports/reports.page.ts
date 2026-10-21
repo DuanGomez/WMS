@@ -87,6 +87,7 @@ export class ReportsPage implements OnInit {
   readonly vehicles = signal<Vehicle[]>([]);
   readonly drivers = signal<Driver[]>([]);
   readonly users = signal<User[]>([]);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly canWrite = computed(() => this.auth.can('reports', 'write'));
   readonly bytes = fmt.bytes;
@@ -155,7 +156,6 @@ export class ReportsPage implements OnInit {
   }
 
   async load() {
-    this.loading.set(true);
     try {
       const [r, s] = await Promise.all([
         this.api.get<Report[]>('reports'),

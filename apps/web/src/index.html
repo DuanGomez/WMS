@@ -11,6 +11,17 @@
       content="Plataforma SaaS de monitoreo y gestión de flotas vehiculares para pymes de Medellín."
     />
     <meta name="theme-color" content="#000000" />
+    <!-- Tema guardado antes del primer pintado: sin esto la página arrancaba siempre oscura y saltaba a clara al
+         terminar de cargar la app (destello). Mismas reglas que Theme en core/ui.services.ts; sin dato queda oscuro. -->
+    <script>
+      try {
+        var t = localStorage.getItem('wms.theme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        else if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+        if (t === 'light' || (t === 'auto' && matchMedia('(prefers-color-scheme: light)').matches))
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f2f2f7');
+      } catch (e) {}
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />

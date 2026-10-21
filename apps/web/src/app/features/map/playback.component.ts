@@ -232,7 +232,7 @@ export class PlaybackComponent implements OnDestroy {
   private async init(vehicleId: string) {
     if (!this.map) {
       this.map = createMap(this.mapEl().nativeElement, { zoom: 13 });
-      tileLayer(this.theme.isDark() ? 'dark' : 'osm').addTo(this.map);
+      tileLayer(this.theme.isDark() ? 'dark' : 'osm', this.map);
       L.control.zoom({ position: 'topright' }).addTo(this.map);
       setTimeout(() => this.map?.invalidateSize(), 350);
     }

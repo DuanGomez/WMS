@@ -59,14 +59,17 @@ export function createMap(el: HTMLElement, opts: { zoom?: number; center?: LatLn
   return map;
 }
 
-export function tileLayer(kind: BaseLayer): L.TileLayer {
+/** Agrega la capa base al mapa. El fondo del mapa toma el tono medio de esas teselas (data-base, styles.scss):
+ *  mientras cargan no se ve un hueco negro o blanco que destelle al aparecer cada tesela. */
+export function tileLayer(kind: BaseLayer, map: L.Map): L.TileLayer {
   const b = BASE_LAYERS[kind];
+  map.getContainer().dataset['base'] = kind;
   return L.tileLayer(b.url, {
     attribution: b.attribution,
     maxZoom: b.maxZoom,
     className: b.className ?? '',
     crossOrigin: true,
-  });
+  }).addTo(map);
 }
 
 /** Dibuja una geocerca (círculo, polígono o corredor de ruta). */

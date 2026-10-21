@@ -373,6 +373,7 @@ export class DriversPage implements OnInit {
     return true;
   })();
   readonly vehicles = signal<Vehicle[]>([]);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly sheetOpen = signal(false);
   readonly assignOpen = signal(false);
@@ -414,7 +415,6 @@ export class DriversPage implements OnInit {
   }
 
   async load() {
-    this.loading.set(true);
     try {
       const [d, v] = await Promise.all([
         this.api.get<Driver[]>('drivers'),

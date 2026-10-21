@@ -403,11 +403,17 @@ form {
   transform: translate(150%, 150%) scale(2.5);
   transition: transform var(--dur-5);
 }
-.abtn:hover:not([disabled]) {
-  color: var(--wms-fill-1-text);
-}
-.abtn:hover:not([disabled])::before {
-  transform: translate(0, 0) scale(2.5);
+/* Relleno solo con mouse: en táctil el toque lo activaba y se quedaba pegado (destello al pulsar). */
+@media (hover: hover) {
+  .abtn:hover:not([disabled]) {
+    color: var(--wms-fill-1-text);
+  }
+  .abtn:hover:not([disabled])::before {
+    transform: translate(0, 0) scale(2.5);
+  }
+  .abtn.ghost:hover {
+    color: var(--wms-fill-2-text);
+  }
 }
 .abtn:active {
   transform: scale(0.98);
@@ -424,9 +430,6 @@ form {
 }
 .abtn.ghost::before {
   background: var(--wms-fill-2);
-}
-.abtn.ghost:hover {
-  color: var(--wms-fill-2-text);
 }
 .abtn.top {
   margin-top: 20px;

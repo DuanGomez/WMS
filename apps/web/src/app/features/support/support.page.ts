@@ -338,6 +338,7 @@ export class SupportPage implements OnInit {
   readonly auth = inject(Auth);
   private toasts = inject(Toasts);
   readonly tickets = signal<Ticket[]>([]);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   /** Filtros del prototipo (Abiertos agrupa abierto y en progreso; Resueltos agrupa resuelto y cerrado). */
   readonly filter = signal<'open' | 'done' | 'all'>('open');
@@ -382,7 +383,6 @@ export class SupportPage implements OnInit {
   }
 
   async load() {
-    this.loading.set(true);
     try {
       this.tickets.set(
         await this.api.get<Ticket[]>('tickets'),

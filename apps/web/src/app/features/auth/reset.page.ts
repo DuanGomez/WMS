@@ -23,7 +23,7 @@ import { FlipCardDirective, ThemeToggleComponent, TiltDirective } from '../../ui
     <main class="auth-stage">
       <div wmsTilt>
         <div wmsFlipCard>
-          <section class="auth-card" wmsFlipFace aria-labelledby="t">
+          <section class="auth-card" aria-labelledby="t">
             <div class="hatch"></div>
             <div class="auth-head">
               <app-logo class="auth-logo" />

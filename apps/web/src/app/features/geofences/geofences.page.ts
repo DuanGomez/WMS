@@ -118,6 +118,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
 
   readonly geofences = signal<Geofence[]>([]);
   readonly vehicles = signal<Vehicle[]>([]);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly draft = signal<Draft | null>(null);
   readonly busy = signal(false);
@@ -179,7 +180,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
   private base?: L.TileLayer;
   private setBase(dark: boolean) {
     this.base?.remove();
-    this.base = tileLayer(dark ? 'dark' : 'osm').addTo(this.map);
+    this.base = tileLayer(dark ? 'dark' : 'osm', this.map);
     this.base.bringToBack();
   }
 
@@ -208,7 +209,6 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
   }
 
   async load() {
-    this.loading.set(true);
     try {
       const [g, v] = await Promise.all([
         this.api.get<Geofence[]>('geofences'),

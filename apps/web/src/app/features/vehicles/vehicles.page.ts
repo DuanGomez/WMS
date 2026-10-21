@@ -85,6 +85,7 @@ export class VehiclesPage implements OnInit {
   readonly vehicles = signal<Vehicle[]>([]);
   readonly devices = signal<Device[]>([]);
   readonly drivers = signal<Driver[]>([]);
+  /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly q = signal('');
   readonly typeFilter = signal('all');
@@ -229,7 +230,6 @@ export class VehiclesPage implements OnInit {
   }
 
   async load() {
-    this.loading.set(true);
     try {
       const [v, d, dr] = await Promise.all([
         this.api.get<Vehicle[]>('vehicles', { includeRetired: this.showRetired() }),
