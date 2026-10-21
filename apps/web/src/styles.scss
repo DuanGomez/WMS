@@ -250,6 +250,14 @@
   --sidebar-w: 0px;
   --tabbar-h: 0px;
 }
+/* Pantallas táctiles (celulares y tablets): vidrio de 20 px en vez de 50 px. El costo del desenfoque crece con el
+   radio y con los píxeles de la pantalla; en gama media (CPU 4x) bajaba los frames perdidos al cambiar de sección
+   de 19 % a 15 % con GPU y de 50 % a 39 % sin ella, con un aspecto casi igual. Con mouse se mantiene 50 px. */
+@media (hover: none) and (pointer: coarse) {
+  :root {
+    --glass: blur(20px) saturate(180%);
+  }
+}
 :root[data-theme='light'] {
   @include light-tokens;
 }
@@ -469,6 +477,14 @@ textarea::placeholder {
     opacity: 0;
     filter: blur(6px);
     transform: translateX(24px) scale(0.99);
+  }
+}
+/* Entrada desde la izquierda de los paneles del mapa y de geocercas (antes copiada en cada componente). */
+@keyframes wms-drawer-l {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateX(-14px) scale(0.99);
   }
 }
 
@@ -2318,6 +2334,65 @@ table.table {
     opacity: 0;
     filter: blur(4px);
     transform: translateX(14px);
+  }
+}
+/* Pantallas táctiles: las mismas entradas y salidas sin el desenfoque (filter se repinta en cada frame; en gama
+   media bajaba los frames perdidos al cambiar de sección de ~18 % a ~14 % con GPU y de ~41 % a 31 % sin ella).
+   Con mouse se mantienen como están. Va antes del bloque móvil de wms-out-sheet, que debe seguir ganando. */
+@media (hover: none) and (pointer: coarse) {
+  @keyframes wms-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.985);
+    }
+  }
+  @keyframes wms-in-hero {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.996);
+    }
+  }
+  @keyframes wms-row-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.985);
+    }
+  }
+  @keyframes wms-pop {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.96);
+    }
+  }
+  @keyframes wms-drawer {
+    from {
+      opacity: 0;
+      transform: translateX(24px) scale(0.99);
+    }
+  }
+  @keyframes wms-drawer-l {
+    from {
+      opacity: 0;
+      transform: translateX(-14px) scale(0.99);
+    }
+  }
+  @keyframes wms-out-sheet {
+    to {
+      opacity: 0;
+      transform: translateX(24px) scale(0.99);
+    }
+  }
+  @keyframes wms-out-dialog {
+    to {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.96);
+    }
+  }
+  @keyframes wms-out-row {
+    to {
+      opacity: 0;
+      transform: translateX(14px);
+    }
   }
 }
 @media (max-width: 760px) {
