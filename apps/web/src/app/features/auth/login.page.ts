@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, isDevMode, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { errorMessage } from '../../core/api.service';
+import { DEMO } from '../../core/runtime';
 import { Auth } from '../../core/auth.service';
 import { IconComponent } from '../../ui/icon.component';
 import { LogoComponent } from '../../ui/logo.component';
@@ -91,14 +92,16 @@ import { FlipCardDirective, FlipLinkDirective, ThemeToggleComponent, TiltDirecti
                 <a wmsFlip="/registro" href="registro">Regístrate</a>
               </p>
             </form>
-            <div class="demo">
-              <p>Cuentas demo · contraseña <strong>Demo1234!</strong></p>
-              <div class="chips">
-                @for (d of demos; track d.email) {
-                  <button type="button" class="chip" (click)="fill(d.email)">{{ d.label }}</button>
-                }
+            @if (showDemo) {
+              <div class="demo">
+                <p>Cuentas demo · contraseña <strong>Demo1234!</strong></p>
+                <div class="chips">
+                  @for (d of demos; track d.email) {
+                    <button type="button" class="chip" (click)="fill(d.email)">{{ d.label }}</button>
+                  }
+                </div>
               </div>
-            </div>
+            }
             <p class="foot">Tecnológico de Antioquia · Ingeniería de Software II</p>
           </section>
         </div>
@@ -115,6 +118,8 @@ export class LoginPage {
   readonly show = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
+  /** Las cuentas demo solo se muestran en la demo de Pages y en desarrollo, nunca en un despliegue real. */
+  readonly showDemo = DEMO || isDevMode();
   readonly demos = [
     { label: 'Administrador', email: 'admin@la72.co' },
     { label: 'Responsable', email: 'gerencia@la72.co' },

@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { Api, errorMessage } from '../../core/api.service';
 import { Auth } from '../../core/auth.service';
@@ -341,7 +342,7 @@ export class DriversPage implements OnInit {
   readonly drivers = signal<Driver[]>([]);
   private live = inject(Live);
   private router = inject(Router);
-  private destroyRef2 = inject(DestroyRef);
+  private destroyRef = inject(DestroyRef);
   private tick = signal(Date.now());
 
   /** Ubicación del celular "en vivo": compartiendo y con lectura de los últimos 10 minutos. */
@@ -354,24 +355,6 @@ export class DriversPage implements OnInit {
     this.router.navigate(['/mapa'], { queryParams: { d: d.id } });
   }
 
-  /** Actualiza la columna de ubicación con lo que llega en tiempo real del celular de cada conductor. */
-  private followLocations = (() => {
-    const sub = this.live.drivers$.subscribe((m) =>
-      this.drivers.update((list) =>
-        list.map((d) =>
-          d.id === m.driverId
-            ? { ...d, location: { lat: m.lat, lng: m.lng, accuracy: m.accuracy, speed: m.speed, heading: m.heading, sharing: m.sharing, ts: m.ts } }
-            : d,
-        ),
-      ),
-    );
-    const t = setInterval(() => this.tick.set(Date.now()), 15000);
-    this.destroyRef2.onDestroy(() => {
-      sub.unsubscribe();
-      clearInterval(t);
-    });
-    return true;
-  })();
   readonly vehicles = signal<Vehicle[]>([]);
   /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
@@ -386,6 +369,22 @@ export class DriversPage implements OnInit {
   readonly types = VEHICLE_TYPES;
   readonly categories = ['A1', 'A2', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
   readonly canWrite = computed(() => this.auth.can('drivers', 'write'));
+
+  constructor() {
+    // Actualiza la columna de ubicación con lo que llega en tiempo real del celular de cada conductor.
+    this.live.drivers$.pipe(takeUntilDestroyed()).subscribe((m) =>
+      this.drivers.update((list) =>
+        list.map((d) =>
+          d.id === m.driverId
+            ? { ...d, location: { lat: m.lat, lng: m.lng, accuracy: m.accuracy, speed: m.speed, heading: m.heading, sharing: m.sharing, ts: m.ts } }
+            : d,
+        ),
+      ),
+    );
+    // Refresca la etiqueta «en vivo / última lectura» aunque no lleguen lecturas nuevas.
+    const t = setInterval(() => this.tick.set(Date.now()), 15000);
+    this.destroyRef.onDestroy(() => clearInterval(t));
+  }
   // --- Solo presentación (rediseño): búsqueda y filtro por estado sobre la lista ya cargada ---
   readonly q = signal('');
   readonly stF = signal('all');

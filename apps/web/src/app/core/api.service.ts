@@ -55,6 +55,64 @@ export function saveBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+/** Nombres en español de los campos que valida la API (los errores llegan con el nombre interno). */
+const FIELD_LABELS: Record<string, string> = {
+  accuracy: 'Precisión',
+  address: 'Dirección',
+  battery: 'Batería',
+  body: 'Mensaje',
+  brand: 'Marca',
+  category: 'Categoría',
+  city: 'Ciudad',
+  color: 'Color',
+  company: 'Empresa',
+  coordinates: 'Área',
+  currentPassword: 'Contraseña actual',
+  description: 'Descripción',
+  deviceId: 'Dispositivo',
+  document: 'Documento',
+  driverId: 'Conductor',
+  email: 'Correo',
+  expiresInHours: 'Vigencia',
+  format: 'Formato',
+  geofenceId: 'Geocerca',
+  heading: 'Rumbo',
+  lat: 'Latitud',
+  licenseCategory: 'Categoría de licencia',
+  licenseExpiresAt: 'Vencimiento de licencia',
+  licenseNumber: 'Número de licencia',
+  lng: 'Longitud',
+  message: 'Mensaje',
+  mode: 'Modo',
+  model: 'Modelo',
+  name: 'Nombre',
+  nit: 'NIT',
+  notes: 'Notas',
+  owner: 'Propietario',
+  password: 'Contraseña',
+  periodEnd: 'Fin del periodo',
+  periodStart: 'Inicio del periodo',
+  phone: 'Teléfono',
+  plate: 'Placa',
+  priority: 'Prioridad',
+  radiusM: 'Radio',
+  reason: 'Motivo',
+  recipients: 'Destinatarios',
+  role: 'Rol',
+  serial: 'Serial',
+  shape: 'Forma',
+  speed: 'Velocidad',
+  status: 'Estado',
+  subject: 'Asunto',
+  threshold: 'Umbral',
+  type: 'Tipo',
+  userId: 'Usuario',
+  vehicleId: 'Vehículo',
+  vehicleIds: 'Vehículos',
+  year: 'Año',
+};
+const fieldLabel = (path: string) => FIELD_LABELS[path.split('.')[0]] ?? path;
+
 /** Extrae un mensaje legible en español de cualquier error HTTP. */
 export function errorMessage(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
@@ -64,7 +122,7 @@ export function errorMessage(e: unknown): string {
     if (body && typeof body === 'object' && 'message' in body) {
       const details = Array.isArray(body.details) ? body.details : [];
       if (body.code === 'VALIDATION_ERROR' && details.length) {
-        return details.map((d: any) => `${d.path ? `${d.path}: ` : ''}${d.message}`).join(' · ');
+        return details.map((d: any) => `${d.path ? `${fieldLabel(d.path)}: ` : ''}${d.message}`).join(' · ');
       }
       return body.message;
     }

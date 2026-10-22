@@ -1,5 +1,5 @@
-import ExcelJS from 'exceljs';
-import PDFDocument from 'pdfkit';
+import type ExcelJS from 'exceljs';
+import type PDFKitDocument from 'pdfkit';
 import { all, get } from '../../shared/db';
 import { ALERT_TYPE_LABELS, AlertType } from '../../shared/repositories/alerts';
 import { TripDto, trackingRepo } from '../../shared/repositories/tracking';
@@ -182,7 +182,21 @@ const C = {
   purple: '#AF52DE',
 };
 
-export function buildPdf(p: ReportParams, d: ReportData): Promise<Buffer> {
+/**
+ * ExcelJS y PDFKit son las librerías más pesadas de la API: se cargan solo al generar un reporte.
+ * En Node es el paquete normal; en la demo del navegador, build-pages.mjs las separa en archivos propios.
+ */
+const loadExcel = async (): Promise<typeof ExcelJS> => {
+  const m: any = await import('exceljs');
+  return m.default ?? m;
+};
+const loadPdfKit = async (): Promise<typeof PDFKitDocument> => {
+  const m: any = await import('pdfkit');
+  return m.default ?? m;
+};
+
+export async function buildPdf(p: ReportParams, d: ReportData): Promise<Buffer> {
+  const PDFDocument = await loadPdfKit();
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
@@ -430,7 +444,8 @@ export function buildPdf(p: ReportParams, d: ReportData): Promise<Buffer> {
 /* ------------------------------ Excel ------------------------------ */
 
 export async function buildXlsx(p: ReportParams, d: ReportData): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook();
+  const XL = await loadExcel();
+  const wb = new XL.Workbook();
   wb.creator = 'WMS – Monitoreo de flotas';
   wb.created = new Date();
   const header = (ws: ExcelJS.Worksheet) => {

@@ -18,6 +18,7 @@ import { fmt, VEHICLE_TYPES } from '../../core/format';
 import { Geofence, LatLng, Vehicle } from '../../core/models';
 import { Confirm, Theme, Toasts } from '../../core/ui.services';
 import { EmptyComponent, SegmentedComponent, ToggleComponent } from '../../ui/components';
+import { KeyClickDirective } from '../../ui/key-click.directive';
 import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective, SheetDragDirective } from '../../ui/motion-directives';
 import { createMap, geofenceLayer, tileLayer } from '../map/leaflet-kit';
@@ -57,7 +58,7 @@ const SHAPE_META: Record<Shape, { label: string; icon: string }> = {
 /** RE2 / RF5-RF8 – Geocercas dibujables sobre el mapa (círculo, polígono o corredor de ruta). */
 @Component({
   selector: 'app-geofences',
-  imports: [DebounceInputDirective, SheetDragDirective, FormsModule, IconComponent, SegmentedComponent, ToggleComponent, EmptyComponent],
+  imports: [KeyClickDirective, DebounceInputDirective, SheetDragDirective, FormsModule, IconComponent, SegmentedComponent, ToggleComponent, EmptyComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './geofences.page.html',
   styleUrl: './geofences.page.scss',

@@ -572,9 +572,11 @@ Las pruebas usan una base SQLite temporal por archivo con el mismo seed de la de
 
 GitHub Pages solo sirve archivos estáticos, así que el build de Pages (`npm run build:pages`) incluye **la misma API** compilada para el navegador:
 
-- `api/src/demo/browser.ts` carga **todas las funciones** del registro (`defineHttp` / `defineTimer`) sobre **SQLite en WebAssembly (sql.js)**, ejecuta el seed, el **simulador GPS** y el **watchdog** dentro de la página y guarda la base en **IndexedDB** (los datos se regeneran cada 24 h para que el historial sea de la semana actual).
+- `api/src/demo/browser.ts` carga **todas las funciones** del registro (`defineHttp` / `defineTimer`) sobre **SQLite en WebAssembly (sql.js)**, ejecuta el seed, el **simulador GPS** y el **watchdog** en un **Web Worker** (un hilo aparte, para que la interfaz no se congele) y guarda la base en **IndexedDB** (los datos se regeneran cada 24 h para que el historial sea de la semana actual). Si el navegador no soporta Workers de módulo, corre en la página.
+- ExcelJS y PDFKit van en archivos aparte (`wms-demo-xlsx.js`, `wms-demo-pdf.js`) que solo se descargan al generar el primer reporte: la API de la demo pesa ~170 KB comprimida.
+- Cada ruta de la app tiene su copia de `index.html` (`mapa.html`, `alertas.html`…), así los enlaces directos y las recargas responden 200 en vez de 404.
 - Los módulos de Node (`node:sqlite`, `fs`, `crypto`, `jsonwebtoken`…) se reemplazan con *shims* en `api/src/demo/shims` mediante alias de esbuild; el código del backend no cambia.
-- En Angular, la configuración `pages` define `WMS_DEMO=true`: un `HttpBackend` entrega cada petición `/api/*` a la API del navegador y el tiempo real usa polling.
+- En Angular, la configuración `pages` define `WMS_DEMO=true`: un `HttpBackend` entrega cada petición `/api/*` al Worker por mensajes y el tiempo real usa polling.
 - El workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) construye y publica en cada *push* a `main`.
 
 **Limitación honesta:** en la demo cada navegador tiene su propia base de datos. La ubicación del celular de un conductor se ve en el mapa del administrador **en el mismo navegador** (cambiando de cuenta); para verla entre dispositivos distintos se usa el backend real (`npm run dev` o Azure).

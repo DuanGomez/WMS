@@ -27,6 +27,7 @@ import { DetailComponent, DetailRow } from '../../ui/detail.component';
 import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective } from '../../ui/motion-directives';
 import { SwipeDirective } from '../../ui/wms-fx';
+import { KeyClickDirective } from '../../ui/key-click.directive';
 
 const RULE_TYPES: Record<
   string,
@@ -94,6 +95,7 @@ const RULE_TYPES: Record<
 @Component({
   selector: 'app-alerts',
   imports: [
+    KeyClickDirective,
     DebounceInputDirective,
     FormsModule,
     IconComponent,

@@ -107,6 +107,7 @@
           @for (a of shown(); track a.id) {
             <div
               class="list-item alert-row clickable"
+              wmsKeyClick
               (click)="detailAlert.set(a)"
               [class.unread]="!a.attended"
               [class.al-leaving]="leaving().has(a.id)"
@@ -167,7 +168,7 @@
       } @else {
         <div class="list">
           @for (r of rules(); track r.id) {
-            <div class="list-item clickable rule-row" [class.inactive]="!r.active" (click)="canWrite() && openEdit(r)">
+            <div class="list-item clickable rule-row" [class.inactive]="!r.active" wmsKeyClick (click)="canWrite() && openEdit(r)">
               <span class="al-tag wide">
                 <app-icon [name]="icons[r.type].icon" [size]="13" />
                 <span class="truncate">{{ r.typeLabel }}</span>
@@ -212,7 +213,7 @@
             </thead>
             <tbody>
               @for (n of notifications(); track n.id) {
-                <tr class="clickable" (click)="expanded.set(expanded() === n.id ? null : n.id)" [attr.aria-expanded]="expanded() === n.id">
+                <tr class="clickable" wmsKeyClick (click)="expanded.set(expanded() === n.id ? null : n.id)" [attr.aria-expanded]="expanded() === n.id">
                   <td><span class="badge" [class.off]="n.channel !== 'email'">{{ n.channel === 'email' ? 'Correo' : 'Push' }}</span></td>
                   <td>{{ n.recipient }}</td>
                   <td>

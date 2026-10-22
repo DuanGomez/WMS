@@ -296,6 +296,8 @@ export class SkeletonListComponent {
           class="toast glass-thick"
           [class.leaving]="t.leaving"
           role="status"
+          [attr.tabindex]="t.action ? 0 : null"
+          (keydown.enter)="t.action?.(); toasts.dismiss(t.id)"
           (click)="t.action?.(); toasts.dismiss(t.id)"
         >
           <div class="toast-icon" [class]="'toast-icon bg-' + t.tone">

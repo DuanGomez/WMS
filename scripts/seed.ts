@@ -388,7 +388,11 @@ const ZONE_LAURELES_BELEN: LatLng[] = [
   [6.24, -75.608],
 ];
 
-export async function seed(opts: { quiet?: boolean } = {}) {
+/**
+ * Crea la base demo. Con `deferReports` (demo del navegador) no genera los reportes de ejemplo: devuelve la
+ * función que los crea, para llamarla después del arranque y no cargar ExcelJS y PDFKit al abrir la página.
+ */
+export async function seed(opts: { quiet?: boolean; deferReports?: boolean } = {}): Promise<() => Promise<void>> {
   const log = (...a: unknown[]) => !opts.quiet && console.log(...a);
   const t0 = Date.now();
   log(`🌱 Creando base de datos demo en ${config.dbPath}`);
@@ -544,11 +548,13 @@ export async function seed(opts: { quiet?: boolean } = {}) {
     coordinates: area,
     color: '#5856D6',
   });
+  // El furgón de El Trigal recorre la misma ruta fija del simulador, así que su zona de reparto también la
+  // envuelve (si no, quedaría fuera de toda geocerca), pero con polígono propio y un margen más amplio.
   geofencesRepo.create(trigal, {
     name: 'Zona de reparto El Trigal',
     description: 'Cobertura de entregas de la panadería.',
     shape: 'polygon',
-    coordinates: area,
+    coordinates: operationArea(route.points, 1100),
     color: '#30B0C7',
   });
   const corridor = route.points.filter((_, i) => i % 3 === 0);
@@ -698,40 +704,43 @@ export async function seed(opts: { quiet?: boolean } = {}) {
   });
 
   // --- Reportes de ejemplo
-  log('📄 Generando reportes de ejemplo (PDF y Excel)…');
-  const periodEnd = new Date().toISOString();
-  const periodStart = new Date(bogotaDayStart().getTime() - 7 * 86400_000).toISOString();
-  for (const r of [
-    { name: 'Informe semanal de la flota', type: 'full' as const, format: 'pdf' as const, vehicleId: null },
-    {
-      name: 'Recorridos de la moto de domicilios',
-      type: 'trips' as const,
-      format: 'xlsx' as const,
-      vehicleId: simVehicles.moto.vehicleId,
-    },
-  ]) {
-    const p = { ...r, driverId: null, periodStart, periodEnd };
-    const { content, summary } = await buildReport(la72, p);
-    run(
-      `INSERT INTO reports (id, company_id, created_by, name, type, format, vehicle_id, driver_id, period_start, period_end, summary, content, size_bytes, version, generated_at)
-       VALUES (@id,@cid,@uid,@name,@type,@format,@vehicle,NULL,@ps,@pe,@summary,@content,@size,1,@ts)`,
+  const sampleReports = async () => {
+    log('📄 Generando reportes de ejemplo (PDF y Excel)…');
+    const periodEnd = new Date().toISOString();
+    const periodStart = new Date(bogotaDayStart().getTime() - 7 * 86400_000).toISOString();
+    for (const r of [
+      { name: 'Informe semanal de la flota', type: 'full' as const, format: 'pdf' as const, vehicleId: null },
       {
-        id: id(),
-        cid: la72,
-        uid: la72Admin,
-        name: p.name,
-        type: p.type,
-        format: p.format,
-        vehicle: p.vehicleId,
-        ps: periodStart,
-        pe: periodEnd,
-        summary: JSON.stringify(summary),
-        content,
-        size: content.length,
-        ts: ago(0.1),
+        name: 'Recorridos de la moto de domicilios',
+        type: 'trips' as const,
+        format: 'xlsx' as const,
+        vehicleId: simVehicles.moto.vehicleId,
       },
-    );
-  }
+    ]) {
+      const p = { ...r, driverId: null, periodStart, periodEnd };
+      const { content, summary } = await buildReport(la72, p);
+      run(
+        `INSERT INTO reports (id, company_id, created_by, name, type, format, vehicle_id, driver_id, period_start, period_end, summary, content, size_bytes, version, generated_at)
+         VALUES (@id,@cid,@uid,@name,@type,@format,@vehicle,NULL,@ps,@pe,@summary,@content,@size,1,@ts)`,
+        {
+          id: id(),
+          cid: la72,
+          uid: la72Admin,
+          name: p.name,
+          type: p.type,
+          format: p.format,
+          vehicle: p.vehicleId,
+          ps: periodStart,
+          pe: periodEnd,
+          summary: JSON.stringify(summary),
+          content,
+          size: content.length,
+          ts: ago(0.1),
+        },
+      );
+    }
+  };
+  if (!opts.deferReports) await sampleReports();
 
   // --- Tickets de soporte
   const ticket = (
@@ -812,6 +821,7 @@ export async function seed(opts: { quiet?: boolean } = {}) {
   log(
     `   Credenciales demo (contraseña ${DEMO_PASSWORD}): admin@la72.co · gerencia@la72.co · supervisor@la72.co · conductor@la72.co · admin@eltrigal.co · soporte@wms.co`,
   );
+  return sampleReports;
 }
 
 // En el navegador (demo de GitHub Pages) no existe `require`: allí el seed lo invoca src/demo.

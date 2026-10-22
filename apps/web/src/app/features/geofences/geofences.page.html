@@ -31,7 +31,7 @@
   } @else {
     <div class="list gf-list">
       @for (g of shownList(); track g.id) {
-        <div class="list-item clickable gf-li" [class.inactive]="!g.active" (click)="showMap(g)">
+        <div class="list-item clickable gf-li" [class.inactive]="!g.active" wmsKeyClick (click)="showMap(g)">
           <span class="gf-tag">
             <app-icon name="hexagon" [size]="13" />
             <span class="truncate">{{ shapes[g.shape].label }}</span>
