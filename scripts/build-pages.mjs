@@ -81,9 +81,12 @@ fs.copyFileSync(
   path.join(root, 'api/src/functions/gps-simulator/route-medellin.geojson'),
   path.join(demoDir, 'route-medellin.geojson'),
 );
-// Arranque de la API de la demo en un Web Worker desde el propio index.html: el Worker, el motor SQLite y la
-// ruta se descargan en paralelo con la app (sin esperar a main.js) y la API nunca ocupa el hilo de la interfaz.
-// El wasm y la ruta los descarga la página (con la precarga) y se los pasa al Worker sin copiarlos.
+// Arranque de la API de la demo en un Web Worker desde el propio index.html: el Worker se descarga en paralelo
+// con la app (sin esperar a main.js) y la API nunca ocupa el hilo de la interfaz.
+// El wasm y la ruta los descarga la página y se los pasa al Worker sin copiarlos, pero justo después del primer
+// pintado: antes se precargaban desde el inicio y, en una red lenta, el wasm (329 KB) competía con la app y la
+// fuente; PageSpeed lo contaba dentro del LCP (3,7 s → 2,3 s en Lighthouse móvil al moverlo). Si el navegador no
+// avisa del primer pintado, se descargan de inmediato; y nunca después de 3 s (p. ej. pestaña abierta de fondo).
 // core/demo-backend.ts toma window.__wmsDemoWorker; si no existe o falla, carga la API en la página.
 const workerBoot = `(function () {
   try {
@@ -91,26 +94,32 @@ const workerBoot = `(function () {
     var w = new Worker(u('demo/wms-demo-api.js'), { type: 'module' });
     var base = { type: 'assets', wasmUrl: u('demo/sql-wasm.wasm'), routeUrl: u('demo/route-medellin.geojson') };
     window.__wmsDemoWorker = w;
-    Promise.all([
-      fetch(base.wasmUrl).then(function (r) { if (!r.ok) throw r; return r.arrayBuffer(); }),
-      fetch(base.routeUrl).then(function (r) { if (!r.ok) throw r; return r.text(); })
-    ]).then(function (a) {
-      w.postMessage(Object.assign({ wasm: a[0], route: a[1] }, base), [a[0]]);
-    }, function () {
-      w.postMessage(base);
-    });
+    var assets = function () {
+      if (assets.done) return;
+      assets.done = true;
+      Promise.all([
+        fetch(base.wasmUrl).then(function (r) { if (!r.ok) throw r; return r.arrayBuffer(); }),
+        fetch(base.routeUrl).then(function (r) { if (!r.ok) throw r; return r.text(); })
+      ]).then(function (a) {
+        w.postMessage(Object.assign({ wasm: a[0], route: a[1] }, base), [a[0]]);
+      }, function () {
+        w.postMessage(base);
+      });
+    };
+    try {
+      new PerformanceObserver(function (l) {
+        if (l.getEntriesByName('first-contentful-paint').length) setTimeout(assets);
+      }).observe({ type: 'paint', buffered: true });
+    } catch (e) {
+      assets();
+    }
+    setTimeout(assets, 3000);
   } catch (e) {}
 })();`;
 const indexHtml = path.join(out, 'index.html');
 fs.writeFileSync(
   indexHtml,
-  fs.readFileSync(indexHtml, 'utf8').replace(
-    '</head>',
-    '  <link rel="preload" href="demo/sql-wasm.wasm" as="fetch" type="application/wasm" crossorigin />\n' +
-      '  <link rel="preload" href="demo/route-medellin.geojson" as="fetch" crossorigin />\n' +
-      `  <script>${workerBoot}</script>\n` +
-      '</head>',
-  ),
+  fs.readFileSync(indexHtml, 'utf8').replace('</head>', `  <script>${workerBoot}</script>\n</head>`),
 );
 // GitHub Pages: /WMS/mapa se sirve desde mapa.html si existe (código 200). Se crea una copia de index.html por
 // cada ruta de la app (leídas de app.routes.ts, así la lista no se desactualiza); el resto pasa por 404.html.
