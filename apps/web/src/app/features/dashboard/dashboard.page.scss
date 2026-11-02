@@ -226,3 +226,14 @@
     min-height: 0;
   }
 }
+
+/* Lugar que ocupa la segunda fila mientras se dibuja en tiempo libre (mismo alto medido: así la página no salta). */
+.fila-diferida {
+  margin-top: 18px;
+  min-height: 301px;
+}
+@media (max-width: 760px) {
+  .fila-diferida {
+    min-height: 737px;
+  }
+}

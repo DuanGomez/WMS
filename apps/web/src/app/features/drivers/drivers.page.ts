@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -20,6 +21,38 @@ import { EmptyComponent, SheetComponent, SkeletonListComponent } from '../../ui/
 import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective } from '../../ui/motion-directives';
 import { DetailComponent, DetailRow } from '../../ui/detail.component';
+
+
+/**
+ * Filas del panel de detalle: el mismo arreglo mientras no cambien sus datos, así el panel no se vuelve a dibujar en
+ * cada revisión de Angular; se rehacen cada 15 s por los textos «hace X».
+ */
+function memoFilas(cache: { k?: unknown[]; filas?: DetailRow[]; t?: number }, k: unknown[], crear: () => DetailRow[]) {
+  const ahora = Date.now();
+  const igual = !!cache.k && cache.k.length === k.length && k.every((x, i) => x === cache.k![i]);
+  if (igual && cache.filas && ahora - (cache.t ?? 0) < 15000) return cache.filas;
+  cache.k = k;
+  cache.t = ahora;
+  return (cache.filas = crear());
+}
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
+
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   disponible: { label: 'Disponible', tone: 'green' },
@@ -166,6 +199,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
       [busy]="busy()"
       (action)="save()"
     >
+      @if (listos(0)) {
       <form class="form-grid" (ngSubmit)="save()">
         <div class="field full">
           <label for="n">Nombre completo</label
@@ -260,6 +294,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
         }
         <button type="submit" hidden></button>
       </form>
+      }
     </app-sheet>
 
     <app-sheet
@@ -269,6 +304,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
       [busy]="busy()"
       (action)="assign()"
     >
+      @if (listos(1)) {
       <div class="list">
         <label class="list-item clickable no-icon">
           <input type="radio" name="av" [checked]="assignTo === null" (change)="assignTo = null" />
@@ -295,6 +331,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
       <p class="footnote" style="margin-top:10px">
         Un conductor opera un vehículo a la vez; si el vehículo ya tenía conductor, se reemplaza.
       </p>
+      }
     </app-sheet>
   `,
   styles: `
@@ -321,7 +358,7 @@ export class DriversPage implements OnInit {
   // --- Solo presentación (rediseño): panel Detalle ---
   readonly detail = signal<Driver | null>(null);
   driverRows(d: Driver): DetailRow[] {
-    return [
+    return memoFilas(this.filasCache, [d, this.tick()], () => [
       { k: 'Teléfono', v: d.phone || '—' },
       { k: 'Licencia', v: `${d.licenseNumber || '—'} · Cat. ${d.licenseCategory}`, mono: true },
       { k: 'Vehículo', v: d.vehicle ? d.vehicle.plate : 'Sin asignar' },
@@ -332,8 +369,9 @@ export class DriversPage implements OnInit {
           : 'Aún no comparte su ubicación',
       },
       { k: 'Estado', v: this.status[d.status].label },
-    ];
+    ]);
   }
+  private filasCache = {};
 
   private api = inject(Api);
   readonly auth = inject(Auth);
@@ -360,6 +398,20 @@ export class DriversPage implements OnInit {
   readonly loading = signal(true);
   readonly sheetOpen = signal(false);
   readonly assignOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.sheetOpen() || this.assignOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 2) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly editing = signal<Driver | null>(null);
   readonly assigning = signal<Driver | null>(null);
   readonly busy = signal(false);
@@ -395,8 +447,14 @@ export class DriversPage implements OnInit {
     );
   });
   readonly shown = computed(() => this.base().filter((d) => this.stF() === 'all' || d.status === this.stF()));
+  /** Cuántos conductores hay por estado: una vez por cambio de datos o búsqueda, no en cada revisión (116). */
+  private readonly cuentasSt = computed(() => {
+    const c: Record<string, number> = {};
+    for (const d of this.base()) c[d.status] = (c[d.status] ?? 0) + 1;
+    return c;
+  });
   countSt(k: string) {
-    return this.base().filter((d) => d.status === k).length;
+    return this.cuentasSt()[k] ?? 0;
   }
   form: any = {};
   assignTo: string | null = null;

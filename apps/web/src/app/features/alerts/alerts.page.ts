@@ -1,12 +1,15 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   OnDestroy,
   OnInit,
   signal,
+  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -28,6 +31,37 @@ import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective } from '../../ui/motion-directives';
 import { SwipeDirective } from '../../ui/wms-fx';
 import { KeyClickDirective } from '../../ui/key-click.directive';
+
+
+/**
+ * Filas del panel de detalle: el mismo arreglo mientras no cambien sus datos, así el panel no se vuelve a dibujar en
+ * cada revisión de Angular; se rehacen cada 15 s por los textos «hace X».
+ */
+function memoFilas(cache: { k?: unknown[]; filas?: DetailRow[]; t?: number }, k: unknown[], crear: () => DetailRow[]) {
+  const ahora = Date.now();
+  const igual = !!cache.k && cache.k.length === k.length && k.every((x, i) => x === cache.k![i]);
+  if (igual && cache.filas && ahora - (cache.t ?? 0) < 15000) return cache.filas;
+  cache.k = k;
+  cache.t = ahora;
+  return (cache.filas = crear());
+}
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
 
 const RULE_TYPES: Record<
   string,
@@ -155,6 +189,37 @@ export class AlertsPage implements OnInit, OnDestroy {
     const q = this.q().trim().toLowerCase();
     return q ? this.alerts().filter((a) => (a.title + ' ' + (a.vehiclePlate ?? '')).toLowerCase().includes(q)) : this.alerts();
   });
+  /**
+   * Las filas se dibujan por tandas: primero las que entran en la pantalla y el resto en tiempo libre, de a 10, para
+   * que cambiar a una pestaña con muchas alertas (Atendidas, Todas) no sea una sola tarea larga.
+   */
+  readonly limite = signal(Infinity);
+  readonly visibles = computed(() => {
+    const s = this.shown();
+    return this.limite() >= s.length ? s : s.slice(0, this.limite());
+  });
+  private tandaId = 0;
+  private readonly tandas = effect(() => {
+    const total = this.shown().length;
+    untracked(() => this.porTandas(total));
+  });
+  private porTandas(total: number) {
+    const id = ++this.tandaId;
+    if (total <= 16) {
+      this.limite.set(Infinity);
+      return;
+    }
+    this.limite.set(10);
+    const libre = (g: () => void) =>
+      typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 300 }) : setTimeout(g, 50);
+    const siguiente = () => {
+      if (id !== this.tandaId || this.destroyRef.destroyed) return;
+      const l = this.limite() + 10;
+      this.limite.set(l >= total ? Infinity : l);
+      if (l < total) libre(siguiente);
+    };
+    libre(siguiente);
+  }
   /** Conteo por estado con los filtros activos (prototipo: Abiertas · Atendidas · Todas). */
   readonly counts = signal<{ open: number; attended: number; all: number }>({ open: 0, attended: 0, all: 0 });
   countOf(k: string) {
@@ -179,6 +244,20 @@ export class AlertsPage implements OnInit, OnDestroy {
   readonly geofences = signal<Geofence[]>([]);
   readonly vehicles = signal<Vehicle[]>([]);
   readonly sheetOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.sheetOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 1) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly editing = signal<AlertRule | null>(null);
   readonly busy = signal(false);
   readonly formError = signal('');
@@ -297,7 +376,7 @@ export class AlertsPage implements OnInit, OnDestroy {
   }
   /** Filas del panel de detalle (prototipo: tipo, prioridad, vehículo, cuándo, fecha, posición, atención). */
   alertRows(a: Alert): DetailRow[] {
-    return [
+    return memoFilas(this.filasCache, [a], () => [
       { k: 'Tipo', v: a.typeLabel },
       { k: 'Prioridad', v: this.priority[a.priority].label },
       { k: 'Vehículo', v: a.vehiclePlate ?? '—' },
@@ -305,8 +384,9 @@ export class AlertsPage implements OnInit, OnDestroy {
       { k: 'Fecha', v: fmt.dateTime(a.ts) },
       { k: 'Posición', v: a.lat != null && a.lng != null ? a.lat.toFixed(5) + ', ' + a.lng.toFixed(5) : '—', mono: true },
       ...(a.attended ? [{ k: 'Atendida por', v: a.attendedBy ?? '—' }, { k: 'Hora', v: fmt.dateTime(a.attendedAt) }] : []),
-    ];
+    ]);
   }
+  private filasCache = {};
   private applyAttended(a: Alert, r: Alert) {
     this.counts.update((c) => ({ ...c, open: Math.max(0, c.open - 1), attended: c.attended + 1 }));
     this.alerts.update((l) =>

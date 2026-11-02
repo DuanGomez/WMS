@@ -145,6 +145,7 @@
   [busy]="busy()"
   (action)="save()"
 >
+      @if (listos(0)) {
   <form class="stack" (ngSubmit)="save()" style="gap: 16px">
     <div class="field">
       <span class="label">Tipo de vehículo</span>
@@ -195,6 +196,7 @@
           placeholder="CB 125F"
         />
       </div>
+      @if (listos(1)) {
       <div class="field">
         <label for="year">Año</label
         ><input
@@ -237,6 +239,7 @@
           }
         </select>
       </div>
+      }
     </div>
     @if (formError()) {
       <div
@@ -254,7 +257,8 @@
     }
     <button type="submit" hidden></button>
   </form>
-</app-sheet>
+      }
+    </app-sheet>
 
 <app-sheet
   [(open)]="tripsOpen"
@@ -262,10 +266,16 @@
   cancelText="Cerrar"
   [wide]="true"
 >
-  <!-- Carga diferida: el código de la reproducción (y su mapa) se descarga en reposo, no con la página -->
+      @if (listos(2)) {
+  <!-- El código de la reproducción y su mapa (Leaflet) se cargan al abrir este panel, no en reposo: evaluarlos tomaba
+       ~100 ms con la CPU 6x en cualquier momento libre, aunque el panel no se abriera nunca. El bloque solo
+       existe con el panel abierto y adentro se carga en reposo, como antes -->
+  @if (tripsOpen()) {
   @defer (on idle) {
     @if (tripsOpen() && tripsVehicle()) {
       <app-playback [vehicleId]="tripsVehicle()!.id" [plate]="tripsVehicle()!.plate" />
     }
   }
-</app-sheet>
+  }
+      }
+    </app-sheet>

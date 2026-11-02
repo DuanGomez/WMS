@@ -4,6 +4,7 @@
  *   2. La API empaquetada para el navegador con esbuild (api/src/demo/browser.ts): los módulos de Node
  *      (node:sqlite, fs, crypto, jsonwebtoken…) se reemplazan por los shims de api/src/demo/shims.
  *   3. Copia sql-wasm.wasm y la ruta fija de Medellín, y crea 404.html para el enrutamiento SPA.
+ *   4. Ajustes de rendimiento sobre lo compilado y armado de index.html (scripts/pages/ajustar.mjs).
  * Uso: npm run build:pages  (opcional: BASE_HREF=/otro/)
  */
 import { build } from 'esbuild';
@@ -11,6 +12,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ajustarCodigo, ajustarDemo, armarIndex } from './pages/ajustar.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'apps/web/dist/web/browser');
@@ -22,6 +24,11 @@ if (!process.env.SKIP_NG) {
   console.log('▶ Angular (configuración pages)…');
   execSync(`npx ng build --configuration pages --base-href ${base}`, { cwd: path.join(root, 'apps/web'), stdio: 'inherit' });
 }
+const indexHtml = path.join(out, 'index.html');
+if (fs.readFileSync(indexHtml, 'utf8').includes('__wmsDemoWorker'))
+  throw new Error('Este build de Angular ya pasó por build-pages.mjs: vuelve a compilarlo (sin SKIP_NG).');
+console.log('▶ Ajustes de rendimiento sobre el build…');
+const ajustado = ajustarCodigo(out);
 
 console.log('▶ API para el navegador (esbuild)…');
 const alias = {
@@ -75,6 +82,7 @@ const result = await build({
   metafile: true,
 });
 for (const [file, o] of Object.entries(result.metafile.outputs)) console.log(`  ${path.basename(file)} · ${(o.bytes / 1024).toFixed(0)} KB`);
+ajustarDemo(path.join(demoDir, 'wms-demo-api.js'));
 
 fs.copyFileSync(path.join(root, 'node_modules/sql.js/dist/sql-wasm.wasm'), path.join(demoDir, 'sql-wasm.wasm'));
 fs.copyFileSync(
@@ -88,12 +96,19 @@ fs.copyFileSync(
 // fuente; PageSpeed lo contaba dentro del LCP (3,7 s → 2,3 s en Lighthouse móvil al moverlo). Si el navegador no
 // avisa del primer pintado, se descargan de inmediato; y nunca después de 3 s (p. ej. pestaña abierta de fondo).
 // core/demo-backend.ts toma window.__wmsDemoWorker; si no existe o falla, carga la API en la página.
+// Cuando la API avisa que está lista, se quita la pantalla de carga fija del HTML (scripts/pages/pantalla-carga.html).
 const workerBoot = `(function () {
   try {
     var u = function (p) { return new URL(p, document.baseURI).href; };
     var w = new Worker(u('demo/wms-demo-api.js'), { type: 'module' });
     var base = { type: 'assets', wasmUrl: u('demo/sql-wasm.wasm'), routeUrl: u('demo/route-medellin.geojson') };
     window.__wmsDemoWorker = w;
+    w.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'status' && e.data.ready) {
+        var s = document.querySelector('.wms-shell');
+        if (s) s.remove();
+      }
+    });
     var assets = function () {
       if (assets.done) return;
       assets.done = true;
@@ -116,10 +131,9 @@ const workerBoot = `(function () {
     setTimeout(assets, 3000);
   } catch (e) {}
 })();`;
-const indexHtml = path.join(out, 'index.html');
 fs.writeFileSync(
   indexHtml,
-  fs.readFileSync(indexHtml, 'utf8').replace('</head>', `  <script>${workerBoot}</script>\n</head>`),
+  armarIndex(out, fs.readFileSync(indexHtml, 'utf8'), { worker: workerBoot, leaflet: ajustado.leaflet }),
 );
 // GitHub Pages: /WMS/mapa se sirve desde mapa.html si existe (código 200). Se crea una copia de index.html por
 // cada ruta de la app (leídas de app.routes.ts, así la lista no se desactualiza); el resto pasa por 404.html.

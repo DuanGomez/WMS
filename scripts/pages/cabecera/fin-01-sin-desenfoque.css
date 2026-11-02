@@ -1,0 +1,10 @@
+/* Sin desenfoques. El vidrio queda sin blur y los brillos pasan a degradados del mismo color. */
+*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+app-bg i,.a-glow-top,.a-glow-a,.a-glow-b{filter:none!important}
+app-bg i.a,app-bg i.c{background:radial-gradient(closest-side,var(--wms-glow-a),transparent)!important}
+app-bg i.b,app-bg i.d{background:radial-gradient(closest-side,var(--wms-glow-b),transparent)!important}
+.a-glow-top{background:radial-gradient(closest-side,var(--a-glow-top),transparent)!important}
+.a-glow-a{background:radial-gradient(closest-side,var(--a-glow-a),transparent)!important}
+.a-glow-b{background:radial-gradient(closest-side,var(--a-glow-b),transparent)!important}
+.bar{background:color-mix(in srgb,var(--wms-page) 90%,transparent)!important}
+.sheet{background:color-mix(in srgb,var(--wms-page) 96%,transparent)!important}

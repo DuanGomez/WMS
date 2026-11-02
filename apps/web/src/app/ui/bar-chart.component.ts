@@ -10,6 +10,15 @@ import {
   signal,
 } from '@angular/core';
 
+/** Formateadores creados una vez (crearlos es caro y antes se hacía uno por etiqueta en cada cálculo). */
+const NF = new Map<number, Intl.NumberFormat>();
+const nfDec = (d: number) => {
+  let f = NF.get(d);
+  if (!f) NF.set(d, (f = new Intl.NumberFormat('es-CO', { maximumFractionDigits: d })));
+  return f;
+};
+const COMPACT = new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 });
+
 export interface BarDatum {
   label: string;
   value: number;
@@ -172,7 +181,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
   }
 
   fmt(v: number) {
-    return `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: this.decimals() }).format(v)}${this.unit() ? ' ' + this.unit() : ''}`;
+    return `${nfDec(this.decimals()).format(v)}${this.unit() ? ' ' + this.unit() : ''}`;
   }
 
   private readonly max = computed(() => {
@@ -185,10 +194,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
     const h = this.height() - this.padB - 8;
     return [0, 0.5, 1].map((k) => ({
       y: 8 + h * (1 - k),
-      label: new Intl.NumberFormat('es-CO', {
-        notation: 'compact',
-        maximumFractionDigits: 1,
-      }).format(this.max() * k),
+      label: COMPACT.format(this.max() * k),
     }));
   });
 

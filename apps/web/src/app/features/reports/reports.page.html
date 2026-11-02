@@ -146,6 +146,7 @@
   [busy]="busy()"
   (action)="generate()"
 >
+      @if (listos(0)) {
   <form class="stack" style="gap: 16px" (ngSubmit)="generate()">
     <div class="field">
       <label for="rn">Nombre</label
@@ -167,6 +168,7 @@
         (valueChange)="form.format = $event"
       />
     </div>
+    @if (listos(1)) {
     <div class="form-grid">
       <div class="field">
         <label for="rv">Vehículo</label>
@@ -223,6 +225,7 @@
       Hora de Colombia (America/Bogota). El PDF incluye KPIs, mapa del recorrido más largo y tablas;
       el Excel incluye una hoja por sección con filtros.
     </p>
+    }
     @if (formError()) {
       <div
         class="badge red"
@@ -234,7 +237,8 @@
     }
     <button type="submit" hidden></button>
   </form>
-</app-sheet>
+      }
+    </app-sheet>
 
 <app-sheet
   [(open)]="shareOpen"
@@ -244,6 +248,7 @@
   [actionDisabled]="shareForm.mode === 'user' && !shareForm.userId"
   (action)="share()"
 >
+      @if (listos(2)) {
   <div class="stack" style="gap: 16px">
     <app-segmented
       [options]="[
@@ -334,7 +339,8 @@
       </div>
     }
   </div>
-</app-sheet>
+      }
+    </app-sheet>
 
 <app-sheet
   [(open)]="playOpen"
@@ -342,10 +348,16 @@
   cancelText="Cerrar"
   [wide]="true"
 >
-  <!-- Carga diferida: el código de la reproducción (y su mapa) se descarga en reposo, no con la página -->
+      @if (listos(3)) {
+  <!-- El código de la reproducción y su mapa (Leaflet) se cargan al abrir este panel, no en reposo: evaluarlos tomaba
+       ~100 ms con la CPU 6x en cualquier momento libre, aunque el panel no se abriera nunca. El bloque solo
+       existe con el panel abierto y adentro se carga en reposo, como antes -->
+  @if (playOpen()) {
   @defer (on idle) {
     @if (playOpen() && playVehicle()) {
       <app-playback [vehicleId]="playVehicle()!.id" [plate]="playVehicle()!.plate" />
     }
   }
-</app-sheet>
+  }
+      }
+    </app-sheet>

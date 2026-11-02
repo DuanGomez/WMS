@@ -125,6 +125,9 @@
       </div>
     </section>
 
+    <!-- En celular esta fila queda fuera de la primera pantalla: se dibuja cuando el navegador queda libre, así
+         entrar a Inicio no arma todo en una sola tarea larga -->
+    @if (segundaFila()) {
     <section class="grid grid-3" style="margin-top: 18px">
       <div class="card chart-card day-card">
         <div class="card-title">Alertas por día</div>
@@ -172,5 +175,8 @@
         </div>
       </div>
     </section>
+    } @else {
+      <div class="fila-diferida" aria-hidden="true"></div>
+    }
   }
 </div>

@@ -1,8 +1,10 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   inject,
+  Injector,
   OnInit,
   signal,
 } from '@angular/core';
@@ -15,6 +17,24 @@ import { Confirm, Toasts } from '../../core/ui.services';
 import { SheetComponent } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
 import { MorphWidthDirective } from '../../ui/motion-directives';
+
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   active: { label: 'Activa', tone: 'green' },
@@ -66,6 +86,8 @@ const STATUS: Record<string, { label: string; tone: string }> = {
             <div class="kv"><span>Cliente desde</span><b>{{ s.startedAt | dt: 'short' }}</b></div>
           </section>
 
+          <!-- En celular solo el plan actual entra en la primera pantalla: lo demás se dibuja en tiempo libre -->
+          @if (resto()) {
           @for (p of plans(); track p.code) {
             @let isCur = p.code === s.plan.code && s.status !== 'canceled';
             <article class="card bc plan" [class.current-plan]="isCur">
@@ -122,8 +144,10 @@ const STATUS: Record<string, { label: string; tone: string }> = {
               <div class="btns"><button class="btn" type="button" (click)="cancel()">Cancelar suscripción</button></div>
             }
           </section>
+          }
         </div>
 
+        @if (resto()) {
         <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla" style="margin-top:18px">
           <div class="tt"><span>Facturas</span><small>{{ invoices().length }} {{ invoices().length === 1 ? 'factura' : 'facturas' }}</small></div>
           <table class="table grid" style="--cols: 110px minmax(0,1.6fr) 80px 100px 100px 110px minmax(0,1.4fr) 90px; min-width: 900px">
@@ -169,6 +193,10 @@ const STATUS: Record<string, { label: string; tone: string }> = {
             </tbody>
           </table>
         </div>
+        } @else {
+          <!-- Mismo alto que lo que falta (medido), así la página no salta cuando aparece -->
+          <div class="resto-diferido" aria-hidden="true"></div>
+        }
       } @else {
         <div class="card"><div class="skeleton" style="height:120px"></div></div>
       }
@@ -181,6 +209,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
       [busy]="busy()"
       (action)="saveCompany()"
     >
+      @if (listos(0)) {
       <form class="form-grid" (ngSubmit)="saveCompany()">
         <div class="field full">
           <label for="cn">Razón social</label
@@ -208,11 +237,14 @@ const STATUS: Record<string, { label: string; tone: string }> = {
         </div>
         <button type="submit" hidden></button>
       </form>
+          }
     </app-sheet>
   `,
   styles: `
     .banner { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 18px; border-radius: 14px; border: 1px solid var(--wms-border); background: var(--wms-input); font-size: 13px; text-wrap: pretty; }
     .bgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    /* Lugar que ocupa lo de debajo del plan actual mientras se dibuja en tiempo libre (alto medido) */
+    .resto-diferido { min-height: 1333px; }
     .bgrid > * { animation: wms-in var(--dur-4) var(--ease) backwards; }
     .bgrid > :nth-child(1) { animation-delay: 120ms; } .bgrid > :nth-child(2) { animation-delay: 200ms; }
     .bgrid > :nth-child(3) { animation-delay: 280ms; } .bgrid > :nth-child(4) { animation-delay: 360ms; }
@@ -257,6 +289,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
       .bc.span2 { grid-column: 1 / -1; }
     }
     @media (max-width: 760px) {
+      .resto-diferido { min-height: 2232px; }
       .bgrid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     }
   `,
@@ -270,10 +303,40 @@ export class BillingPage implements OnInit {
   readonly plans = signal<Plan[]>([]);
   readonly invoices = signal<Invoice[]>([]);
   readonly companyOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.companyOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 1) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly busy = signal(false);
   readonly status = STATUS;
   readonly canWrite = computed(() => this.auth.can('billing', 'write'));
   company: any = {};
+  private injector = inject(Injector);
+  /** Lo de debajo del plan actual (planes, empresa, cancelar y facturas) se dibuja cuando el navegador queda libre. */
+  readonly resto = signal(false);
+  private restoProgramado = false;
+  private programarResto() {
+    if (this.restoProgramado || this.resto()) return;
+    this.restoProgramado = true;
+    afterNextRender(
+      () => {
+        const libre =
+          window.requestIdleCallback ?? ((f: IdleRequestCallback) => window.setTimeout(f, 200));
+        libre(() => this.resto.set(true), { timeout: 1500 });
+      },
+      { injector: this.injector },
+    );
+  }
 
   async ngOnInit() {
     await this.load();
@@ -291,6 +354,7 @@ export class BillingPage implements OnInit {
       this.plans.set(p);
       this.invoices.set(i);
       this.company = { ...c };
+      this.programarResto();
     } catch (e) {
       this.toasts.error('No se pudo cargar la suscripción', errorMessage(e));
     }

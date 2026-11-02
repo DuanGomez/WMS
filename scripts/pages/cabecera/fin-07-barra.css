@@ -1,0 +1,2 @@
+/* Barra con su tono de siempre pero sólida; en táctil, tarjetas y filas fuera de pantalla sin dibujar hasta acercarse */
+.bar{background:var(--wms-bar),var(--wms-page)!important}@media (hover:none){.page .card,.page .table.grid tbody tr{content-visibility:auto;contain-intrinsic-size:auto 300px}}

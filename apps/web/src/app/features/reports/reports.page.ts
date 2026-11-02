@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -22,6 +23,37 @@ import { IconComponent } from '../../ui/icon.component';
 import { FleetActivityComponent } from './fleet-activity.component';
 import { DetailComponent, DetailRow } from '../../ui/detail.component';
 import { PlaybackComponent } from '../map/playback.component';
+
+
+/**
+ * Filas del panel de detalle: el mismo arreglo mientras no cambien sus datos, así el panel no se vuelve a dibujar en
+ * cada revisión de Angular; se rehacen cada 15 s por los textos «hace X».
+ */
+function memoFilas(cache: { k?: unknown[]; filas?: DetailRow[]; t?: number }, k: unknown[], crear: () => DetailRow[]) {
+  const ahora = Date.now();
+  const igual = !!cache.k && cache.k.length === k.length && k.every((x, i) => x === cache.k![i]);
+  if (igual && cache.filas && ahora - (cache.t ?? 0) < 15000) return cache.filas;
+  cache.k = k;
+  cache.t = ahora;
+  return (cache.filas = crear());
+}
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
 
 interface Share {
   id: string;
@@ -64,7 +96,7 @@ export class ReportsPage implements OnInit {
   // --- Solo presentación (rediseño): panel Detalle al hacer clic en una fila ---
   readonly detail = signal<Report | null>(null);
   reportRows(r: Report): DetailRow[] {
-    return [
+    return memoFilas(this.filasCache, [r], () => [
       { k: 'Contenido', v: r.typeLabel },
       { k: 'Periodo', v: `${fmt.date(r.periodStart)} – ${fmt.date(r.periodEnd)}` },
       { k: 'Vehículo', v: r.vehiclePlate ?? 'Todos los vehículos' },
@@ -74,8 +106,9 @@ export class ReportsPage implements OnInit {
       { k: 'Generado', v: fmt.dateTime(r.generatedAt) + (r.createdBy ? ' · ' + r.createdBy : '') },
       { k: 'Tamaño', v: this.bytes(r.sizeBytes) },
       { k: 'Enlaces activos', v: String(r.activeShares ?? 0) },
-    ];
+    ]);
   }
+  private filasCache = {};
 
   private api = inject(Api);
   readonly auth = inject(Auth);
@@ -125,6 +158,20 @@ export class ReportsPage implements OnInit {
 
   // Playback
   readonly playOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.sheetOpen() || this.shareOpen() || this.playOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 4) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly playVehicle = signal<{ id: string; plate: string } | null>(null);
 
   private emptyForm() {

@@ -1,0 +1,5 @@
+/* Sombra liviana de los paneles en táctil (la de 60 px se volvía a dibujar en cada cuadro) */
+:root{--wms-pop-shadow-lite:0 24px 16px -6px rgba(0,0,0,.48)}
+:root[data-theme=light]{--wms-pop-shadow-lite:0 24px 16px -6px rgba(0,0,0,.26)}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--wms-pop-shadow-lite:0 24px 16px -6px rgba(0,0,0,.26)}}
+@media (hover:none){html:root .sheet{box-shadow:var(--wms-pop-shadow-lite)!important}}
