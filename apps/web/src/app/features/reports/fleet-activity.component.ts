@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -85,6 +86,11 @@ const yOf = (v: number, max: number) => 230 - (v / max) * 220;
 const pathOf = (vals: number[], max: number) =>
   vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * 800).toFixed(1)},${yOf(v, max).toFixed(1)}`).join('');
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** En táctil la gráfica pasa de un periodo a otro sin transición cuadro a cuadro. */
+const tactil = typeof matchMedia === 'function' && matchMedia('(hover: none)').matches;
+/** Formateadores creados una vez (antes se creaba uno por etiqueta en cada cálculo). */
+const WD = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'short' });
+const DM = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short' });
 
 /**
  * "Actividad de la flota" (sección analítica de Reportes del prototipo).
@@ -123,6 +129,9 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
         }
       </div>
 
+      <!-- Las gráficas y listas de abajo (fuera de la primera pantalla en celular) se dibujan cuando el navegador
+           queda libre, así entrar a Reportes no arma todo en una sola tarea larga -->
+      @if (filasAbajo()) {
       <div class="row1">
         <div class="card">
           <div class="ct">
@@ -141,7 +150,7 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
               }
             </div>
             <div class="plotcol">
-              <div class="plot" (mousemove)="move($event)" (mouseleave)="hov.set(null)">
+              <div class="plot" (mousemove)="move($event)" (mouseleave)="hov.set(null); soltarCaja()">
                 <div class="gridlines"><i></i><i></i><i></i><i></i><i class="base"></i></div>
                 <svg viewBox="0 0 800 240" preserveAspectRatio="none">
                   <defs>
@@ -253,6 +262,9 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
           }
         </div>
       </div>
+      } @else {
+        <div class="filas-diferidas" aria-hidden="true"></div>
+      }
     </section>
     }
   `,
@@ -353,9 +365,12 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
     .ldt { height: 4px; border-radius: 999px; background: var(--wms-track); overflow: hidden; }
     .ldt > div { height: 100%; border-radius: 999px; background: var(--wms-text); transform-origin: left; animation: faGrow var(--dur-5) var(--ease-out) .45s backwards; }
     .none { padding: 18px; border-radius: 12px; border: 1px dashed var(--wms-border); text-align: center; font-size: 12px; color: var(--wms-muted); }
+    /* Lugar que ocupan las dos filas mientras se dibujan en tiempo libre (mismo alto medido: la página no salta) */
+    .filas-diferidas { min-height: 692px; }
     @media (max-width: 1100px) {
       .kgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .row1, .row2 { grid-template-columns: minmax(0, 1fr); }
+      .filas-diferidas { min-height: 1457px; }
     }
     @media (max-width: 760px) {
       .kgrid { gap: 12px; }
@@ -374,6 +389,8 @@ export class FleetActivityComponent implements OnInit {
     { v: 90, l: '90D' },
   ];
   readonly show = this.auth.can('dashboard') || this.auth.can('alerts');
+  /** Las dos filas de abajo (fuera de la primera pantalla en celular) se dibujan cuando el navegador queda libre. */
+  readonly filasAbajo = signal(false);
   readonly range = signal<Range>(7);
   readonly dash = signal<Dash | null>(null);
   readonly an = signal<Analytics | null>(null);
@@ -483,12 +500,19 @@ export class FleetActivityComponent implements OnInit {
       untracked(() => this.runTween(tg));
     });
     inject(DestroyRef).onDestroy(() => cancelAnimationFrame(this.raf));
+    if (!this.filasAbajo()) {
+      afterNextRender(() => {
+        const libre =
+          window.requestIdleCallback ?? ((f: IdleRequestCallback) => window.setTimeout(f, 200));
+        libre(() => this.filasAbajo.set(true), { timeout: 1500 });
+      });
+    }
   }
   private runTween(tg: Snap) {
     cancelAnimationFrame(this.raf);
     const from = this.view();
     // Primera vez (o sin datos todavía): sin transformación; la animación de entrada la hace el CSS.
-    if (!from || !from.cur.length || !tg.cur.length || reducedMotion()) {
+    if (!from || !from.cur.length || !tg.cur.length || reducedMotion() || tactil) {
       this.view.set(tg);
       return;
     }
@@ -508,11 +532,9 @@ export class FleetActivityComponent implements OnInit {
     const line = v.cur.length ? pathOf(v.cur, v.max) : '';
     const area = line ? `${line} L800,240 L0,240 Z` : '';
     const max = v.max;
-    const wd = (iso: string) =>
-      new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'short' }).format(new Date(iso)).replace('.', '');
+    const wd = (iso: string) => WD.format(new Date(iso)).replace('.', '');
     const weekly = this.an()?.bucket === 'week';
-    const dm = (iso: string) =>
-      new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short' }).format(new Date(iso)).replace('.', '');
+    const dm = (iso: string) => DM.format(new Date(iso)).replace('.', '');
     const every = days.length > 14 ? Math.ceil(days.length / 8) : 1;
     return {
       line,
@@ -542,10 +564,30 @@ export class FleetActivityComponent implements OnInit {
       prev: prev && prev[i] ? `${fmt.num(prev[i].km)} km` : null,
     };
   });
+  /** Caja del gráfico mientras el puntero está encima: se mide al entrar (y otra vez tras un scroll o resize), no en
+   *  cada movimiento, que obligaba a recalcular el diseño. */
+  private caja: DOMRect | null = null;
+  private escuchando = false;
+  readonly soltarCaja = () => {
+    this.caja = null;
+    if (!this.escuchando) return;
+    removeEventListener('scroll', this.soltarCaja, true);
+    removeEventListener('resize', this.soltarCaja);
+    this.escuchando = false;
+  };
+  private readonly limpiarCaja = inject(DestroyRef).onDestroy(() => this.soltarCaja());
   move(e: MouseEvent) {
     const n = this.series().cur.length;
     if (!n) return;
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    if (!this.caja) {
+      this.caja = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      if (!this.escuchando) {
+        addEventListener('scroll', this.soltarCaja, { passive: true, capture: true });
+        addEventListener('resize', this.soltarCaja, { passive: true });
+        this.escuchando = true;
+      }
+    }
+    const r = this.caja;
     const i = Math.round(((e.clientX - r.left) / r.width) * (n - 1));
     this.hov.set(Math.max(0, Math.min(n - 1, i)));
   }

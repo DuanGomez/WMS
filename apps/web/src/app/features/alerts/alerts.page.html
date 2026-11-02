@@ -104,7 +104,7 @@
         </div>
       } @else {
         <div class="list">
-          @for (a of shown(); track a.id) {
+          @for (a of visibles(); track a.id) {
             <div
               class="list-item alert-row clickable"
               wmsKeyClick
@@ -261,6 +261,7 @@
   [busy]="busy()"
   (action)="saveRule()"
 >
+      @if (listos(0)) {
   <form class="form-grid" (ngSubmit)="saveRule()">
     <div class="field full">
       <label for="rt">Tipo de alerta</label>
@@ -389,4 +390,5 @@
     }
     <button type="submit" hidden></button>
   </form>
-</app-sheet>
+      }
+    </app-sheet>

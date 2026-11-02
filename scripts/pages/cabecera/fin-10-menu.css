@@ -1,0 +1,11 @@
+/* menú lateral sólido */
+.drawer{background:var(--wms-panel),var(--wms-page)!important}
+/* el fondo del menú solo oscurece (cambiando su color, no su opacidad, para que el desenfoque de abajo vea la
+   página) y el desenfoque es una franja a la derecha del menú: se calcula sobre ~25 % de la pantalla, no toda. */
+.drawer-scrim,.drawer-scrim.open{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.drawer-scrim{opacity:1!important;background:transparent!important;visibility:hidden;transition:background-color var(--dur-3) var(--ease-fade),visibility 0s linear var(--dur-3)!important}
+.drawer-scrim.open{background:var(--wms-scrim)!important;visibility:visible;transition:background-color var(--dur-3) var(--ease-fade)!important}
+.drawer-scrim::before{content:"";position:absolute;top:0;bottom:0;right:0;left:calc(min(300px,84vw) - 16px);pointer-events:none;-webkit-backdrop-filter:blur(10px) saturate(140%)!important;backdrop-filter:blur(10px) saturate(140%)!important;opacity:0;transition:opacity var(--dur-3) var(--ease-fade)}
+.drawer-scrim.open::before{opacity:1}
+/* paneles del mapa y de geocercas, menús desplegables y globos del mapa sólidos */
+app-live-map .panel,app-live-map .vdrawer,app-geofences .panel,.glass-thick,.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--wms-panel),var(--wms-page)!important}

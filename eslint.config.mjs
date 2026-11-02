@@ -17,4 +17,25 @@ export default tseslint.config(
     files: ['**/*.mjs', 'scripts/**'],
     languageOptions: { globals: { process: 'readonly', console: 'readonly', fetch: 'readonly', setTimeout: 'readonly', localStorage: 'readonly' } },
   },
+  {
+    // Scripts que corren en el navegador (los inserta scripts/pages/ajustar.mjs en la demo); __APP__, __ACCESO__ y
+    // __SECCIONES__ los completa el build.
+    files: ['scripts/pages/cabecera/*.js', 'scripts/pages/precarga.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: Object.fromEntries(
+        [
+          'window', 'document', 'location', 'history', 'navigator', 'performance', 'addEventListener', 'innerHeight',
+          'matchMedia', 'requestAnimationFrame', 'setInterval', 'clearInterval', 'Worker', 'Blob', 'OffscreenCanvas',
+          'ResizeObserver', 'PerformanceObserver', 'Event', 'Document', 'self', 'URL', '__APP__', '__ACCESO__',
+          '__SECCIONES__',
+        ].map((g) => [g, 'readonly']),
+      ),
+    },
+    rules: {
+      // estilo de estos scripts: «a && b()» como instrucción y catch (e) sin usar e
+      '@typescript-eslint/no-unused-expressions': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { caughtErrors: 'none' }],
+    },
+  },
 );

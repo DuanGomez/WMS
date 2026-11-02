@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -20,6 +21,24 @@ import {
 } from '../../ui/components';
 import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective } from '../../ui/motion-directives';
+
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   open: { label: 'Abierto', tone: 'blue' },
@@ -156,6 +175,7 @@ const CATEGORIES: Record<string, string> = {
       [busy]="busy()"
       (action)="create()"
     >
+      @if (listos(0)) {
       <form class="form-grid" (ngSubmit)="create()">
         <div class="field full">
           <label for="ts">Asunto</label
@@ -204,6 +224,7 @@ const CATEGORIES: Record<string, string> = {
         }
         <button type="submit" hidden></button>
       </form>
+          }
     </app-sheet>
 
     <app-sheet
@@ -211,6 +232,7 @@ const CATEGORIES: Record<string, string> = {
       [title]="current() ? '#' + current()!.number : ''"
       cancelText="Cerrar"
     >
+      @if (listos(1)) {
       @if (current(); as t) {
         <h2 class="title-3">{{ t.subject }}</h2>
         <p class="caption" style="margin:4px 0 12px">
@@ -281,6 +303,7 @@ const CATEGORIES: Record<string, string> = {
           </form>
         }
       }
+          }
     </app-sheet>
   `,
   styles: `
@@ -361,6 +384,20 @@ export class SupportPage implements OnInit {
   );
   readonly createOpen = signal(false);
   readonly detailOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.createOpen() || this.detailOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 2) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly current = signal<Ticket | null>(null);
   readonly busy = signal(false);
   readonly formError = signal('');

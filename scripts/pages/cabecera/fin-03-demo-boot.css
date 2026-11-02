@@ -1,0 +1,2 @@
+/* La pantalla de carga de la app queda oculta: se ve la fija del HTML (pantalla-carga.css) */
+app-demo-boot .boot{display:none!important}

@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -21,6 +22,37 @@ import {
 import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective } from '../../ui/motion-directives';
 import { DetailComponent, DetailRow } from '../../ui/detail.component';
+
+
+/**
+ * Filas del panel de detalle: el mismo arreglo mientras no cambien sus datos, así el panel no se vuelve a dibujar en
+ * cada revisión de Angular; se rehacen cada 15 s por los textos «hace X».
+ */
+function memoFilas(cache: { k?: unknown[]; filas?: DetailRow[]; t?: number }, k: unknown[], crear: () => DetailRow[]) {
+  const ahora = Date.now();
+  const igual = !!cache.k && cache.k.length === k.length && k.every((x, i) => x === cache.k![i]);
+  if (igual && cache.filas && ahora - (cache.t ?? 0) < 15000) return cache.filas;
+  cache.k = k;
+  cache.t = ahora;
+  return (cache.filas = crear());
+}
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
 
 interface Meta {
   modules: Module[];
@@ -162,6 +194,7 @@ const ROLE_TONE: Record<string, string> = {
       [busy]="busy()"
       (action)="save()"
     >
+      @if (listos(0)) {
       <form class="form-grid" (ngSubmit)="save()">
         <div class="field full">
           <label for="un">Nombre completo</label
@@ -223,6 +256,7 @@ const ROLE_TONE: Record<string, string> = {
         }
         <button type="submit" hidden></button>
       </form>
+          }
     </app-sheet>
 
     <app-sheet
@@ -233,6 +267,7 @@ const ROLE_TONE: Record<string, string> = {
       (action)="savePerms()"
       [wide]="true"
     >
+      @if (listos(1)) {
       <p class="footnote" style="margin-bottom:12px">
         Los permisos parten del rol <strong>{{ permsUser()?.roleLabel }}</strong
         >. Cambia cualquier módulo para personalizarlo; el punto naranja indica un valor distinto al
@@ -260,6 +295,7 @@ const ROLE_TONE: Record<string, string> = {
           <app-icon name="undo" [size]="14" />Restaurar valores del rol
         </button>
       </div>
+          }
     </app-sheet>
   `,
   styles: `
@@ -290,12 +326,13 @@ export class UsersPage implements OnInit {
   // --- Solo presentación (rediseño): panel Detalle ---
   readonly detail = signal<User | null>(null);
   userRows(u: User): DetailRow[] {
-    return [
+    return memoFilas(this.filasCache, [u, this.modules()], () => [
       { k: 'Rol', v: u.roleLabel },
       { k: 'Permisos', v: `${this.countAccess(u)} de ${this.modules().length} módulos${this.overrides(u) ? ' · ' + this.overrides(u) + ' personalizados' : ''}` },
       { k: 'Último acceso', v: fmt.relative(u.lastLoginAt) },
-    ];
+    ]);
   }
+  private filasCache = {};
 
   private api = inject(Api);
   readonly auth = inject(Auth);
@@ -309,6 +346,20 @@ export class UsersPage implements OnInit {
   readonly roleF = signal('all');
   readonly sheetOpen = signal(false);
   readonly permsOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.sheetOpen() || this.permsOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 2) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly editing = signal<User | null>(null);
   readonly permsUser = signal<User | null>(null);
   readonly busy = signal(false);
@@ -359,8 +410,14 @@ export class UsersPage implements OnInit {
     const q = this.q().trim().toLowerCase();
     return !q || [u.name, u.email, u.roleLabel].some((x) => (x ?? '').toLowerCase().includes(q));
   }
+  /** Conteos por estado de acceso: una vez por cambio de datos o búsqueda, no en cada revisión (116). */
+  private readonly cuentasAct = computed(() => {
+    const c = { all: 0, on: 0, off: 0 };
+    for (const u of this.users()) if (this.matchQ(u)) { c.all++; if (u.active) c.on++; else c.off++; }
+    return c;
+  });
   countAct(f: 'all' | 'on' | 'off') {
-    return this.users().filter((u) => this.matchQ(u) && (f === 'all' || (f === 'on' ? u.active : !u.active))).length;
+    return this.cuentasAct()[f];
   }
   readonly filtered = computed(() => {
     const f = this.actF();

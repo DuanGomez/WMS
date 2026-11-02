@@ -435,25 +435,23 @@ textarea::placeholder {
 }
 
 /* ---------------------------- Animaciones de entrada ---------------------------- */
-/* Equivalen a mkA() del prototipo: opacidad .55s, blur .6s, transform .75s con retardo escalonado. */
+/* Iguales en todos los dispositivos (antes, con mouse, también pasaban por transparente y desenfoque):
+   - Sin desenfoque: filter se repinta en cada frame.
+   - El contenido de las páginas y las filas entra solo con el movimiento, sin pasar por transparente: al cambiar de
+     sección la página vieja se va y la nueva aparecía desde 0, y la pantalla quedaba vacía un instante (parpadeo). */
 @keyframes wms-in {
   from {
-    opacity: 0;
-    filter: blur(8px);
     transform: translateY(14px) scale(0.985);
   }
 }
 @keyframes wms-in-hero {
   from {
     opacity: 0;
-    filter: blur(3px);
     transform: translateY(8px) scale(0.996);
   }
 }
 @keyframes wms-row-in {
   from {
-    opacity: 0;
-    filter: blur(8px);
     transform: translateY(14px) scale(0.985);
   }
 }
@@ -475,14 +473,12 @@ textarea::placeholder {
 @keyframes wms-pop {
   from {
     opacity: 0;
-    filter: blur(8px);
     transform: translateY(-6px) scale(0.96);
   }
 }
 @keyframes wms-drawer {
   from {
     opacity: 0;
-    filter: blur(6px);
     transform: translateX(24px) scale(0.99);
   }
 }
@@ -490,7 +486,6 @@ textarea::placeholder {
 @keyframes wms-drawer-l {
   from {
     opacity: 0;
-    filter: blur(6px);
     transform: translateX(-14px) scale(0.99);
   }
 }
@@ -519,7 +514,8 @@ textarea::placeholder {
   gap: 16px;
   flex-wrap: wrap;
   margin-bottom: 18px;
-  animation: wms-fade var(--dur-2) var(--ease-fade) backwards !important;
+  /* Sin animación propia ni la de .page > *: solo entran sus textos (wms-mask). */
+  animation: none !important;
 }
 .page-head > div:first-child {
   display: flex;
@@ -2323,50 +2319,11 @@ table.table {
     transform: translate(-50%, -50%) scale(0.96);
   }
 }
-/* Pantallas táctiles: las mismas entradas y salidas sin el desenfoque (filter se repinta en cada frame; en gama
-   media bajaba los frames perdidos al cambiar de sección de ~18 % a ~14 % con GPU y de ~41 % a 31 % sin ella).
-   Con mouse se mantienen como están. Va antes del bloque móvil de wms-out-sheet, que debe seguir ganando.
-   El contenido de las páginas y las filas entra solo con el movimiento, sin pasar por transparente: al cambiar de
-   sección la página vieja se va y la nueva aparecía desde 0, y la pantalla quedaba vacía un instante (parpadeo;
-   en celular, ~24 niveles de brillo; así, 0–3). */
+/* Pantallas táctiles: las mismas salidas sin el desenfoque (filter se repinta en cada frame; en gama media bajaba
+   los frames perdidos al cambiar de sección de ~18 % a ~14 % con GPU y de ~41 % a 31 % sin ella). Con mouse se
+   mantienen como están. Las entradas ya no tienen desenfoque en ningún dispositivo.
+   Va antes del bloque móvil de wms-out-sheet, que debe seguir ganando. */
 @media (hover: none) and (pointer: coarse) {
-  @keyframes wms-in {
-    from {
-      transform: translateY(14px) scale(0.985);
-    }
-  }
-  .page-head {
-    animation: none !important;
-  }
-  @keyframes wms-in-hero {
-    from {
-      opacity: 0;
-      transform: translateY(8px) scale(0.996);
-    }
-  }
-  @keyframes wms-row-in {
-    from {
-      transform: translateY(14px) scale(0.985);
-    }
-  }
-  @keyframes wms-pop {
-    from {
-      opacity: 0;
-      transform: translateY(-6px) scale(0.96);
-    }
-  }
-  @keyframes wms-drawer {
-    from {
-      opacity: 0;
-      transform: translateX(24px) scale(0.99);
-    }
-  }
-  @keyframes wms-drawer-l {
-    from {
-      opacity: 0;
-      transform: translateX(-14px) scale(0.99);
-    }
-  }
   @keyframes wms-out-sheet {
     to {
       opacity: 0;

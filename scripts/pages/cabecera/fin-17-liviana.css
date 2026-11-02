@@ -1,0 +1,14 @@
+/* Versión liviana: sin animaciones de entrada (cada elemento queda en su estado final); las de interacción no cambian */
+html.v-liviana .page,html.v-liviana .page>*,html.v-liviana .page-head .eyebrow,html.v-liviana .page-head h1,html.v-liviana .page-head .large-title,html.v-liviana .page-head p,html.v-liviana .grid>*,html.v-liviana .list-item,html.v-liviana .table tbody tr,html.v-liviana .barcell i>span{animation:none!important}
+html.v-liviana app-bar-chart .bar{transform:none!important;transition:fill var(--dur-2)!important}
+/* Panel armado de antemano y oculto hasta abrirlo: invisible (sin toques, sin foco y fuera de la accesibilidad),
+   sin capa propia (nada de will-change permanente); al abrirlo corre su animación de
+   entrada de siempre */
+.sheet.wms-oculta{visibility:hidden;pointer-events:none;animation:none!important}
+.backdrop.wms-oculta{display:none!important}
+/* Primer cuadro del selector de opciones, antes de medir: el resaltado va sobre el botón activo (misma caja) */
+/* El idioma de las letras queda fijo (es-CO) aunque <html lang> cambie a inglés: para texto latino las letras son
+   idénticas, y así cambiar de idioma no obliga a recalcular el estilo ni a dar forma de nuevo a todo el texto */
+html:root{-webkit-locale:"es-CO"}
+.segmented.wms-sin-medir .thumb{visibility:hidden}
+.segmented.wms-sin-medir button[aria-selected=true]::before{content:"";position:absolute;inset:0;z-index:-1;box-sizing:border-box;border-radius:9px;background:var(--wms-chip);border:1px solid var(--wms-chip-border);box-shadow:var(--wms-chip-shadow)}

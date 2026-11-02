@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -24,6 +25,37 @@ import {
 import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective, MorphWidthDirective } from '../../ui/motion-directives';
 import { DetailComponent, DetailRow } from '../../ui/detail.component';
+
+
+/**
+ * Filas del panel de detalle: el mismo arreglo mientras no cambien sus datos, así el panel no se vuelve a dibujar en
+ * cada revisión de Angular; se rehacen cada 15 s por los textos «hace X».
+ */
+function memoFilas(cache: { k?: unknown[]; filas?: DetailRow[]; t?: number }, k: unknown[], crear: () => DetailRow[]) {
+  const ahora = Date.now();
+  const igual = !!cache.k && cache.k.length === k.length && k.every((x, i) => x === cache.k![i]);
+  if (igual && cache.filas && ahora - (cache.t ?? 0) < 15000) return cache.filas;
+  cache.k = k;
+  cache.t = ahora;
+  return (cache.filas = crear());
+}
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
 
 const REASONS: Record<string, string> = {
   robado: 'Robado',
@@ -168,6 +200,7 @@ const REASONS: Record<string, string> = {
       [busy]="busy()"
       (action)="save()"
     >
+      @if (listos(0)) {
       <form class="form-grid" (ngSubmit)="save()">
         @if (!editing()) {
           <div class="field">
@@ -235,9 +268,11 @@ const REASONS: Record<string, string> = {
         }
         <button type="submit" hidden></button>
       </form>
+          }
     </app-sheet>
 
     <app-sheet [(open)]="keyOpen" title="Credencial del dispositivo" cancelText="Cerrar">
+      @if (listos(1)) {
       <p class="footnote" style="margin-bottom:12px">
         Configura el equipo para enviar posiciones por HTTP POST a
         <span class="mono">/api/tracking/ingest</span> con esta cabecera:
@@ -254,6 +289,7 @@ const REASONS: Record<string, string> = {
         </button>
       </div>
       <pre class="card mono" style="margin-top:14px;font-size:12px;overflow:auto">{{ sample }}</pre>
+          }
     </app-sheet>
   `,
 })
@@ -261,14 +297,15 @@ export class DevicesPage implements OnInit, OnDestroy {
   // --- Solo presentación (rediseño): panel Detalle ---
   readonly detail = signal<Device | null>(null);
   deviceRows(d: Device): DetailRow[] {
-    return [
+    return memoFilas(this.filasCache, [d], () => [
       { k: 'Estado', v: this.status[d.status].label },
       { k: 'Batería', v: d.battery != null ? d.battery + '%' : '—' },
       { k: 'Vehículo', v: d.vehicle?.plate ?? 'Ninguno (en bodega)' },
       { k: 'Último reporte', v: fmt.relative(d.lastSeenAt) },
       ...(d.retiredReason ? [{ k: 'Motivo de baja', v: this.reasons[d.retiredReason] ?? d.retiredReason }] : []),
-    ];
+    ]);
   }
+  private filasCache = {};
 
   private api = inject(Api);
   readonly auth = inject(Auth);
@@ -283,6 +320,20 @@ export class DevicesPage implements OnInit, OnDestroy {
   readonly filter = signal('all');
   readonly sheetOpen = signal(false);
   readonly keyOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.sheetOpen() || this.keyOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 2) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly apiKey = signal('');
   readonly keyDevice = signal<Device | null>(null);
   readonly editing = signal<Device | null>(null);
@@ -335,11 +386,19 @@ x-device-key: <API key>
       (d) => !q || [d.serial, d.model, d.vehicle?.plate ?? ''].some((x) => (x ?? '').toLowerCase().includes(q)),
     );
   });
+  /** Conteos por filtro: una vez por cambio de datos o búsqueda, no en cada revisión (116). */
+  private readonly cuentasF = computed(() => ({ devices: this.devices(), q: this.q().trim().toLowerCase(), c: new Map<string, number>() }));
   countF(f: string) {
-    const q = this.q().trim().toLowerCase();
-    return this.devices().filter(
-      (d) => this.matches(d, f) && (!q || [d.serial, d.model, d.vehicle?.plate ?? ''].some((x) => (x ?? '').toLowerCase().includes(q))),
-    ).length;
+    const m = this.cuentasF();
+    let n = m.c.get(f);
+    if (n === undefined) {
+      const q = m.q;
+      n = m.devices.filter(
+        (d) => this.matches(d, f) && (!q || [d.serial, d.model, d.vehicle?.plate ?? ''].some((x) => (x ?? '').toLowerCase().includes(q))),
+      ).length;
+      m.c.set(f, n);
+    }
+    return n;
   }
   readonly stats = computed(() => {
     const live = this.devices().filter((d) => d.status !== 'retired');

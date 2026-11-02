@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -26,6 +27,37 @@ import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective, MorphWidthDirective } from '../../ui/motion-directives';
 import { PlaybackComponent } from '../map/playback.component';
 import { BoardDragDirective } from '../../ui/wms-fx';
+
+
+/**
+ * Filas del panel de detalle: el mismo arreglo mientras no cambien sus datos, así el panel no se vuelve a dibujar en
+ * cada revisión de Angular; se rehacen cada 15 s por los textos «hace X».
+ */
+function memoFilas(cache: { k?: unknown[]; filas?: DetailRow[]; t?: number }, k: unknown[], crear: () => DetailRow[]) {
+  const ahora = Date.now();
+  const igual = !!cache.k && cache.k.length === k.length && k.every((x, i) => x === cache.k![i]);
+  if (igual && cache.filas && ahora - (cache.t ?? 0) < 15000) return cache.filas;
+  cache.k = k;
+  cache.t = ahora;
+  return (cache.filas = crear());
+}
+/** Corre f cuando el navegador queda libre, sin chocar con un toque reciente ni con la página desplazándose. */
+const enTiempoLibre = (f: () => void, retraso: number) => {
+  const libre = (g: () => void) =>
+    typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 4000 }) : setTimeout(g, 200);
+  let y = NaN;
+  const intento = () => {
+    const toque = (globalThis as { __lastTap?: number }).__lastTap ?? -1e9;
+    if (performance.now() - toque < 1000 || window.scrollY !== y) {
+      y = window.scrollY;
+      setTimeout(() => libre(intento), 700);
+      return;
+    }
+    f();
+  };
+  setTimeout(() => libre(intento), retraso);
+};
+
 
 interface Form {
   plate: string;
@@ -92,6 +124,20 @@ export class VehiclesPage implements OnInit {
   readonly showRetired = signal(false);
   readonly sheetOpen = signal(false);
   readonly tripsOpen = signal(false);
+  /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
+   *  no al entrar a la sección; una vez creados se conservan. */
+  private readonly formularios = signal(0);
+  private formulariosHechos = false;
+  /** Panel i listo: ya se abrió alguno (se arman todos) o ya se armó en tiempo libre, de a un panel por tarea (108). */
+  listos(i = 0) {
+    return (this.formulariosHechos ||= this.sheetOpen() || this.tripsOpen()) || this.formularios() > i;
+  }
+  private readonly prepararFormularios = afterNextRender(() => enTiempoLibre(() => this.armarFormulario(), 1500));
+  /** Arma el formulario siguiente y deja los demás para otro momento libre. */
+  private armarFormulario() {
+    this.formularios.update((n) => n + 1);
+    if (this.formularios() < 3) enTiempoLibre(() => this.armarFormulario(), 0);
+  }
   readonly tripsVehicle = signal<Vehicle | null>(null);
   readonly editing = signal<Vehicle | null>(null);
   readonly busy = signal(false);
@@ -138,7 +184,7 @@ export class VehiclesPage implements OnInit {
     return (v.live?.speed ?? 0) >= 2 ? 'moving' : 'parked';
   }
   detailRows(v: Vehicle): DetailRow[] {
-    return [
+    return memoFilas(this.filasCache, [v], () => [
       { k: 'Tipo', v: this.types[v.type]?.label ?? v.type },
       { k: 'Marca y modelo', v: [v.brand, v.model].filter(Boolean).join(' ') || '—' },
       { k: 'Año', v: v.year ? String(v.year) : '—' },
@@ -148,8 +194,9 @@ export class VehiclesPage implements OnInit {
       { k: 'Batería GPS', v: v.device?.battery != null ? v.device.battery + '%' : '—' },
       { k: 'Última posición', v: v.live?.ts ? fmt.relative(v.live.ts) : 'Sin posición' },
       ...(v.retiredReason ? [{ k: 'Motivo de baja', v: v.retiredReason }] : []),
-    ];
+    ]);
   }
+  private filasCache = {};
 
   /** Tablero por estado (rediseño). Mismos datos que la tabla: `filtered()`. */
   readonly board = computed(() => {

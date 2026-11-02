@@ -1,0 +1,7 @@
+/* fondo en una sola capa quieta (mismos degradados que los 4 brillos de app-bg, encima del degradado de fondo) */
+app-bg{display:none!important}
+body::before{background:radial-gradient(50vh 32.5vh at calc(15% + 50vh) 7.5vh,color-mix(in srgb,var(--wms-glow-a) 80%,transparent),transparent),radial-gradient(35vh 35vh at calc(100% + 15vw - 35vh) 65vh,var(--wms-glow-b),transparent),radial-gradient(40vh 30vh at calc(40vh - 10vw) calc(100% - 10vh),var(--wms-glow-a),transparent),radial-gradient(22.5vh 22.5vh at calc(40% + 22.5vh) 67.5vh,var(--wms-glow-b),transparent),var(--wms-bg-gradient)!important}
+/* donde el fondo queda tapado no se dibuja */
+html:root.wms-nobg body::before{display:none!important}
+/* la tarjeta que se arrastra va en su propia capa de GPU */
+.wms-ghost{will-change:transform,translate}

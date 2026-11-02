@@ -1,9 +1,11 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
   inject,
+  Injector,
   OnDestroy,
   OnInit,
   signal,
@@ -33,9 +35,27 @@ interface Dashboard {
   recentAlerts: Alert[];
 }
 
-/** Un decimal fijo, como nf(v, 1) del prototipo. */
-const nf1 = (v: number) =>
-  new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
+/** Un decimal fijo, como nf(v, 1) del prototipo. El formateador se crea una vez (crearlo es caro). */
+const NF1 = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nf1 = (v: number) => NF1.format(v);
+const WEEKDAY = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'short' });
+
+
+/**
+ * Último resumen cargado y de quién es. Al volver a Inicio se dibuja de una vez con él (sin esqueleto y sin
+ * dibujar dos veces) y se refresca detrás; solo se usa si es del mismo usuario.
+ */
+let ultimo: { user: string; data: Dashboard } | null = null;
+
+/** Igualdad de dos respuestas de la API sin pasarlas a texto. */
+const igualJson = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b || Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) if (!igualJson((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) return false;
+  return true;
+};
 
 const TYPE_LABELS: Record<string, string> = {
   geofence_enter: 'Entrada a geocerca',
@@ -73,7 +93,14 @@ export class DashboardPage implements OnInit, OnDestroy {
   private live = inject(Live);
   private destroyRef = inject(DestroyRef);
   private toasts = inject(Toasts);
-  readonly data = signal<Dashboard | null>(null);
+  private readonly previo = ultimo?.user === this.auth.user()?.id ? ultimo : null;
+  readonly data = signal<Dashboard | null>(this.previo?.data ?? null);
+  private injector = inject(Injector);
+  /** La segunda fila (fuera de la primera pantalla en celular) se dibuja cuando el navegador queda libre. */
+  readonly segundaFila = signal(false);
+  private filaProgramada = false;
+  private lastLoad = 0;
+  private lastData: Dashboard | null = this.previo?.data ?? null;
   readonly error = signal('');
   private sub?: Subscription;
   private timer?: ReturnType<typeof setInterval>;
@@ -131,17 +158,32 @@ export class DashboardPage implements OnInit, OnDestroy {
   );
 
   dayLabel(iso: string) {
-    return new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'short' })
-      .format(new Date(iso))
-      .replace('.', '');
+    return WEEKDAY.format(new Date(iso)).replace('.', '');
+  }
+
+  /** Después de dibujar lo de arriba con datos, la segunda fila espera a que el navegador quede libre. */
+  private programarFila() {
+    if (this.filaProgramada || this.segundaFila() || this.destroyRef.destroyed) return;
+    this.filaProgramada = true;
+    afterNextRender(
+      () => {
+        const libre =
+          window.requestIdleCallback ?? ((f: IdleRequestCallback) => window.setTimeout(f, 200));
+        libre(() => this.segundaFila.set(true), { timeout: 1500 });
+      },
+      { injector: this.injector },
+    );
   }
 
   async ngOnInit() {
+    if (this.data()) this.programarFila();
     await this.load();
     // Si se salió de la vista mientras cargaba, no se crean la suscripción ni el intervalo (quedarían vivos).
     if (this.destroyRef.destroyed) return;
-    // KPIs se refrescan con cada alerta y cada 15 s
-    this.sub = this.live.alerts$.subscribe(() => this.load());
+    // KPIs se refrescan cada 15 s y con las alertas nuevas, como mucho una vez cada 15 s
+    this.sub = this.live.alerts$.subscribe(() => {
+      if (Date.now() - this.lastLoad > 15000) this.load();
+    });
     this.timer = setInterval(() => this.load(), 15000);
   }
   ngOnDestroy() {
@@ -151,7 +193,17 @@ export class DashboardPage implements OnInit, OnDestroy {
 
   async load() {
     try {
-      this.data.set(await this.api.get<Dashboard>('dashboard'));
+      const d = await this.api.get<Dashboard>('dashboard');
+      this.lastLoad = Date.now();
+      // Si el resumen no cambió, no se vuelve a dibujar
+      const user = this.auth.user()?.id;
+      if (user) ultimo = { user, data: d };
+      const igual = igualJson(d, this.lastData);
+      if (!igual) {
+        this.lastData = d;
+        this.data.set(d);
+      }
+      this.programarFila();
       this.error.set('');
     } catch (e) {
       if (!this.data()) this.error.set(errorMessage(e));
