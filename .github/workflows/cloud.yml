@@ -59,12 +59,14 @@ jobs:
       - name: Comprobar configuración
         id: cfg
         run: |
+          # Sin espacios ni tabuladores pegados por error al crear las variables en GitHub
+          limpio() { printf "%s" "$1" | tr -d "[:space:]"; }
           if [ "$AMBIENTE" = "production" ]; then
-            echo "api=${{ vars.PROD_API_URL }}" >> "$GITHUB_OUTPUT"
-            echo "proyecto=${{ vars.CF_PROJECT_PROD || 'wms-flota' }}" >> "$GITHUB_OUTPUT"
+            echo "api=$(limpio '${{ vars.PROD_API_URL }}')" >> "$GITHUB_OUTPUT"
+            echo "proyecto=$(limpio '${{ vars.CF_PROJECT_PROD || 'wms-flota' }}')" >> "$GITHUB_OUTPUT"
           else
-            echo "api=${{ vars.LAB_API_URL }}" >> "$GITHUB_OUTPUT"
-            echo "proyecto=${{ vars.CF_PROJECT_LAB || 'wms-flota-lab' }}" >> "$GITHUB_OUTPUT"
+            echo "api=$(limpio '${{ vars.LAB_API_URL }}')" >> "$GITHUB_OUTPUT"
+            echo "proyecto=$(limpio '${{ vars.CF_PROJECT_LAB || 'wms-flota-lab' }}')" >> "$GITHUB_OUTPUT"
           fi
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "::warning::Faltan los secretos de Cloudflare: no se despliega (ver docs/despliegue-nube.md)."
