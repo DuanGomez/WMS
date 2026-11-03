@@ -494,6 +494,12 @@
   height: calc(100dvh - var(--nav-h));
   overflow: hidden;
 }
+/* Geocercas en modo lista (clase que pone la página): la lista se desplaza con la página, como las demás secciones */
+.main.bleed.gf-lista {
+  height: auto;
+  overflow: visible;
+  overflow-x: clip;
+}
 
 /* ---------------- Móvil (≤760px): barra compacta + menú lateral ---------------- */
 .cur-title {
