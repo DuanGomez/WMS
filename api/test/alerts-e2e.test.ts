@@ -94,11 +94,11 @@ describe('Motor de alertas (RG4, RE3, RE4, RE5)', () => {
 
   it('detecta pérdida de señal del GPS desde el watchdog (RE5) y la recuperación', async () => {
     // Simula que el dispositivo del carro dejó de reportar hace 60 s
-    run(`UPDATE devices SET last_seen_at=@t, connection='online' WHERE api_key=@k`, {
+    await run(`UPDATE devices SET last_seen_at=@t, connection='online' WHERE api_key=@k`, {
       t: new Date(Date.now() - 60_000).toISOString(),
       k: carro.apiKey,
     });
-    const r = watchdogTick();
+    const r = await watchdogTick();
     expect(r.offline).toBeGreaterThanOrEqual(1);
     const loss = (await alerts('signal_loss')).filter(
       (a) => a.vehiclePlate === carro.plate && Date.now() - Date.parse(a.ts) < 10_000,

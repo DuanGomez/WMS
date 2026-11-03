@@ -38,7 +38,7 @@ function appliesTo(rule: RuleDto, vehicleId: string) {
 }
 
 /** Guarda la alerta, la emite en tiempo real y simula el envío por correo/push (bandeja "Notificaciones enviadas"). */
-export function fireAlert(
+export async function fireAlert(
   tenantId: string,
   rule: Pick<RuleDto, 'id' | 'channels' | 'recipients' | 'name'> | null,
   input: {
@@ -53,8 +53,8 @@ export function fireAlert(
     lng?: number | null;
     attended?: boolean;
   },
-): AlertDto {
-  const alert = alertsRepo.insert(tenantId, { ...input, ruleId: rule?.id || null });
+): Promise<AlertDto> {
+  const alert = await alertsRepo.insert(tenantId, { ...input, ruleId: rule?.id || null });
   publish(tenantId, 'alert', alert);
   const channels = rule?.channels ?? ['inapp'];
   const where =
@@ -64,7 +64,7 @@ export function fireAlert(
   const body = `${alert.description}${where}\nFecha: ${new Date(alert.ts).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}`;
   if (channels.includes('email')) {
     for (const to of rule?.recipients ?? []) {
-      const n = alertsRepo.insertNotification(tenantId, {
+      const n = await alertsRepo.insertNotification(tenantId, {
         alertId: alert.id,
         channel: 'email',
         recipient: to,
@@ -76,12 +76,12 @@ export function fireAlert(
     }
   }
   if (channels.includes('push')) {
-    const admins = all<{ name: string }>(
+    const admins = await all<{ name: string }>(
       `SELECT name FROM users WHERE company_id=@cid AND role IN ('admin','owner','supervisor') AND active=1 AND deleted_at IS NULL`,
       { cid: tenantId },
     );
     for (const u of admins) {
-      const n = alertsRepo.insertNotification(tenantId, {
+      const n = await alertsRepo.insertNotification(tenantId, {
         alertId: alert.id,
         channel: 'push',
         recipient: `${u.name} (app móvil)`,
@@ -103,17 +103,17 @@ export function fireAlert(
   return alert;
 }
 
-function geofenceTransitions(v: VehicleCtx, p: LatLng): { geofence: GeofenceDto; entered: boolean }[] {
+async function geofenceTransitions(v: VehicleCtx, p: LatLng): Promise<{ geofence: GeofenceDto; entered: boolean }[]> {
   const out: { geofence: GeofenceDto; entered: boolean }[] = [];
-  for (const g of geofencesRepo.forVehicle(v.companyId, v.id)) {
+  for (const g of await geofencesRepo.forVehicle(v.companyId, v.id)) {
     const inside = isInside(p, toShape(g));
-    const prev = geofencesRepo.getState(g.id, v.id);
+    const prev = await geofencesRepo.getState(g.id, v.id);
     if (!prev) {
-      geofencesRepo.setState(g.id, v.id, inside);
+      await geofencesRepo.setState(g.id, v.id, inside);
       continue;
     }
     if (!!prev.inside !== inside) {
-      geofencesRepo.setState(g.id, v.id, inside);
+      await geofencesRepo.setState(g.id, v.id, inside);
       out.push({ geofence: g, entered: inside });
     }
   }
@@ -121,16 +121,16 @@ function geofenceTransitions(v: VehicleCtx, p: LatLng): { geofence: GeofenceDto;
 }
 
 /** Evalúa todas las reglas activas del tenant para una nueva posición. Devuelve las alertas generadas. */
-export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
+export async function evaluatePosition(v: VehicleCtx, p: PositionCtx): Promise<AlertDto[]> {
   const tenantId = v.companyId;
-  const rules = alertsRepo.activeRules(tenantId).filter((r) => appliesTo(r, v.id));
+  const rules = (await alertsRepo.activeRules(tenantId)).filter((r) => appliesTo(r, v.id));
   const fired: AlertDto[] = [];
   const point: LatLng = [p.lat, p.lng];
   const base = { vehicleId: v.id, deviceId: v.deviceId, tripId: p.tripId, lat: p.lat, lng: p.lng };
-  const transitions = geofenceTransitions(v, point);
+  const transitions = await geofenceTransitions(v, point);
 
   for (const rule of rules) {
-    const state = alertsRepo.ruleState(rule.id, v.id);
+    const state = await alertsRepo.ruleState(rule.id, v.id);
     const firing = !!state?.firing;
     switch (rule.type) {
       case 'geofence_enter':
@@ -140,7 +140,7 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
           if (t.entered !== wantEnter) continue;
           if (rule.geofenceId && rule.geofenceId !== t.geofence.id) continue;
           fired.push(
-            fireAlert(tenantId, rule, {
+            await fireAlert(tenantId, rule, {
               ...base,
               type: rule.type,
               priority: rule.priority,
@@ -153,13 +153,13 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
       }
       case 'route_deviation': {
         if (!rule.geofenceId) break;
-        const g = geofencesRepo.forVehicle(tenantId, v.id).find((x) => x.id === rule.geofenceId);
+        const g = (await geofencesRepo.forVehicle(tenantId, v.id)).find((x) => x.id === rule.geofenceId);
         if (!g) break;
         const inside = isInside(point, toShape(g));
         if (!inside && !firing) {
-          alertsRepo.setRuleState(rule.id, v.id, true, true);
+          await alertsRepo.setRuleState(rule.id, v.id, true, true);
           fired.push(
-            fireAlert(tenantId, rule, {
+            await fireAlert(tenantId, rule, {
               ...base,
               type: 'route_deviation',
               priority: rule.priority,
@@ -168,7 +168,7 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
             }),
           );
         } else if (inside && firing) {
-          alertsRepo.setRuleState(rule.id, v.id, false);
+          await alertsRepo.setRuleState(rule.id, v.id, false);
         }
         break;
       }
@@ -176,9 +176,9 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
         const threshold = rule.threshold ?? 600;
         const stoppedFor = p.stoppedSince ? (Date.parse(p.ts) - Date.parse(p.stoppedSince)) / 1000 : 0;
         if (p.stoppedSince && stoppedFor >= threshold && !firing) {
-          alertsRepo.setRuleState(rule.id, v.id, true, true);
+          await alertsRepo.setRuleState(rule.id, v.id, true, true);
           fired.push(
-            fireAlert(tenantId, rule, {
+            await fireAlert(tenantId, rule, {
               ...base,
               type: 'prolonged_stop',
               priority: rule.priority,
@@ -187,16 +187,16 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
             }),
           );
         } else if (!p.stoppedSince && firing) {
-          alertsRepo.setRuleState(rule.id, v.id, false);
+          await alertsRepo.setRuleState(rule.id, v.id, false);
         }
         break;
       }
       case 'speeding': {
         const limit = rule.threshold ?? 60;
         if (p.speed > limit && !firing) {
-          alertsRepo.setRuleState(rule.id, v.id, true, true);
+          await alertsRepo.setRuleState(rule.id, v.id, true, true);
           fired.push(
-            fireAlert(tenantId, rule, {
+            await fireAlert(tenantId, rule, {
               ...base,
               type: 'speeding',
               priority: rule.priority,
@@ -205,7 +205,7 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
             }),
           );
         } else if (p.speed < limit - 5 && firing) {
-          alertsRepo.setRuleState(rule.id, v.id, false);
+          await alertsRepo.setRuleState(rule.id, v.id, false);
         }
         break;
       }
@@ -213,9 +213,9 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
         const minSpeed = rule.threshold ?? 5;
         const suspicious = !p.ignition && p.speed > minSpeed;
         if (suspicious && !firing) {
-          alertsRepo.setRuleState(rule.id, v.id, true, true);
+          await alertsRepo.setRuleState(rule.id, v.id, true, true);
           fired.push(
-            fireAlert(tenantId, rule, {
+            await fireAlert(tenantId, rule, {
               ...base,
               type: 'theft',
               priority: 'critical',
@@ -224,16 +224,16 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
             }),
           );
         } else if (!suspicious && firing && p.ignition) {
-          alertsRepo.setRuleState(rule.id, v.id, false);
+          await alertsRepo.setRuleState(rule.id, v.id, false);
         }
         break;
       }
       case 'low_battery': {
         const min = rule.threshold ?? 20;
         if (p.battery != null && p.battery < min && !firing) {
-          alertsRepo.setRuleState(rule.id, v.id, true, true);
+          await alertsRepo.setRuleState(rule.id, v.id, true, true);
           fired.push(
-            fireAlert(tenantId, rule, {
+            await fireAlert(tenantId, rule, {
               ...base,
               type: 'low_battery',
               priority: rule.priority,
@@ -242,13 +242,13 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
             }),
           );
         } else if (p.battery != null && p.battery > min + 5 && firing) {
-          alertsRepo.setRuleState(rule.id, v.id, false);
+          await alertsRepo.setRuleState(rule.id, v.id, false);
         }
         break;
       }
       case 'signal_loss':
         // Al recibir datos la señal está presente: se rearma la regla (el watchdog la dispara).
-        if (firing) alertsRepo.setRuleState(rule.id, v.id, false);
+        if (firing) await alertsRepo.setRuleState(rule.id, v.id, false);
         break;
     }
   }
@@ -256,8 +256,8 @@ export function evaluatePosition(v: VehicleCtx, p: PositionCtx): AlertDto[] {
 }
 
 /** Umbral efectivo de pérdida de señal (s) por tenant: el menor de sus reglas activas, o 120 s por defecto. */
-function signalThreshold(tenantId: string): number {
-  const r = get<{ t: number | null }>(
+async function signalThreshold(tenantId: string): Promise<number> {
+  const r = await get<{ t: number | null }>(
     `SELECT MIN(threshold) t FROM alert_rules WHERE company_id=@cid AND type='signal_loss' AND active=1 AND deleted_at IS NULL`,
     { cid: tenantId },
   );
@@ -265,11 +265,11 @@ function signalThreshold(tenantId: string): number {
 }
 
 /** Tick del watchdog: detecta dispositivos silenciosos (RE5), paradas prolongadas (RE4) y cierra recorridos inactivos. */
-export function watchdogTick(): { offline: number; alerts: number } {
+export async function watchdogTick(): Promise<{ offline: number; alerts: number }> {
   let offline = 0;
   let alerts = 0;
   const t = Date.now();
-  const devices = all<any>(
+  const devices = await all<any>(
     `SELECT d.*, v.id AS vehicle_id, v.plate, l.lat, l.lng, u.name AS driver_name
      FROM devices d LEFT JOIN vehicles v ON v.device_id = d.id AND v.retired_at IS NULL
      LEFT JOIN vehicle_live l ON l.vehicle_id = v.id LEFT JOIN users u ON u.id = v.driver_id
@@ -277,10 +277,10 @@ export function watchdogTick(): { offline: number; alerts: number } {
   );
   const thresholds = new Map<string, number>();
   for (const d of devices) {
-    if (!thresholds.has(d.company_id)) thresholds.set(d.company_id, signalThreshold(d.company_id));
+    if (!thresholds.has(d.company_id)) thresholds.set(d.company_id, await signalThreshold(d.company_id));
     const silentFor = (t - Date.parse(d.last_seen_at)) / 1000;
     if (silentFor < thresholds.get(d.company_id)!) continue;
-    run(`UPDATE devices SET connection='offline', updated_at=@ts WHERE id=@id`, { id: d.id, ts: now() });
+    await run(`UPDATE devices SET connection='offline', updated_at=@ts WHERE id=@id`, { id: d.id, ts: now() });
     offline++;
     publish(d.company_id, 'device', {
       id: d.id,
@@ -289,15 +289,15 @@ export function watchdogTick(): { offline: number; alerts: number } {
       lastSeenAt: d.last_seen_at,
     });
     if (!d.vehicle_id) continue;
-    const rules = alertsRepo
-      .activeRules(d.company_id)
+    const rules = (await alertsRepo
+      .activeRules(d.company_id))
       .filter(
         (r) => r.type === 'signal_loss' && appliesTo(r, d.vehicle_id) && silentFor >= (r.threshold ?? 120),
       );
     for (const rule of rules) {
-      if (alertsRepo.ruleState(rule.id, d.vehicle_id)?.firing) continue;
-      alertsRepo.setRuleState(rule.id, d.vehicle_id, true, true);
-      fireAlert(d.company_id, rule, {
+      if ((await alertsRepo.ruleState(rule.id, d.vehicle_id))?.firing) continue;
+      await alertsRepo.setRuleState(rule.id, d.vehicle_id, true, true);
+      await fireAlert(d.company_id, rule, {
         type: 'signal_loss',
         priority: rule.priority,
         vehicleId: d.vehicle_id,
@@ -312,7 +312,7 @@ export function watchdogTick(): { offline: number; alerts: number } {
   }
 
   // Paradas prolongadas con dispositivo en línea (respaldo del chequeo en ingest)
-  const stopped = all<any>(
+  const stopped = await all<any>(
     `SELECT l.*, v.plate, v.type, v.device_id, u.name AS driver_name,
        (SELECT id FROM trips WHERE vehicle_id = v.id AND status='open' LIMIT 1) AS trip_id
      FROM vehicle_live l JOIN vehicles v ON v.id = l.vehicle_id LEFT JOIN users u ON u.id = v.driver_id
@@ -320,7 +320,7 @@ export function watchdogTick(): { offline: number; alerts: number } {
      WHERE l.stopped_since IS NOT NULL AND d.connection='online' AND v.retired_at IS NULL`,
   );
   for (const s of stopped) {
-    const fired = evaluateStopOnly(
+    const fired = await evaluateStopOnly(
       {
         id: s.vehicle_id,
         plate: s.plate,
@@ -345,16 +345,16 @@ export function watchdogTick(): { offline: number; alerts: number } {
   return { offline, alerts };
 }
 
-function evaluateStopOnly(v: VehicleCtx, p: PositionCtx): number {
+async function evaluateStopOnly(v: VehicleCtx, p: PositionCtx): Promise<number> {
   let n = 0;
-  for (const rule of alertsRepo.activeRules(v.companyId)) {
+  for (const rule of await alertsRepo.activeRules(v.companyId)) {
     if (rule.type !== 'prolonged_stop' || !appliesTo(rule, v.id)) continue;
-    if (alertsRepo.ruleState(rule.id, v.id)?.firing) continue;
+    if ((await alertsRepo.ruleState(rule.id, v.id))?.firing) continue;
     const threshold = rule.threshold ?? 600;
     const stoppedFor = (Date.parse(p.ts) - Date.parse(p.stoppedSince!)) / 1000;
     if (stoppedFor < threshold) continue;
-    alertsRepo.setRuleState(rule.id, v.id, true, true);
-    fireAlert(v.companyId, rule, {
+    await alertsRepo.setRuleState(rule.id, v.id, true, true);
+    await fireAlert(v.companyId, rule, {
       type: 'prolonged_stop',
       priority: rule.priority,
       vehicleId: v.id,

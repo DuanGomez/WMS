@@ -29,10 +29,10 @@ export function signAccessToken(user: { id: string; company_id: string; role: st
   });
 }
 
-export function issueRefreshToken(userId: string): string {
+export async function issueRefreshToken(userId: string): Promise<string> {
   const token = randomToken(48);
   const expires = new Date(Date.now() + config.refreshTtlDays * 86400_000).toISOString();
-  run(
+  await run(
     `INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (@id, @uid, @h, @exp, @now)`,
     { id: id(), uid: userId, h: sha256(token), exp: expires, now: now() },
   );
@@ -40,34 +40,34 @@ export function issueRefreshToken(userId: string): string {
 }
 
 /** Rotación: el refresh token usado se revoca y se emite uno nuevo. */
-export function consumeRefreshToken(token: string): string {
-  const row = get<{ id: string; user_id: string; expires_at: string; revoked_at: string | null }>(
+export async function consumeRefreshToken(token: string): Promise<string> {
+  const row = await get<{ id: string; user_id: string; expires_at: string; revoked_at: string | null }>(
     `SELECT id, user_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = @h`,
     { h: sha256(token) },
   );
   if (!row || row.revoked_at || row.expires_at < now())
     throw unauthorized('La sesión expiró. Inicia sesión de nuevo.');
-  run(`UPDATE refresh_tokens SET revoked_at = @now WHERE id = @id`, { id: row.id, now: now() });
+  await run(`UPDATE refresh_tokens SET revoked_at = @now WHERE id = @id`, { id: row.id, now: now() });
   return row.user_id;
 }
 
-export function revokeRefreshToken(token: string) {
-  run(`UPDATE refresh_tokens SET revoked_at = @now WHERE token_hash = @h AND revoked_at IS NULL`, {
+export async function revokeRefreshToken(token: string) {
+  await run(`UPDATE refresh_tokens SET revoked_at = @now WHERE token_hash = @h AND revoked_at IS NULL`, {
     h: sha256(token),
     now: now(),
   });
 }
 
-export function revokeAllRefreshTokens(userId: string) {
-  run(`UPDATE refresh_tokens SET revoked_at = @now WHERE user_id = @uid AND revoked_at IS NULL`, {
+export async function revokeAllRefreshTokens(userId: string) {
+  await run(`UPDATE refresh_tokens SET revoked_at = @now WHERE user_id = @uid AND revoked_at IS NULL`, {
     uid: userId,
     now: now(),
   });
 }
 
 /** Carga el usuario fresco desde la BD (permisos y estado siempre actualizados). */
-export function loadAuthUser(userId: string): AuthUser | null {
-  const u = get<any>(
+export async function loadAuthUser(userId: string): Promise<AuthUser | null> {
+  const u = await get<any>(
     `SELECT u.*, c.is_platform,
        (SELECT s.status FROM subscriptions s WHERE s.company_id = u.company_id ORDER BY s.started_at DESC LIMIT 1) AS sub_status
      FROM users u JOIN companies c ON c.id = u.company_id
@@ -87,7 +87,7 @@ export function loadAuthUser(userId: string): AuthUser | null {
   };
 }
 
-export function authenticate(token: string | null | undefined): AuthUser {
+export async function authenticate(token: string | null | undefined): Promise<AuthUser> {
   if (!token) throw unauthorized();
   let payload: jwt.JwtPayload;
   try {
@@ -95,7 +95,7 @@ export function authenticate(token: string | null | undefined): AuthUser {
   } catch {
     throw unauthorized('Token inválido o expirado.');
   }
-  const user = loadAuthUser(String(payload.sub));
+  const user = await loadAuthUser(String(payload.sub));
   if (!user || user.companyId !== payload.cid) throw unauthorized('Usuario inactivo o inexistente.');
   return user;
 }

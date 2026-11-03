@@ -14,6 +14,18 @@ export default tseslint.config(
     },
   },
   {
+    // La API habla con la base de forma asíncrona: una consulta sin await es un error silencioso (datos a medias o
+    // escrituras fuera de la transacción). Estas reglas usan los tipos para detectarlo.
+    files: ['api/src/**/*.ts', 'api/test/**/*.ts', 'scripts/seed.ts'],
+    ignores: ['api/src/demo/**'],
+    languageOptions: { parserOptions: { project: './api/tsconfig.eslint.json', tsconfigRootDir: import.meta.dirname } },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: { attributes: false } }],
+    },
+  },
+  {
     files: ['**/*.mjs', 'scripts/**'],
     languageOptions: { globals: { process: 'readonly', console: 'readonly', fetch: 'readonly', setTimeout: 'readonly', localStorage: 'readonly' } },
   },

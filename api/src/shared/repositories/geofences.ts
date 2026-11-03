@@ -32,17 +32,17 @@ export interface GeofenceInput {
   active?: boolean;
 }
 
-const map = (r: any): GeofenceDto => {
-  const vehicleIds = all<{ vehicle_id: string }>(
+const map = async (r: any): Promise<GeofenceDto> => {
+  const vehicleIds = (await all<{ vehicle_id: string }>(
     `SELECT vehicle_id FROM geofence_vehicles WHERE geofence_id=@id`,
     { id: r.id },
-  ).map((x) => x.vehicle_id);
-  const inside = all<{ vehicle_id: string }>(
+  )).map((x) => x.vehicle_id);
+  const inside = (await all<{ vehicle_id: string }>(
     `SELECT vehicle_id FROM geofence_state WHERE geofence_id=@id AND inside=1`,
     {
       id: r.id,
     },
-  ).map((x) => x.vehicle_id);
+  )).map((x) => x.vehicle_id);
   return {
     id: r.id,
     name: r.name,
@@ -71,15 +71,15 @@ export const toShape = (
 });
 
 export const geofencesRepo = {
-  list(tenantId: string, opts: { onlyActive?: boolean } = {}): GeofenceDto[] {
-    return all(
+  async list(tenantId: string, opts: { onlyActive?: boolean } = {}): Promise<GeofenceDto[]> {
+    return Promise.all((await all(
       `SELECT * FROM geofences WHERE company_id=@cid AND deleted_at IS NULL AND (@only = 0 OR active = 1) ORDER BY name`,
       { cid: tenantId, only: opts.onlyActive ? 1 : 0 },
-    ).map(map);
+    )).map(map));
   },
 
-  get(tenantId: string, geofenceId: string): GeofenceDto {
-    const r = get(`SELECT * FROM geofences WHERE id=@id AND company_id=@cid AND deleted_at IS NULL`, {
+  async get(tenantId: string, geofenceId: string): Promise<GeofenceDto> {
+    const r = await get(`SELECT * FROM geofences WHERE id=@id AND company_id=@cid AND deleted_at IS NULL`, {
       id: geofenceId,
       cid: tenantId,
     });
@@ -88,32 +88,32 @@ export const geofencesRepo = {
   },
 
   /** Geocercas activas que aplican a un vehículo (todas o las asociadas explícitamente). */
-  forVehicle(tenantId: string, vehicleId: string): GeofenceDto[] {
-    return all(
+  async forVehicle(tenantId: string, vehicleId: string): Promise<GeofenceDto[]> {
+    return Promise.all((await all(
       `SELECT g.* FROM geofences g WHERE g.company_id=@cid AND g.deleted_at IS NULL AND g.active=1
          AND (g.all_vehicles=1 OR EXISTS (SELECT 1 FROM geofence_vehicles gv WHERE gv.geofence_id=g.id AND gv.vehicle_id=@vid))`,
       { cid: tenantId, vid: vehicleId },
-    ).map(map);
+    )).map(map));
   },
 
-  validVehicleIds(tenantId: string, ids: string[]): string[] {
+  async validVehicleIds(tenantId: string, ids: string[]): Promise<string[]> {
     if (!ids.length) return [];
     const ok = new Set(
-      all<{ id: string }>(`SELECT id FROM vehicles WHERE company_id=@cid AND retired_at IS NULL`, {
+      (await all<{ id: string }>(`SELECT id FROM vehicles WHERE company_id=@cid AND retired_at IS NULL`, {
         cid: tenantId,
-      }).map((v) => v.id),
+      })).map((v) => v.id),
     );
     const bad = ids.filter((x) => !ok.has(x));
     if (bad.length) throw notFound('Vehículo asociado');
     return ids;
   },
 
-  create(tenantId: string, input: GeofenceInput): GeofenceDto {
+  async create(tenantId: string, input: GeofenceInput): Promise<GeofenceDto> {
     const gid = id();
     const ts = now();
-    const vehicleIds = this.validVehicleIds(tenantId, input.vehicleIds ?? []);
-    tx(() => {
-      run(
+    const vehicleIds = await this.validVehicleIds(tenantId, input.vehicleIds ?? []);
+    await tx(async () => {
+      await run(
         `INSERT INTO geofences (id, company_id, name, description, shape, center_lat, center_lng, radius_m, coordinates, color, all_vehicles, active, created_at, updated_at)
          VALUES (@id,@cid,@name,@desc,@shape,@clat,@clng,@r,@coords,@color,@all,@active,@ts,@ts)`,
         {
@@ -133,21 +133,21 @@ export const geofencesRepo = {
         },
       );
       for (const v of vehicleIds)
-        run(`INSERT INTO geofence_vehicles (geofence_id, vehicle_id) VALUES (@g,@v)`, { g: gid, v });
+        await run(`INSERT INTO geofence_vehicles (geofence_id, vehicle_id) VALUES (@g,@v)`, { g: gid, v });
     });
     return this.get(tenantId, gid);
   },
 
-  update(tenantId: string, geofenceId: string, data: Partial<GeofenceInput>): GeofenceDto {
-    const cur = this.get(tenantId, geofenceId);
+  async update(tenantId: string, geofenceId: string, data: Partial<GeofenceInput>): Promise<GeofenceDto> {
+    const cur = await this.get(tenantId, geofenceId);
     const next = { ...cur, ...data };
     const shapeChanged =
       data.shape !== undefined ||
       data.center !== undefined ||
       data.coordinates !== undefined ||
       data.radiusM !== undefined;
-    tx(() => {
-      run(
+    await tx(async () => {
+      await run(
         `UPDATE geofences SET name=@name, description=@desc, shape=@shape, center_lat=@clat, center_lng=@clng, radius_m=@r,
            coordinates=@coords, color=@color, active=@active, updated_at=@ts WHERE id=@id AND company_id=@cid`,
         {
@@ -166,28 +166,28 @@ export const geofencesRepo = {
         },
       );
       if (data.vehicleIds) {
-        const ids = this.validVehicleIds(tenantId, data.vehicleIds);
-        run(`DELETE FROM geofence_vehicles WHERE geofence_id=@g`, { g: geofenceId });
+        const ids = await this.validVehicleIds(tenantId, data.vehicleIds);
+        await run(`DELETE FROM geofence_vehicles WHERE geofence_id=@g`, { g: geofenceId });
         for (const v of ids)
-          run(`INSERT INTO geofence_vehicles (geofence_id, vehicle_id) VALUES (@g,@v)`, { g: geofenceId, v });
-        run(`UPDATE geofences SET all_vehicles=@all WHERE id=@g`, { all: ids.length === 0, g: geofenceId });
+          await run(`INSERT INTO geofence_vehicles (geofence_id, vehicle_id) VALUES (@g,@v)`, { g: geofenceId, v });
+        await run(`UPDATE geofences SET all_vehicles=@all WHERE id=@g`, { all: ids.length === 0, g: geofenceId });
       }
       // Si cambió la forma, el estado dentro/fuera se recalcula con la siguiente posición.
-      if (shapeChanged) run(`DELETE FROM geofence_state WHERE geofence_id=@g`, { g: geofenceId });
+      if (shapeChanged) await run(`DELETE FROM geofence_state WHERE geofence_id=@g`, { g: geofenceId });
     });
     return this.get(tenantId, geofenceId);
   },
 
   /** RF8: borrado lógico. */
-  remove(tenantId: string, geofenceId: string) {
-    this.get(tenantId, geofenceId);
-    tx(() => {
-      run(`UPDATE geofences SET deleted_at=@ts, active=0 WHERE id=@id AND company_id=@cid`, {
+  async remove(tenantId: string, geofenceId: string) {
+    await this.get(tenantId, geofenceId);
+    await tx(async () => {
+      await run(`UPDATE geofences SET deleted_at=@ts, active=0 WHERE id=@id AND company_id=@cid`, {
         ts: now(),
         id: geofenceId,
         cid: tenantId,
       });
-      run(`DELETE FROM geofence_state WHERE geofence_id=@g`, { g: geofenceId });
+      await run(`DELETE FROM geofence_state WHERE geofence_id=@g`, { g: geofenceId });
     });
   },
 

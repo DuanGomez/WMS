@@ -49,7 +49,7 @@ Docente: **Jhon Hernández**
 10. [Metodología SCRUM](#10-metodología-scrum)
 11. [Matriz de cumplimiento de requisitos](#11-matriz-de-cumplimiento-de-requisitos)
 12. [Calidad y pruebas](#12-calidad-y-pruebas)
-13. [Despliegue: GitHub Pages y Azure](#13-despliegue-github-pages-y-azure)
+13. [Despliegue: nube, GitHub Pages y Azure](#13-despliegue-nube-github-pages-y-azure)
 14. [Licencia y créditos](#14-licencia-y-créditos)
 
 ---
@@ -566,7 +566,14 @@ Las pruebas usan una base SQLite temporal por archivo con el mismo seed de la de
 
 ---
 
-## 13. Despliegue: GitHub Pages y Azure
+## 13. Despliegue: nube, GitHub Pages y Azure
+
+### 13.0 Nube: laboratorio y producción
+
+WMS corre en la nube en **dos ambientes** con bases de datos separadas: **laboratorio** (rama `main`, datos demo y simulador GPS en el servidor) y **producción** (rama `production`, base vacía, sin cuentas demo). Frontend en **Cloudflare Pages**, API en **Render** y base de datos **PostgreSQL en Neon**. La guía paso a paso está en [docs/despliegue-nube.md](docs/despliegue-nube.md).
+
+- La capa de datos ([api/src/shared/db.ts](api/src/shared/db.ts)) es asíncrona y tiene dos motores con la misma interfaz: **SQLite** (local, pruebas y demo) y **PostgreSQL** (nube). Las pruebas corren contra ambos (`WMS_TEST_DB=postgres npm run test:api`, con PGlite en memoria).
+- **Invitaciones de conductores:** en *Conductores › Invitar con QR* se crea un enlace con código QR; cada persona se registra desde su celular, comparte su ubicación y aparece en el mapa en vivo.
 
 ### 13.1 Demo en GitHub Pages (sin servidor)
 
@@ -579,14 +586,14 @@ GitHub Pages solo sirve archivos estáticos, así que el build de Pages (`npm ru
 - En Angular, la configuración `pages` define `WMS_DEMO=true`: un `HttpBackend` entrega cada petición `/api/*` al Worker por mensajes y el tiempo real usa polling.
 - El workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) construye y publica en cada *push* a `main`.
 
-**Limitación honesta:** en la demo cada navegador tiene su propia base de datos. La ubicación del celular de un conductor se ve en el mapa del administrador **en el mismo navegador** (cambiando de cuenta); para verla entre dispositivos distintos se usa el backend real (`npm run dev` o Azure).
+**Limitación honesta:** en la demo cada navegador tiene su propia base de datos. La ubicación del celular de un conductor se ve en el mapa del administrador **en el mismo navegador** (cambiando de cuenta); para verla entre dispositivos distintos se usa el backend real (`npm run dev` o la nube).
 
 ### 13.2 Despliegue en Azure
 
 
 1. **Azure Static Web Apps** para `apps/web` (`npm run build -w apps/web` → `dist/web/browser`), con una regla de *fallback* a `index.html`.
 2. **Azure Functions** (plan Flex Consumption, Node 24) para `api`: `npm run build -w api` y `func azure functionapp publish <app>`. Configura `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGIN` y `DEMO_MODE=false` en *App settings*.
-3. **Datos:** reemplaza `shared/db.ts` y `repositories/` por Azure SQL o Cosmos DB. El SQLite local no es apto para varias instancias.
+3. **Datos:** define `DATABASE_URL` con un PostgreSQL (Azure Database for PostgreSQL); la capa de datos ya lo soporta. El SQLite local no es apto para varias instancias.
 4. **Tiempo real a escala:** sustituye el bus en memoria por **Azure Web PubSub o SignalR Service**, porque las instancias de Functions no comparten memoria.
 5. **Ingesta masiva:** IoT Hub o Event Hubs delante de `tracking-ingest`.
 

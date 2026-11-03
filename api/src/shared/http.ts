@@ -52,8 +52,8 @@ export interface StreamDef {
   name: string;
   route: string;
   guard: Guard;
-  /** Devuelve una función de limpieza que se llama al cerrar la conexión. */
-  handler: (req: Req, ctx: Ctx, send: Send) => () => void;
+  /** Devuelve (o resuelve) una función de limpieza que se llama al cerrar la conexión. */
+  handler: (req: Req, ctx: Ctx, send: Send) => (() => void) | Promise<() => void>;
 }
 
 export interface TimerDef {
@@ -81,12 +81,12 @@ function azure() {
 }
 
 /** Resuelve el usuario y valida rol/permiso del guard. */
-export function resolveCtx(guard: Guard, req: Req): Ctx {
+export async function resolveCtx(guard: Guard, req: Req): Promise<Ctx> {
   if (guard === 'public') return { user: null as unknown as AuthUser, tenantId: '' };
   const header = req.headers.get('authorization');
   const token = header?.startsWith('Bearer ') ? header.slice(7) : req.query.get('access_token');
   if (!token) throw unauthorized();
-  const user = authenticate(token);
+  const user = await authenticate(token);
   if (guard !== 'authenticated') {
     if ('roles' in guard && guard.roles && !guard.roles.includes(user.role)) throw forbidden();
     if ('module' in guard) requirePermission(user, guard.module, guard.level);
@@ -99,7 +99,7 @@ export async function execute(
   req: Req,
 ): Promise<{ status: number; headers: Record<string, string>; body?: Uint8Array | string; json?: unknown }> {
   try {
-    const ctx = resolveCtx(def.guard, req);
+    const ctx = await resolveCtx(def.guard, req);
     const res = await def.handler(req, ctx);
     const status = res.status ?? (res.json === undefined && res.body === undefined ? 204 : 200);
     return { status, headers: res.headers ?? {}, body: res.body, json: res.json };
@@ -161,21 +161,23 @@ export function defineStream(def: Omit<StreamDef, 'kind'>) {
         };
         let ctx: Ctx;
         try {
-          ctx = resolveCtx(def.guard, req);
+          ctx = await resolveCtx(def.guard, req);
         } catch (e) {
           const { status, body } = toErrorBody(e);
           return { status, jsonBody: body };
         }
         const encoder = new TextEncoder();
-        let cleanup: () => void = () => {};
+        let cleanup: (() => void) | null = null;
+        let closed = false;
         const stream = new ReadableStream({
           start(controller) {
             const send: Send = (event, data) =>
               controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-            cleanup = def.handler(req, ctx, send);
+            void Promise.resolve(def.handler(req, ctx, send)).then((c) => (closed ? c() : (cleanup = c)));
           },
           cancel() {
-            cleanup();
+            closed = true;
+            cleanup?.();
           },
         });
         return {

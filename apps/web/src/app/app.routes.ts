@@ -28,6 +28,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/reset.page').then((m) => m.ResetPage),
   },
   {
+    // Invitación de conductores (enlace o QR): pública, la persona se registra desde su celular
+    path: 'unirse/:code',
+    title: 'Únete como conductor · WMS',
+    loadComponent: () => import('./features/auth/join.page').then((m) => m.JoinPage),
+  },
+  {
     path: 'compartido/:token',
     title: 'Reporte compartido · WMS',
     loadComponent: () =>

@@ -131,22 +131,22 @@ export interface AlertFilter {
 
 export const alertsRepo = {
   /* Reglas (RF15, RF17, RF18) */
-  listRules: (tenantId: string): RuleDto[] =>
-    all(`${RULE_SQL} ORDER BY r.active DESC, r.name`, { cid: tenantId }).map(mapRule),
+  listRules: async (tenantId: string): Promise<RuleDto[]> =>
+    (await all(`${RULE_SQL} ORDER BY r.active DESC, r.name`, { cid: tenantId })).map(mapRule),
 
-  activeRules: (tenantId: string): RuleDto[] =>
-    all(`${RULE_SQL} AND r.active=1`, { cid: tenantId }).map(mapRule),
+  activeRules: async (tenantId: string): Promise<RuleDto[]> =>
+    (await all(`${RULE_SQL} AND r.active=1`, { cid: tenantId })).map(mapRule),
 
-  getRule(tenantId: string, ruleId: string): RuleDto {
-    const r = get(`${RULE_SQL} AND r.id=@id`, { cid: tenantId, id: ruleId });
+  async getRule(tenantId: string, ruleId: string): Promise<RuleDto> {
+    const r = await get(`${RULE_SQL} AND r.id=@id`, { cid: tenantId, id: ruleId });
     if (!r) throw notFound('Regla de alerta');
     return mapRule(r);
   },
 
-  checkRefs(tenantId: string, input: Partial<RuleInput>) {
+  async checkRefs(tenantId: string, input: Partial<RuleInput>) {
     if (input.geofenceId) {
       if (
-        !get(`SELECT id FROM geofences WHERE id=@id AND company_id=@cid AND deleted_at IS NULL`, {
+        !await get(`SELECT id FROM geofences WHERE id=@id AND company_id=@cid AND deleted_at IS NULL`, {
           id: input.geofenceId,
           cid: tenantId,
         })
@@ -155,16 +155,16 @@ export const alertsRepo = {
       }
     }
     for (const v of input.vehicleIds ?? []) {
-      if (!get(`SELECT id FROM vehicles WHERE id=@id AND company_id=@cid`, { id: v, cid: tenantId }))
+      if (!await get(`SELECT id FROM vehicles WHERE id=@id AND company_id=@cid`, { id: v, cid: tenantId }))
         throw notFound('Vehículo');
     }
   },
 
-  createRule(tenantId: string, input: RuleInput): RuleDto {
-    this.checkRefs(tenantId, input);
+  async createRule(tenantId: string, input: RuleInput): Promise<RuleDto> {
+    await this.checkRefs(tenantId, input);
     const rid = id();
     const ts = now();
-    run(
+    await run(
       `INSERT INTO alert_rules (id, company_id, name, type, threshold, geofence_id, vehicle_ids, recipients, channels, priority, active, created_at, updated_at)
        VALUES (@id,@cid,@name,@type,@threshold,@geofence,@vehicles,@recipients,@channels,@priority,@active,@ts,@ts)`,
       {
@@ -185,11 +185,11 @@ export const alertsRepo = {
     return this.getRule(tenantId, rid);
   },
 
-  updateRule(tenantId: string, ruleId: string, data: Partial<RuleInput>): RuleDto {
-    const cur = this.getRule(tenantId, ruleId);
-    this.checkRefs(tenantId, data);
+  async updateRule(tenantId: string, ruleId: string, data: Partial<RuleInput>): Promise<RuleDto> {
+    const cur = await this.getRule(tenantId, ruleId);
+    await this.checkRefs(tenantId, data);
     const next = { ...cur, ...data };
-    run(
+    await run(
       `UPDATE alert_rules SET name=@name, type=@type, threshold=@threshold, geofence_id=@geofence, vehicle_ids=@vehicles,
          recipients=@recipients, channels=@channels, priority=@priority, active=@active, updated_at=@ts WHERE id=@id AND company_id=@cid`,
       {
@@ -207,18 +207,18 @@ export const alertsRepo = {
         cid: tenantId,
       },
     );
-    run(`DELETE FROM rule_state WHERE rule_id=@id`, { id: ruleId });
+    await run(`DELETE FROM rule_state WHERE rule_id=@id`, { id: ruleId });
     return this.getRule(tenantId, ruleId);
   },
 
-  removeRule(tenantId: string, ruleId: string) {
-    this.getRule(tenantId, ruleId);
-    run(`UPDATE alert_rules SET deleted_at=@ts, active=0 WHERE id=@id AND company_id=@cid`, {
+  async removeRule(tenantId: string, ruleId: string) {
+    await this.getRule(tenantId, ruleId);
+    await run(`UPDATE alert_rules SET deleted_at=@ts, active=0 WHERE id=@id AND company_id=@cid`, {
       ts: now(),
       id: ruleId,
       cid: tenantId,
     });
-    run(`DELETE FROM rule_state WHERE rule_id=@id`, { id: ruleId });
+    await run(`DELETE FROM rule_state WHERE rule_id=@id`, { id: ruleId });
   },
 
   /* Estado por regla y vehículo (evita alertas repetidas mientras la condición persiste) */
@@ -240,7 +240,7 @@ export const alertsRepo = {
     ),
 
   /* Historial (RF16) */
-  list(tenantId: string, f: AlertFilter = {}): { items: AlertDto[]; total: number; open: number } {
+  async list(tenantId: string, f: AlertFilter = {}): Promise<{ items: AlertDto[]; total: number; open: number }> {
     const where = `
       AND (@type IS NULL OR a.type = @type)
       AND (@vehicle IS NULL OR a.vehicle_id = @vehicle)
@@ -259,26 +259,26 @@ export const alertsRepo = {
       limit: f.limit ?? 50,
       offset: f.offset ?? 0,
     };
-    const items = all(`${ALERT_SQL} ${where} ORDER BY a.ts DESC LIMIT @limit OFFSET @offset`, params).map(
+    const items = (await all(`${ALERT_SQL} ${where} ORDER BY a.ts DESC LIMIT @limit OFFSET @offset`, params)).map(
       mapAlert,
     );
-    const total = get<{ n: number }>(
+    const total = (await get<{ n: number }>(
       `SELECT COUNT(*) n FROM alerts a WHERE a.company_id=@cid ${where}`,
       params,
-    )!.n;
-    const open = get<{ n: number }>(`SELECT COUNT(*) n FROM alerts WHERE company_id=@cid AND attended=0`, {
+    ))!.n;
+    const open = (await get<{ n: number }>(`SELECT COUNT(*) n FROM alerts WHERE company_id=@cid AND attended=0`, {
       cid: tenantId,
-    })!.n;
+    }))!.n;
     return { items, total, open };
   },
 
-  get(tenantId: string, alertId: string): AlertDto {
-    const r = get(`${ALERT_SQL} AND a.id=@id`, { cid: tenantId, id: alertId });
+  async get(tenantId: string, alertId: string): Promise<AlertDto> {
+    const r = await get(`${ALERT_SQL} AND a.id=@id`, { cid: tenantId, id: alertId });
     if (!r) throw notFound('Alerta');
     return mapAlert(r);
   },
 
-  insert(
+  async insert(
     tenantId: string,
     a: {
       ruleId?: string | null;
@@ -294,9 +294,9 @@ export const alertsRepo = {
       ts?: string;
       attended?: boolean;
     },
-  ): AlertDto {
+  ): Promise<AlertDto> {
     const aid = id();
-    run(
+    await run(
       `INSERT INTO alerts (id, company_id, rule_id, vehicle_id, device_id, trip_id, type, priority, title, description, lat, lng, ts, attended, attended_at)
        VALUES (@id,@cid,@rule,@vehicle,@device,@trip,@type,@priority,@title,@desc,@lat,@lng,@ts,@attended,@attendedAt)`,
       {
@@ -320,9 +320,9 @@ export const alertsRepo = {
     return this.get(tenantId, aid);
   },
 
-  attend(tenantId: string, alertId: string, userId: string): AlertDto {
-    this.get(tenantId, alertId);
-    run(`UPDATE alerts SET attended=1, attended_by=@u, attended_at=@ts WHERE id=@id AND company_id=@cid`, {
+  async attend(tenantId: string, alertId: string, userId: string): Promise<AlertDto> {
+    await this.get(tenantId, alertId);
+    await run(`UPDATE alerts SET attended=1, attended_by=@u, attended_at=@ts WHERE id=@id AND company_id=@cid`, {
       u: userId,
       ts: now(),
       id: alertId,
@@ -331,24 +331,24 @@ export const alertsRepo = {
     return this.get(tenantId, alertId);
   },
 
-  attendAll(tenantId: string, userId: string): number {
-    return run(
+  async attendAll(tenantId: string, userId: string): Promise<number> {
+    return (await run(
       `UPDATE alerts SET attended=1, attended_by=@u, attended_at=@ts WHERE company_id=@cid AND attended=0`,
       {
         u: userId,
         ts: now(),
         cid: tenantId,
       },
-    ).changes;
+    )).changes;
   },
 
   /* Bandeja de notificaciones enviadas (correo/push simulados) */
-  insertNotification(
+  async insertNotification(
     tenantId: string,
     n: { alertId?: string | null; channel: Channel; recipient: string; subject: string; body: string },
   ) {
     const nid = id();
-    run(
+    await run(
       `INSERT INTO notifications (id, company_id, alert_id, channel, recipient, subject, body, status, created_at)
        VALUES (@id,@cid,@alert,@channel,@recipient,@subject,@body,'sent',@ts)`,
       {
@@ -365,14 +365,14 @@ export const alertsRepo = {
     return { id: nid, ...n, status: 'sent', createdAt: now() };
   },
 
-  notifications(tenantId: string, limit = 100) {
-    return all<any>(
+  async notifications(tenantId: string, limit = 100) {
+    return (await all<any>(
       `SELECT * FROM notifications WHERE company_id=@cid ORDER BY created_at DESC LIMIT @limit`,
       {
         cid: tenantId,
         limit,
       },
-    ).map((r) => ({
+    )).map((r) => ({
       id: r.id,
       alertId: r.alert_id,
       channel: r.channel,

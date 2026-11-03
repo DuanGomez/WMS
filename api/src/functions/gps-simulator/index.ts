@@ -25,8 +25,8 @@ let heartbeat: {
   vehicles: [],
 };
 
-function readState(): SimState {
-  const r = get<{ state: string }>(`SELECT state FROM simulator_state WHERE id = 1`);
+async function readState(): Promise<SimState> {
+  const r = await get<{ state: string }>(`SELECT state FROM simulator_state WHERE id = 1`);
   const s: SimState = r ? JSON.parse(r.state) : { paused: false, speedFactor: 1, scenarios: [] };
   // Descarta escenarios vencidos (con margen para desvíos que tardan en regresar)
   s.scenarios = s.scenarios.filter(
@@ -35,8 +35,8 @@ function readState(): SimState {
   return s;
 }
 
-function writeState(s: SimState) {
-  run(
+async function writeState(s: SimState) {
+  await run(
     `INSERT INTO simulator_state (id, state) VALUES (1, @s) ON CONFLICT(id) DO UPDATE SET state = excluded.state`,
     {
       s: JSON.stringify(s),
@@ -49,11 +49,11 @@ function checkKey(req: Req) {
 }
 
 /** Vehículos simulados que pertenecen al tenant (para no exponer los de otras empresas). */
-function tenantFleet(tenantId: string) {
+async function tenantFleet(tenantId: string) {
   const plates = new Set(
-    all<{ plate: string }>(`SELECT plate FROM vehicles WHERE company_id=@cid AND retired_at IS NULL`, {
+    (await all<{ plate: string }>(`SELECT plate FROM vehicles WHERE company_id=@cid AND retired_at IS NULL`, {
       cid: tenantId,
-    }).map((v) => v.plate),
+    })).map((v) => v.plate),
   );
   return SIM_FLEET.filter((v) => plates.has(v.plate));
 }
@@ -63,9 +63,9 @@ defineHttp({
   route: 'simulator/control',
   methods: ['GET'],
   guard: 'public',
-  handler: (req) => {
+  handler: async (req) => {
     checkKey(req);
-    return ok(readState());
+    return ok(await readState());
   },
 });
 
@@ -86,10 +86,10 @@ defineHttp({
   route: 'simulator/state',
   methods: ['GET'],
   guard: { module: 'simulator', level: 'read' },
-  handler: (_req, ctx) => {
-    const fleet = tenantFleet(ctx.tenantId);
+  handler: async (_req, ctx) => {
+    const fleet = await tenantFleet(ctx.tenantId);
     const keys = new Set(fleet.map((f) => f.key));
-    const s = readState();
+    const s = await readState();
     return ok({
       connected: Date.now() - heartbeat.at < 6000,
       lastHeartbeatAt: heartbeat.at ? new Date(heartbeat.at).toISOString() : null,
@@ -120,14 +120,14 @@ defineHttp({
   route: 'simulator/state',
   methods: ['PATCH'],
   guard: { module: 'simulator', level: 'write' },
-  handler: (req) => {
+  handler: async (req) => {
     const body = parse(
       z.object({ paused: z.boolean().optional(), speedFactor: z.number().int().min(1).max(4).optional() }),
       req.body,
     );
-    const s = readState();
-    writeState({ ...s, ...body });
-    return ok({ ...readState() });
+    const s = await readState();
+    await writeState({ ...s, ...body });
+    return ok({ ...await readState() });
   },
 });
 
@@ -137,14 +137,14 @@ defineHttp({
   route: 'simulator/scenarios',
   methods: ['POST'],
   guard: { module: 'simulator', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({ vehicleKey: z.string(), type: z.enum(['stop', 'signal_loss', 'deviation', 'theft']) }),
       req.body,
     );
-    if (!tenantFleet(ctx.tenantId).some((f) => f.key === body.vehicleKey))
+    if (!(await tenantFleet(ctx.tenantId)).some((f) => f.key === body.vehicleKey))
       throw notFound('Vehículo simulado');
-    const s = readState();
+    const s = await readState();
     if (s.scenarios.some((x) => x.vehicleKey === body.vehicleKey)) {
       throw badRequest('Ese vehículo ya tiene un escenario en curso. Espera a que termine.');
     }
@@ -156,7 +156,7 @@ defineHttp({
       requestedAt: now(),
     };
     s.scenarios.push(scenario);
-    writeState(s);
+    await writeState(s);
     return created(scenario);
   },
 });

@@ -1,0 +1,95 @@
+# Despliegue del frontend en Cloudflare Pages (la API se despliega sola en Render desde la misma rama).
+#  - push a «main»        → ambiente de laboratorio (proyecto CF_PROJECT_LAB,  API LAB_API_URL)
+#  - push a «production»  → ambiente de producción  (proyecto CF_PROJECT_PROD, API PROD_API_URL)
+# Antes de publicar corre el lint y las pruebas (la API también contra PostgreSQL, como en la nube).
+# Configuración (Settings › Secrets and variables › Actions):
+#   secretos:  CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+#   variables: LAB_API_URL, PROD_API_URL, CF_PROJECT_LAB (wms-flota-lab), CF_PROJECT_PROD (wms-flota)
+name: Desplegar en la nube
+
+on:
+  push:
+    branches: [main, production]
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: Ambiente a desplegar
+        type: choice
+        options: [lab, production]
+        default: lab
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - name: Pruebas de la API (SQLite)
+        run: npm run test:api
+      - name: Pruebas de la API (PostgreSQL)
+        run: npm run test:api
+        env:
+          WMS_TEST_DB: postgres
+      - name: Pruebas del frontend
+        run: npm test -w apps/web
+
+  desplegar:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    env:
+      AMBIENTE: ${{ inputs.ambiente || (github.ref_name == 'production' && 'production' || 'lab') }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Comprobar configuración
+        id: cfg
+        run: |
+          if [ "$AMBIENTE" = "production" ]; then
+            echo "api=${{ vars.PROD_API_URL }}" >> "$GITHUB_OUTPUT"
+            echo "proyecto=${{ vars.CF_PROJECT_PROD || 'wms-flota' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "api=${{ vars.LAB_API_URL }}" >> "$GITHUB_OUTPUT"
+            echo "proyecto=${{ vars.CF_PROJECT_LAB || 'wms-flota-lab' }}" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::Faltan los secretos de Cloudflare: no se despliega (ver docs/despliegue-nube.md)."
+            echo "listo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=si" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.cfg.outputs.listo == 'si'
+        uses: actions/checkout@v4
+      - if: steps.cfg.outputs.listo == 'si'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - if: steps.cfg.outputs.listo == 'si'
+        run: npm ci
+      - if: steps.cfg.outputs.listo == 'si'
+        name: Build (${{ env.AMBIENTE }})
+        run: node scripts/build-cloud.mjs
+        env:
+          WMS_ENV: ${{ env.AMBIENTE }}
+          WMS_API_URL: ${{ steps.cfg.outputs.api }}
+      - if: steps.cfg.outputs.listo == 'si'
+        name: Publicar en Cloudflare Pages
+        run: |
+          npx --yes wrangler@4 pages project create "${{ steps.cfg.outputs.proyecto }}" --production-branch main || true
+          npx --yes wrangler@4 pages deploy apps/web/dist/web/browser \
+            --project-name "${{ steps.cfg.outputs.proyecto }}" --branch main --commit-dirty=true

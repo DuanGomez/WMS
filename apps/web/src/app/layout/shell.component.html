@@ -11,6 +11,9 @@
       <strong class="hide-mobile">WMS</strong>
       <span class="sr-only only-mobile">WMS</span><span class="sr-only">, ir al inicio</span>
     </a>
+    @if (envBadge) {
+      <span class="env-badge" [title]="envBadge.title">{{ envBadge.label }}</span>
+    }
     <span class="cur-title only-mobile">{{ current() }}</span>
 
     <nav class="nav hide-mobile" wmsNavPill>

@@ -5,7 +5,7 @@ import { Api } from './api.service';
 import { Auth } from './auth.service';
 import { ALERT_ICONS } from './format';
 import { Alert, DriverMarker, Geofence, LatLng, LivePosition, NotificationItem, Vehicle } from './models';
-import { DEMO } from './runtime';
+import { API_URL, DEMO } from './runtime';
 import { pref, Toasts } from './ui.services';
 
 export interface LiveSnapshot {
@@ -94,7 +94,7 @@ export class Live {
     const token = this.auth.accessToken();
     // En el demo de GitHub Pages la API vive en el navegador: no hay SSE, se consulta por polling.
     if (DEMO || !token || typeof EventSource === 'undefined') return this.startPolling();
-    const es = new EventSource(`/api/tracking/stream?access_token=${encodeURIComponent(token)}`);
+    const es = new EventSource(`${API_URL}/api/tracking/stream?access_token=${encodeURIComponent(token)}`);
     this.es = es;
     es.addEventListener('hello', () => {
       this.failures = 0;

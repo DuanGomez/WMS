@@ -6,6 +6,7 @@ import './functions/auth';
 import './functions/users';
 import './functions/vehicles';
 import './functions/drivers';
+import './functions/invites';
 import './functions/devices';
 import './functions/geofences';
 import './functions/alerts';
@@ -18,7 +19,7 @@ import './functions/watchdog-timer';
 import './functions/gps-simulator';
 import { getDb } from './shared/db';
 
-// Abre la base de datos y aplica migraciones al arrancar.
-getDb();
+// Abre la base de datos y aplica migraciones al arrancar (el servidor también lo espera antes de escuchar).
+getDb().catch((e) => console.error("[db] no se pudo abrir la base de datos:", e));
 
 export { registry } from './shared/http';

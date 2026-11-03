@@ -21,6 +21,7 @@ import { EmptyComponent, SheetComponent, SkeletonListComponent } from '../../ui/
 import { IconComponent } from '../../ui/icon.component';
 import { DebounceInputDirective } from '../../ui/motion-directives';
 import { DetailComponent, DetailRow } from '../../ui/detail.component';
+import { InvitesComponent } from './invites.component';
 
 
 /**
@@ -64,7 +65,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 /** RE7 / HU8 – Registrar conductores y asociarlos a vehículos. */
 @Component({
   selector: 'app-drivers',
-  imports: [DebounceInputDirective, FormsModule, IconComponent, SheetComponent, EmptyComponent, SkeletonListComponent, DetailComponent, DtPipe],
+  imports: [InvitesComponent, DebounceInputDirective, FormsModule, IconComponent, SheetComponent, EmptyComponent, SkeletonListComponent, DetailComponent, DtPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -76,6 +77,9 @@ const STATUS: Record<string, { label: string; tone: string }> = {
         </div>
         <div class="actions">
           @if (canWrite()) {
+            <button class="btn" type="button" (click)="invitesOpen.set(true)">
+              <app-icon name="qr-code" [size]="14" />Invitar con QR
+            </button>
             <button class="btn primary" type="button" (click)="openCreate()">
               <app-icon name="plus" [size]="14" />Nuevo conductor
             </button>
@@ -333,6 +337,9 @@ const STATUS: Record<string, { label: string; tone: string }> = {
       </p>
       }
     </app-sheet>
+    @if (canWrite()) {
+      <app-invites [(open)]="invitesOpen" />
+    }
   `,
   styles: `
     .driver .avatar {
@@ -397,6 +404,8 @@ export class DriversPage implements OnInit {
   /** Solo en la primera carga: al recargar (guardar, filtrar) la lista sigue visible, sin pasar por el esqueleto. */
   readonly loading = signal(true);
   readonly sheetOpen = signal(false);
+  /** Invitaciones con enlace / QR para que los conductores se registren solos. */
+  readonly invitesOpen = signal(false);
   readonly assignOpen = signal(false);
   /** Los formularios de los paneles se crean la primera vez que se abre uno o en tiempo libre después de entrar,
    *  no al entrar a la sección; una vez creados se conservan. */

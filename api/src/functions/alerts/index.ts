@@ -56,7 +56,7 @@ defineHttp({
   route: 'alert-rules',
   methods: ['GET'],
   guard: { module: 'alerts', level: 'read' },
-  handler: (_req, ctx) => ok(alertsRepo.listRules(ctx.tenantId)),
+  handler: async (_req, ctx) => ok(await alertsRepo.listRules(ctx.tenantId)),
 });
 
 defineHttp({
@@ -64,10 +64,10 @@ defineHttp({
   route: 'alert-rules',
   methods: ['POST'],
   guard: { module: 'alerts', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(ruleBody, req.body);
     validateRule(body);
-    return created(alertsRepo.createRule(ctx.tenantId, body));
+    return created(await alertsRepo.createRule(ctx.tenantId, body));
   },
 });
 
@@ -76,11 +76,11 @@ defineHttp({
   route: 'alert-rules/{id}',
   methods: ['PATCH'],
   guard: { module: 'alerts', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(ruleBody.partial(), req.body);
-    const cur = alertsRepo.getRule(ctx.tenantId, req.params.id);
+    const cur = await alertsRepo.getRule(ctx.tenantId, req.params.id);
     validateRule({ ...cur, ...body });
-    return ok(alertsRepo.updateRule(ctx.tenantId, req.params.id, body));
+    return ok(await alertsRepo.updateRule(ctx.tenantId, req.params.id, body));
   },
 });
 
@@ -89,8 +89,8 @@ defineHttp({
   route: 'alert-rules/{id}',
   methods: ['DELETE'],
   guard: { module: 'alerts', level: 'write' },
-  handler: (req, ctx) => {
-    alertsRepo.removeRule(ctx.tenantId, req.params.id);
+  handler: async (req, ctx) => {
+    await alertsRepo.removeRule(ctx.tenantId, req.params.id);
     return noContent();
   },
 });
@@ -101,15 +101,15 @@ defineHttp({
   route: 'alerts',
   methods: ['GET'],
   guard: { module: 'alerts', level: 'read' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const q = req.query;
     let vehicleId = q.get('vehicleId') ?? undefined;
     if (ctx.user.role === 'driver') {
-      vehicleId = vehiclesRepo.list(ctx.tenantId, { driverId: ctx.user.id })[0]?.id ?? '__none__';
+      vehicleId = (await vehiclesRepo.list(ctx.tenantId, { driverId: ctx.user.id }))[0]?.id ?? '__none__';
     }
     const attended = q.get('attended');
     return ok(
-      alertsRepo.list(ctx.tenantId, {
+      await alertsRepo.list(ctx.tenantId, {
         type: q.get('type') ?? undefined,
         priority: q.get('priority') ?? undefined,
         vehicleId,
@@ -129,7 +129,7 @@ defineHttp({
   route: 'alerts/{id}/attend',
   methods: ['POST'],
   guard: { module: 'alerts', level: 'write' },
-  handler: (req, ctx) => ok(alertsRepo.attend(ctx.tenantId, req.params.id, ctx.user.id)),
+  handler: async (req, ctx) => ok(await alertsRepo.attend(ctx.tenantId, req.params.id, ctx.user.id)),
 });
 
 defineHttp({
@@ -137,7 +137,7 @@ defineHttp({
   route: 'alerts/attend-all',
   methods: ['POST'],
   guard: { module: 'alerts', level: 'write' },
-  handler: (_req, ctx) => ok({ updated: alertsRepo.attendAll(ctx.tenantId, ctx.user.id) }),
+  handler: async (_req, ctx) => ok({ updated: await alertsRepo.attendAll(ctx.tenantId, ctx.user.id) }),
 });
 
 /* Bandeja de notificaciones enviadas (correo / push simulados) */
@@ -146,5 +146,5 @@ defineHttp({
   route: 'notifications',
   methods: ['GET'],
   guard: { module: 'alerts', level: 'read' },
-  handler: (req, ctx) => ok(alertsRepo.notifications(ctx.tenantId, qInt(req, 'limit', 100, 1, 500))),
+  handler: async (req, ctx) => ok(await alertsRepo.notifications(ctx.tenantId, qInt(req, 'limit', 100, 1, 500))),
 });

@@ -90,6 +90,9 @@ import {
   Zap,
   createElement,
   type IconNode,
+  Maximize,
+  QrCode,
+  UserPlus,
 } from 'lucide';
 
 /** Trazos propios del prototipo (IC/IW) donde no coinciden con Lucide. */
@@ -121,6 +124,9 @@ export const ICONS: Record<string, IconNode> = {
   'circle-check': CircleCheck,
   clock: Clock,
   copy: Copy,
+  maximize: Maximize,
+  'qr-code': QrCode,
+  'user-plus': UserPlus,
   'credit-card': CreditCard,
   crosshair: Crosshair,
   download: Download,

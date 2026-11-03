@@ -9,6 +9,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { catchError, firstValueFrom, from, switchMap, throwError } from 'rxjs';
 import { AuthResponse, Level, Module, Session } from './models';
+import { apiUrl } from './runtime';
 
 const KEY = 'wms.session';
 
@@ -59,7 +60,7 @@ export class Auth {
 
   async login(email: string, password: string) {
     const r = await firstValueFrom(
-      this.raw.post<AuthResponse>('/api/auth/login', { email, password }),
+      this.raw.post<AuthResponse>(apiUrl('/api/auth/login'), { email, password }),
     );
     this.setSession(r);
     return r.user;
@@ -71,7 +72,7 @@ export class Auth {
     const s = this.state();
     if (!s) return Promise.resolve(null);
     this.refreshing = firstValueFrom(
-      this.raw.post<AuthResponse>('/api/auth/refresh', { refreshToken: s.refreshToken }),
+      this.raw.post<AuthResponse>(apiUrl('/api/auth/refresh'), { refreshToken: s.refreshToken }),
     )
       .then((r) => {
         this.setSession(r);
@@ -91,7 +92,7 @@ export class Auth {
     const s = this.state();
     if (s)
       await firstValueFrom(
-        this.raw.post('/api/auth/logout', { refreshToken: s.refreshToken }),
+        this.raw.post(apiUrl('/api/auth/logout'), { refreshToken: s.refreshToken }),
       ).catch(() => {});
     this.clear();
   }

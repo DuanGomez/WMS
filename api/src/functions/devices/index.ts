@@ -8,9 +8,9 @@ defineHttp({
   route: 'devices',
   methods: ['GET'],
   guard: { module: 'devices', level: 'read' },
-  handler: (req, ctx) =>
+  handler: async (req, ctx) =>
     ok(
-      devicesRepo.list(ctx.tenantId, {
+      await devicesRepo.list(ctx.tenantId, {
         includeRetired: req.query.get('includeRetired') === 'true',
         status: req.query.get('status') ?? undefined,
       }),
@@ -22,8 +22,8 @@ defineHttp({
   route: 'devices/{id}',
   methods: ['GET'],
   guard: { module: 'devices', level: 'read' },
-  handler: (req, ctx) =>
-    ok(devicesRepo.get(ctx.tenantId, req.params.id, ctx.user.permissions.devices === 'write')),
+  handler: async (req, ctx) =>
+    ok(await devicesRepo.get(ctx.tenantId, req.params.id, ctx.user.permissions.devices === 'write')),
 });
 
 /* RF28 – Registrar dispositivo independientemente del vehículo (devuelve la API key una vez) */
@@ -32,7 +32,7 @@ defineHttp({
   route: 'devices',
   methods: ['POST'],
   guard: { module: 'devices', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({
         serial: z.string().trim().min(4, 'Serial/IMEI inválido').max(40),
@@ -42,7 +42,7 @@ defineHttp({
       }),
       req.body,
     );
-    return created(devicesRepo.create(ctx.tenantId, body));
+    return created(await devicesRepo.create(ctx.tenantId, body));
   },
 });
 
@@ -52,7 +52,7 @@ defineHttp({
   route: 'devices/{id}',
   methods: ['PATCH'],
   guard: { module: 'devices', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({
         model: z.string().trim().min(2).max(60).optional(),
@@ -62,7 +62,7 @@ defineHttp({
       }),
       req.body,
     );
-    return ok(devicesRepo.update(ctx.tenantId, req.params.id, body));
+    return ok(await devicesRepo.update(ctx.tenantId, req.params.id, body));
   },
 });
 
@@ -71,7 +71,7 @@ defineHttp({
   route: 'devices/{id}/regenerate-key',
   methods: ['POST'],
   guard: { module: 'devices', level: 'write' },
-  handler: (req, ctx) => ok(devicesRepo.regenerateKey(ctx.tenantId, req.params.id)),
+  handler: async (req, ctx) => ok(await devicesRepo.regenerateKey(ctx.tenantId, req.params.id)),
 });
 
 /* RF31 – Eliminar (dar de baja) por robo, daño o fin de vida útil */
@@ -80,12 +80,12 @@ defineHttp({
   route: 'devices/{id}',
   methods: ['DELETE'],
   guard: { module: 'devices', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const reason = parse(
       z.enum(['robado', 'dañado', 'fin_vida_util', 'otro']),
       req.query.get('reason') ?? 'otro',
     );
-    devicesRepo.retire(ctx.tenantId, req.params.id, reason);
+    await devicesRepo.retire(ctx.tenantId, req.params.id, reason);
     return noContent();
   },
 });

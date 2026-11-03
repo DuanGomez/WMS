@@ -20,9 +20,9 @@ const driverMarkers = (ctx: Ctx, since?: string) =>
 const TRAIL_MINUTES = 10;
 
 /** Conductores: sólo su vehículo. */
-function visibleVehicleIds(ctx: Ctx): Set<string> | null {
+async function visibleVehicleIds(ctx: Ctx): Promise<Set<string> | null> {
   if (ctx.user.role !== 'driver') return null;
-  return new Set(vehiclesRepo.list(ctx.tenantId, { driverId: ctx.user.id }).map((v) => v.id));
+  return new Set((await vehiclesRepo.list(ctx.tenantId, { driverId: ctx.user.id })).map((v) => v.id));
 }
 
 defineHttp({
@@ -30,23 +30,24 @@ defineHttp({
   route: 'tracking/live',
   methods: ['GET'],
   guard: { module: 'map', level: 'read' },
-  handler: (_req, ctx) => {
-    const allowed = visibleVehicleIds(ctx);
+  handler: async (_req, ctx) => {
+    const allowed = await visibleVehicleIds(ctx);
     const since = new Date(Date.now() - TRAIL_MINUTES * 60_000).toISOString();
-    const vehicles = vehiclesRepo
-      .list(ctx.tenantId)
-      .filter((v) => !allowed || allowed.has(v.id))
-      .map((v) => ({ ...v, trail: trackingRepo.trail(ctx.tenantId, v.id, since) }));
+    const vehicles = await Promise.all(
+      (await vehiclesRepo.list(ctx.tenantId))
+        .filter((v) => !allowed || allowed.has(v.id))
+        .map(async (v) => ({ ...v, trail: await trackingRepo.trail(ctx.tenantId, v.id, since) })),
+    );
     const canSeeGeofences = ctx.user.permissions.geofences !== 'none';
     return ok({
       serverTime: new Date().toISOString(),
       trailMinutes: TRAIL_MINUTES,
       vehicles,
-      geofences: canSeeGeofences ? geofencesRepo.list(ctx.tenantId, { onlyActive: true }) : [],
-      drivers: driverMarkers(ctx),
+      geofences: canSeeGeofences ? await geofencesRepo.list(ctx.tenantId, { onlyActive: true }) : [],
+      drivers: await driverMarkers(ctx),
       openAlerts:
         ctx.user.permissions.alerts !== 'none'
-          ? alertsRepo.list(ctx.tenantId, { attended: false, limit: 20 })
+          ? await alertsRepo.list(ctx.tenantId, { attended: false, limit: 20 })
           : null,
     });
   },
@@ -56,8 +57,8 @@ defineStream({
   name: 'tracking-stream',
   route: 'tracking/stream',
   guard: { module: 'map', level: 'read' },
-  handler: (_req, ctx, send) => {
-    const allowed = visibleVehicleIds(ctx);
+  handler: async (_req, ctx, send) => {
+    const allowed = await visibleVehicleIds(ctx);
     const canAlerts = ctx.user.permissions.alerts !== 'none';
     send('hello', { serverTime: new Date().toISOString(), tenant: ctx.tenantId });
     const off = subscribe(ctx.tenantId, (event, data) => {
@@ -79,15 +80,15 @@ defineHttp({
   route: 'tracking/poll',
   methods: ['GET'],
   guard: { module: 'map', level: 'read' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const since = req.query.get('since') ?? new Date(Date.now() - 5000).toISOString();
-    const allowed = visibleVehicleIds(ctx);
-    const positions = all<any>(
+    const allowed = await visibleVehicleIds(ctx);
+    const positions = (await all<any>(
       `SELECT l.*, v.plate, v.type, v.device_id, u.name AS driver_name, d.connection FROM vehicle_live l
        JOIN vehicles v ON v.id = l.vehicle_id LEFT JOIN users u ON u.id = v.driver_id LEFT JOIN devices d ON d.id = v.device_id
        WHERE l.company_id = @cid AND l.ts > @since AND v.retired_at IS NULL`,
       { cid: ctx.tenantId, since },
-    )
+    ))
       .filter((r) => !allowed || allowed.has(r.vehicle_id))
       .map((r) => ({
         vehicleId: r.vehicle_id,
@@ -108,9 +109,9 @@ defineHttp({
       }));
     const alerts =
       ctx.user.permissions.alerts !== 'none'
-        ? alertsRepo.list(ctx.tenantId, { from: since, limit: 50 }).items
+        ? (await alertsRepo.list(ctx.tenantId, { from: since, limit: 50 })).items
         : [];
-    return ok({ serverTime: new Date().toISOString(), positions, alerts, drivers: driverMarkers(ctx, since) });
+    return ok({ serverTime: new Date().toISOString(), positions, alerts, drivers: await driverMarkers(ctx, since) });
   },
 });
 
@@ -120,9 +121,9 @@ defineHttp({
   route: 'dashboard',
   methods: ['GET'],
   guard: { module: 'dashboard', level: 'read' },
-  handler: (_req, ctx) => {
-    const data = trackingRepo.dashboard(ctx.tenantId);
-    const recentAlerts = alertsRepo.list(ctx.tenantId, { limit: 6 }).items;
+  handler: async (_req, ctx) => {
+    const data = await trackingRepo.dashboard(ctx.tenantId);
+    const recentAlerts = (await alertsRepo.list(ctx.tenantId, { limit: 6 })).items;
     return ok({ ...data, recentAlerts });
   },
 });
@@ -133,9 +134,9 @@ defineHttp({
   route: 'analytics',
   methods: ['GET'],
   guard: { module: 'dashboard', level: 'read' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const d = Number(req.query.get('days'));
     const days = (d === 30 || d === 90 ? d : 7) as 7 | 30 | 90;
-    return ok(trackingRepo.analytics(ctx.tenantId, days));
+    return ok(await trackingRepo.analytics(ctx.tenantId, days));
   },
 });

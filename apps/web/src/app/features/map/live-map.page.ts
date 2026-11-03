@@ -198,7 +198,10 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     this.setBase(p === 'auto' ? (this.theme.isDark() ? 'dark' : 'light') : p);
     if (this.showGeofences.get()) this.gfGroup.addTo(this.map);
     this.driverGroup.addTo(this.map);
-    this.map.on('dragstart', () => this.follow.set(false));
+    this.map.on('dragstart', () => {
+      this.follow.set(false);
+      this.autoFrame = false;
+    });
     this.ro = new ResizeObserver(() => this.map.invalidateSize({ pan: false }));
     this.ro.observe(this.mapEl().nativeElement);
     this.clock = setInterval(() => this.now.set(Date.now()), 1000);
@@ -280,6 +283,7 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     const marker = L.marker([d.lat, d.lng], { icon, title: d.name, zIndexOffset: 800, keyboard: true }).bindPopup(popup);
     this.driverGroup.addLayer(ring).addLayer(marker);
     this.driverMarkers.set(d.driverId, { marker, ring });
+    if (live && this.autoFrame && !this.loading() && !this.selectedId()) this.fitAll(true);
   }
 
   focusDriver(id: string) {
@@ -429,10 +433,22 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
     return this.map.unproject(this.map.project(ll, zoom).add([(c.right - c.left) / 2, c.bottom / 2]), zoom);
   }
 
+  /**
+   * Mientras el usuario no mueva el mapa, cada conductor que empieza a compartir su ubicación entra en el encuadre
+   * (p. ej. en una exposición: los asistentes se registran con el QR y aparecen solos en el mapa).
+   */
+  private autoFrame = true;
+
   fitAll(animate = true) {
-    const pts = Object.values(this.vehicles())
-      .filter((v) => v.lat != null)
-      .map((v) => [v.lat!, v.lng!] as [number, number]);
+    // Vehículos con posición y conductores compartiendo en vivo desde su celular
+    const pts = [
+      ...Object.values(this.vehicles())
+        .filter((v) => v.lat != null)
+        .map((v) => [v.lat!, v.lng!] as [number, number]),
+      ...Object.values(this.drivers())
+        .filter((d) => this.driverLive(d))
+        .map((d) => [d.lat, d.lng] as [number, number]),
+    ];
     if (!pts.length) return;
     this.follow.set(false);
     if (pts.length === 1) this.map.setView(this.visibleCenter(pts[0], 15), 15, { animate });
@@ -448,6 +464,7 @@ export class LiveMapPage implements AfterViewInit, OnDestroy {
   }
 
   zoom(d: number) {
+    this.autoFrame = false;
     this.map.setZoom(this.map.getZoom() + d);
   }
 

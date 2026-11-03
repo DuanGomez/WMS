@@ -38,6 +38,7 @@ const PAGES = [
   { id: 'mapa', path: '/mapa', wait: 3500 },
   { id: 'vehiculos', path: '/vehiculos', sheet: /Nuevo vehículo/, row: true },
   { id: 'conductores', path: '/conductores', sheet: /Nuevo conductor/, row: true },
+  { id: 'invitar', path: '/conductores', click: /Invitar con QR/, wait: 1500 },
   { id: 'dispositivos', path: '/dispositivos', sheet: /Registrar dispositivo/ },
   { id: 'geocercas', path: '/geocercas' },
   { id: 'geocercas-nueva', path: '/geocercas', click: /Nueva geocerca/, wait: 1500, saveInPanel: true },
@@ -51,6 +52,8 @@ const PAGES = [
   { id: 'mi-turno', path: '/mi-turno', as: 'conductor@la72.co' },
   { id: 'login', path: '/login', auth: false },
   { id: 'registro', path: '/registro', auth: false },
+  // Página pública de una invitación de conductores (el código se crea al empezar la auditoría)
+  { id: 'unirse', path: '/unirse/{invitacion}', auth: false },
 ];
 
 const sessions = new Map();
@@ -65,6 +68,21 @@ async function login(email) {
     sessions.set(email, await r.json());
   }
   return sessions.get(email);
+}
+
+/** Código de una invitación vigente para auditar la página «Únete como conductor». */
+let invitacion = null;
+async function codigoInvitacion() {
+  if (!invitacion) {
+    const s = await login('admin@la72.co');
+    const r = await fetch(`${BASE}/api/invites`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${s.accessToken}` },
+      body: JSON.stringify({ label: 'Auditoría' }),
+    });
+    invitacion = (await r.json()).code;
+  }
+  return invitacion;
 }
 
 /** Problemas de maquetación medidos en el navegador. */
@@ -204,7 +222,8 @@ for (const vp of VIEWPORTS) {
       },
       [s, theme],
     );
-    await page.goto(`${BASE}${p.path}`, { waitUntil: 'load' });
+    const ruta = p.path.includes('{invitacion}') ? p.path.replace('{invitacion}', await codigoInvitacion()) : p.path;
+    await page.goto(`${BASE}${ruta}`, { waitUntil: 'load' });
     await page.waitForTimeout(p.wait ?? 1800);
     if (p.tab) await page.getByRole('tab', { name: p.tab }).or(page.getByRole('button', { name: p.tab })).first().click().catch(() => {});
     if (p.click) {

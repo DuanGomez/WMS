@@ -11,7 +11,18 @@ export type SimCall = (
   init?: { method?: string; headers?: Record<string, string>; body?: string },
 ) => Promise<unknown>;
 
-export function createSimulator(opts: { call: SimCall; target: string; log?: (m: string) => void; warn?: (m: string) => void }) {
+/**
+ * `stepSeconds`: segundos simulados por cada tick (1 por defecto). En la nube el tick es cada pocos segundos para
+ * escribir menos en la base; los vehículos avanzan lo mismo por minuto.
+ */
+export function createSimulator(opts: {
+  call: SimCall;
+  target: string;
+  log?: (m: string) => void;
+  warn?: (m: string) => void;
+  stepSeconds?: number;
+}) {
+  const step = opts.stepSeconds ?? 1;
   const log = opts.log ?? console.log;
   const warn = opts.warn ?? console.warn;
   const route = loadRoute();
@@ -56,10 +67,10 @@ export function createSimulator(opts: { call: SimCall; target: string; log?: (m:
     }
 
     if (!paused) {
-      const dt = speedFactor;
+      const dt = speedFactor * step;
       await Promise.all(
         vehicles.map(async (v) => {
-          const payload = v.tick(dt, 1);
+          const payload = v.tick(dt, step);
           if (!payload) return; // pérdida de señal simulada
           try {
             await opts.call('/tracking/ingest', {

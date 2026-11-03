@@ -45,16 +45,16 @@ const mapDevice = (r: any, withKey = false): DeviceDto => ({
 });
 
 export const devicesRepo = {
-  list(tenantId: string, opts: { includeRetired?: boolean; status?: string } = {}): DeviceDto[] {
-    return all(
+  async list(tenantId: string, opts: { includeRetired?: boolean; status?: string } = {}): Promise<DeviceDto[]> {
+    return (await all(
       `${DEVICE_SQL} AND (@inc = 1 OR d.status <> 'retired') AND (@status IS NULL OR d.status = @status)
        ORDER BY d.status = 'retired', d.serial`,
       { cid: tenantId, inc: opts.includeRetired ? 1 : 0, status: opts.status ?? null },
-    ).map((r) => mapDevice(r));
+    )).map((r) => mapDevice(r));
   },
 
-  get(tenantId: string, deviceId: string, withKey = false): DeviceDto {
-    const r = get(`${DEVICE_SQL} AND d.id = @id`, { cid: tenantId, id: deviceId });
+  async get(tenantId: string, deviceId: string, withKey = false): Promise<DeviceDto> {
+    const r = await get(`${DEVICE_SQL} AND d.id = @id`, { cid: tenantId, id: deviceId });
     if (!r) throw notFound('Dispositivo GPS');
     return mapDevice(r, withKey);
   },
@@ -63,13 +63,13 @@ export const devicesRepo = {
   byApiKey: (key: string) =>
     get<any>(`SELECT * FROM devices WHERE api_key = @k AND status <> 'retired'`, { k: key }),
 
-  create(
+  async create(
     tenantId: string,
     input: { serial: string; model: string; notes?: string; status?: 'active' | 'inactive'; apiKey?: string },
   ) {
     const did = id();
     const ts = now();
-    run(
+    await run(
       `INSERT INTO devices (id, company_id, serial, model, api_key, status, notes, created_at, updated_at)
        VALUES (@id,@cid,@serial,@model,@key,@status,@notes,@ts,@ts)`,
       {
@@ -87,7 +87,7 @@ export const devicesRepo = {
   },
 
   /** RF30: actualizar datos/estado y/o reasignar a otro vehículo (vehicleId null = desasociar). */
-  update(
+  async update(
     tenantId: string,
     deviceId: string,
     data: {
@@ -97,10 +97,10 @@ export const devicesRepo = {
       vehicleId?: string | null;
     },
   ) {
-    const cur = this.get(tenantId, deviceId);
+    const cur = await this.get(tenantId, deviceId);
     if (cur.status === 'retired') throw conflict('El dispositivo está dado de baja.');
-    tx(() => {
-      run(
+    await tx(async () => {
+      await run(
         `UPDATE devices SET model=@model, notes=@notes, status=@status, updated_at=@ts WHERE id=@id AND company_id=@cid`,
         {
           model: data.model ?? cur.model,
@@ -112,18 +112,18 @@ export const devicesRepo = {
         },
       );
       if (data.vehicleId !== undefined) {
-        run(`UPDATE vehicles SET device_id=NULL, updated_at=@ts WHERE device_id=@id AND company_id=@cid`, {
+        await run(`UPDATE vehicles SET device_id=NULL, updated_at=@ts WHERE device_id=@id AND company_id=@cid`, {
           id: deviceId,
           cid: tenantId,
           ts: now(),
         });
         if (data.vehicleId) {
-          const v = get(`SELECT id FROM vehicles WHERE id=@vid AND company_id=@cid AND retired_at IS NULL`, {
+          const v = await get(`SELECT id FROM vehicles WHERE id=@vid AND company_id=@cid AND retired_at IS NULL`, {
             vid: data.vehicleId,
             cid: tenantId,
           });
           if (!v) throw notFound('Vehículo');
-          run(`UPDATE vehicles SET device_id=@id, updated_at=@ts WHERE id=@vid`, {
+          await run(`UPDATE vehicles SET device_id=@id, updated_at=@ts WHERE id=@vid`, {
             id: deviceId,
             vid: data.vehicleId,
             ts: now(),
@@ -135,15 +135,15 @@ export const devicesRepo = {
   },
 
   /** RF31: baja definitiva (robado, dañado, fin de vida útil). Se conserva el histórico. */
-  retire(tenantId: string, deviceId: string, reason: string) {
-    this.get(tenantId, deviceId);
-    tx(() => {
-      run(`UPDATE vehicles SET device_id=NULL, updated_at=@ts WHERE device_id=@id AND company_id=@cid`, {
+  async retire(tenantId: string, deviceId: string, reason: string) {
+    await this.get(tenantId, deviceId);
+    await tx(async () => {
+      await run(`UPDATE vehicles SET device_id=NULL, updated_at=@ts WHERE device_id=@id AND company_id=@cid`, {
         id: deviceId,
         cid: tenantId,
         ts: now(),
       });
-      run(
+      await run(
         `UPDATE devices SET status='retired', connection='offline', retired_reason=@reason, retired_at=@ts, updated_at=@ts
          WHERE id=@id AND company_id=@cid`,
         { reason, ts: now(), id: deviceId, cid: tenantId },
@@ -151,9 +151,9 @@ export const devicesRepo = {
     });
   },
 
-  regenerateKey(tenantId: string, deviceId: string) {
-    this.get(tenantId, deviceId);
-    run(`UPDATE devices SET api_key=@k, updated_at=@ts WHERE id=@id AND company_id=@cid`, {
+  async regenerateKey(tenantId: string, deviceId: string) {
+    await this.get(tenantId, deviceId);
+    await run(`UPDATE devices SET api_key=@k, updated_at=@ts WHERE id=@id AND company_id=@cid`, {
       k: `gps_${randomToken(24)}`,
       ts: now(),
       id: deviceId,
@@ -265,11 +265,11 @@ export interface VehicleInput {
 }
 
 export const vehiclesRepo = {
-  list(
+  async list(
     tenantId: string,
     opts: { includeRetired?: boolean; q?: string; type?: string; driverId?: string } = {},
-  ): VehicleDto[] {
-    return all(
+  ): Promise<VehicleDto[]> {
+    return (await all(
       `${VEHICLE_SQL} AND (@inc = 1 OR v.retired_at IS NULL)
         AND (@q IS NULL OR v.plate LIKE @q OR v.brand LIKE @q OR v.model LIKE @q)
         AND (@type IS NULL OR v.type = @type)
@@ -282,11 +282,11 @@ export const vehiclesRepo = {
         type: opts.type ?? null,
         driver: opts.driverId ?? null,
       },
-    ).map(mapVehicle);
+    )).map(mapVehicle);
   },
 
-  get(tenantId: string, vehicleId: string): VehicleDto {
-    const r = get(`${VEHICLE_SQL} AND v.id = @id`, { cid: tenantId, id: vehicleId });
+  async get(tenantId: string, vehicleId: string): Promise<VehicleDto> {
+    const r = await get(`${VEHICLE_SQL} AND v.id = @id`, { cid: tenantId, id: vehicleId });
     if (!r) throw notFound('Vehículo');
     return mapVehicle(r);
   },
@@ -294,14 +294,14 @@ export const vehiclesRepo = {
   byDevice: (deviceId: string) =>
     get<any>(`SELECT * FROM vehicles WHERE device_id = @d AND retired_at IS NULL`, { d: deviceId }),
 
-  checkRefs(tenantId: string, deviceId?: string | null, driverId?: string | null, selfId?: string) {
+  async checkRefs(tenantId: string, deviceId?: string | null, driverId?: string | null, selfId?: string) {
     if (deviceId) {
-      const d = get<any>(`SELECT status FROM devices WHERE id=@id AND company_id=@cid`, {
+      const d = await get<any>(`SELECT status FROM devices WHERE id=@id AND company_id=@cid`, {
         id: deviceId,
         cid: tenantId,
       });
       if (!d || d.status === 'retired') throw notFound('Dispositivo GPS');
-      const used = get<any>(
+      const used = await get<any>(
         `SELECT plate FROM vehicles WHERE device_id=@id AND retired_at IS NULL AND id <> @self`,
         {
           id: deviceId,
@@ -311,7 +311,7 @@ export const vehiclesRepo = {
       if (used) throw conflict(`El dispositivo ya está instalado en el vehículo ${used.plate}.`);
     }
     if (driverId) {
-      const u = get(
+      const u = await get(
         `SELECT id FROM users WHERE id=@id AND company_id=@cid AND role='driver' AND deleted_at IS NULL`,
         {
           id: driverId,
@@ -322,27 +322,27 @@ export const vehiclesRepo = {
     }
   },
 
-  create(tenantId: string, input: VehicleInput): VehicleDto {
-    companiesRepo.assertCanAdd(tenantId, 'vehicles');
+  async create(tenantId: string, input: VehicleInput): Promise<VehicleDto> {
+    await companiesRepo.assertCanAdd(tenantId, 'vehicles');
     const plate = input.plate.toUpperCase().replace(/\s+/g, '');
     if (
-      get(`SELECT id FROM vehicles WHERE company_id=@cid AND plate=@plate AND retired_at IS NULL`, {
+      await get(`SELECT id FROM vehicles WHERE company_id=@cid AND plate=@plate AND retired_at IS NULL`, {
         cid: tenantId,
         plate,
       })
     ) {
       throw conflict(`Ya existe un vehículo con la placa ${plate}.`);
     }
-    this.checkRefs(tenantId, input.deviceId, input.driverId);
+    await this.checkRefs(tenantId, input.deviceId, input.driverId);
     const vid = id();
     const ts = now();
-    tx(() => {
+    await tx(async () => {
       if (input.driverId)
-        run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@d AND company_id=@cid`, {
+        await run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@d AND company_id=@cid`, {
           d: input.driverId,
           cid: tenantId,
         });
-      run(
+      await run(
         `INSERT INTO vehicles (id, company_id, plate, type, brand, model, year, color, status, device_id, driver_id, created_at, updated_at)
          VALUES (@id,@cid,@plate,@type,@brand,@model,@year,@color,@status,@device,@driver,@ts,@ts)`,
         {
@@ -364,13 +364,13 @@ export const vehiclesRepo = {
     return this.get(tenantId, vid);
   },
 
-  update(tenantId: string, vehicleId: string, data: Partial<VehicleInput>): VehicleDto {
-    const cur = this.get(tenantId, vehicleId);
+  async update(tenantId: string, vehicleId: string, data: Partial<VehicleInput>): Promise<VehicleDto> {
+    const cur = await this.get(tenantId, vehicleId);
     if (cur.retiredAt) throw conflict('El vehículo está dado de baja.');
     const plate = data.plate ? data.plate.toUpperCase().replace(/\s+/g, '') : cur.plate;
     if (
       plate !== cur.plate &&
-      get(`SELECT id FROM vehicles WHERE company_id=@cid AND plate=@plate AND retired_at IS NULL`, {
+      await get(`SELECT id FROM vehicles WHERE company_id=@cid AND plate=@plate AND retired_at IS NULL`, {
         cid: tenantId,
         plate,
       })
@@ -379,15 +379,15 @@ export const vehiclesRepo = {
     }
     const deviceId = data.deviceId !== undefined ? data.deviceId : (cur.device?.id ?? null);
     const driverId = data.driverId !== undefined ? data.driverId : (cur.driver?.id ?? null);
-    this.checkRefs(tenantId, deviceId, driverId, vehicleId);
-    tx(() => {
+    await this.checkRefs(tenantId, deviceId, driverId, vehicleId);
+    await tx(async () => {
       if (driverId && driverId !== cur.driver?.id) {
-        run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@d AND company_id=@cid`, {
+        await run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@d AND company_id=@cid`, {
           d: driverId,
           cid: tenantId,
         });
       }
-      run(
+      await run(
         `UPDATE vehicles SET plate=@plate, type=@type, brand=@brand, model=@model, year=@year, color=@color, status=@status,
            device_id=@device, driver_id=@driver, updated_at=@ts WHERE id=@id AND company_id=@cid`,
         {
@@ -410,16 +410,16 @@ export const vehiclesRepo = {
   },
 
   /** RF4: dar de baja (borrado lógico, libera dispositivo y conductor, conserva el histórico). */
-  retire(tenantId: string, vehicleId: string, reason: string) {
-    const cur = this.get(tenantId, vehicleId);
+  async retire(tenantId: string, vehicleId: string, reason: string) {
+    const cur = await this.get(tenantId, vehicleId);
     if (cur.retiredAt) throw conflict('El vehículo ya está dado de baja.');
-    tx(() => {
-      run(
+    await tx(async () => {
+      await run(
         `UPDATE vehicles SET status='retired', retired_at=@ts, retired_reason=@reason, device_id=NULL, driver_id=NULL, updated_at=@ts
          WHERE id=@id AND company_id=@cid`,
         { ts: now(), reason, id: vehicleId, cid: tenantId },
       );
-      run(
+      await run(
         `UPDATE trips SET status='closed', ended_at=COALESCE(ended_at, @ts) WHERE vehicle_id=@id AND status='open'`,
         {
           ts: now(),

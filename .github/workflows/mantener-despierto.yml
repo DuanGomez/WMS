@@ -1,0 +1,39 @@
+# Render (plan gratuito) apaga la API tras 15 min sin visitas y tarda ~1 min en despertar.
+# Antes de una presentación: Actions › «Mantener la API despierta» › Run workflow (por ejemplo 3 horas).
+name: Mantener la API despierta
+
+on:
+  workflow_dispatch:
+    inputs:
+      horas:
+        description: Horas que debe quedar despierta (máx. 5)
+        default: '3'
+      ambiente:
+        description: Ambiente
+        type: choice
+        options: [production, lab, ambos]
+        default: production
+
+jobs:
+  despertar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - name: Llamar al health check cada 4 minutos
+        env:
+          HORAS: ${{ inputs.horas }}
+          AMBIENTE: ${{ inputs.ambiente }}
+          LAB: ${{ vars.LAB_API_URL }}
+          PROD: ${{ vars.PROD_API_URL }}
+        run: |
+          urls=""
+          [ "$AMBIENTE" != "lab" ] && urls="$urls $PROD"
+          [ "$AMBIENTE" != "production" ] && urls="$urls $LAB"
+          fin=$(( $(date +%s) + ${HORAS:-3} * 3600 ))
+          while [ "$(date +%s)" -lt "$fin" ]; do
+            for u in $urls; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$u/api/health" || true)
+              echo "$(date -u +%H:%M) $u → $code"
+            done
+            sleep 240
+          done

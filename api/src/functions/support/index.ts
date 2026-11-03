@@ -32,8 +32,8 @@ const map = (r: any) => ({
   updatedAt: r.updated_at,
 });
 
-function getTicket(ctx: Ctx, ticketId: string) {
-  const r = get(`${SQL} AND t.id=@id`, { agent: isAgent(ctx) ? 1 : 0, cid: ctx.tenantId, id: ticketId });
+async function getTicket(ctx: Ctx, ticketId: string) {
+  const r = await get(`${SQL} AND t.id=@id`, { agent: isAgent(ctx) ? 1 : 0, cid: ctx.tenantId, id: ticketId });
   if (!r) throw notFound('Ticket');
   return map(r);
 }
@@ -43,16 +43,16 @@ defineHttp({
   route: 'tickets',
   methods: ['GET'],
   guard: { module: 'support', level: 'read' },
-  handler: (req, ctx) =>
+  handler: async (req, ctx) =>
     ok(
-      all(
+      (await all(
         `${SQL} AND (@status IS NULL OR t.status=@status) ORDER BY t.status IN ('resolved','closed'), t.updated_at DESC`,
         {
           agent: isAgent(ctx) ? 1 : 0,
           cid: ctx.tenantId,
           status: req.query.get('status') ?? null,
         },
-      ).map(map),
+      )).map(map),
     ),
 });
 
@@ -61,12 +61,12 @@ defineHttp({
   route: 'tickets/{id}',
   methods: ['GET'],
   guard: { module: 'support', level: 'read' },
-  handler: (req, ctx) => {
-    const t = getTicket(ctx, req.params.id);
-    const comments = all<any>(
+  handler: async (req, ctx) => {
+    const t = await getTicket(ctx, req.params.id);
+    const comments = (await all<any>(
       `SELECT tc.*, u.name AS author, u.role FROM ticket_comments tc LEFT JOIN users u ON u.id = tc.author_id WHERE tc.ticket_id=@id ORDER BY tc.created_at`,
       { id: t.id },
-    ).map((c) => ({
+    )).map((c) => ({
       id: c.id,
       author: c.author,
       isAgent: c.role === 'support',
@@ -82,7 +82,7 @@ defineHttp({
   route: 'tickets',
   methods: ['POST'],
   guard: { module: 'support', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({
         subject: z.string().trim().min(4).max(120),
@@ -92,14 +92,14 @@ defineHttp({
       }),
       req.body,
     );
-    const n = get<{ n: number }>(`SELECT COALESCE(MAX(number), 1000) n FROM tickets`)!.n + 1;
+    const n = (await get<{ n: number }>(`SELECT COALESCE(MAX(number), 1000) n FROM tickets`))!.n + 1;
     const tid = id();
-    run(
+    await run(
       `INSERT INTO tickets (id, company_id, number, created_by, subject, description, category, priority, status, created_at, updated_at)
        VALUES (@id,@cid,@n,@uid,@subject,@description,@category,@priority,'open',@ts,@ts)`,
       { id: tid, cid: ctx.tenantId, n, uid: ctx.user.id, ...body, ts: now() },
     );
-    return created(getTicket(ctx, tid));
+    return created(await getTicket(ctx, tid));
   },
 });
 
@@ -109,7 +109,7 @@ defineHttp({
   route: 'tickets/{id}',
   methods: ['PATCH'],
   guard: { module: 'support', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({
         status: z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
@@ -118,14 +118,14 @@ defineHttp({
       }),
       req.body,
     );
-    const t = getTicket(ctx, req.params.id);
+    const t = await getTicket(ctx, req.params.id);
     // Los clientes sólo pueden cerrar o reabrir sus tickets; los agentes gestionan todo el flujo.
     const status = isAgent(ctx)
       ? body.status
       : body.status && ['closed', 'open'].includes(body.status)
         ? body.status
         : undefined;
-    run(
+    await run(
       `UPDATE tickets SET status=COALESCE(@status, status), priority=COALESCE(@priority, priority),
          assigned_to=CASE WHEN @assign = 1 THEN @uid ELSE assigned_to END, updated_at=@ts WHERE id=@id`,
       {
@@ -137,7 +137,7 @@ defineHttp({
         id: t.id,
       },
     );
-    return ok(getTicket(ctx, t.id));
+    return ok(await getTicket(ctx, t.id));
   },
 });
 
@@ -146,10 +146,10 @@ defineHttp({
   route: 'tickets/{id}/comments',
   methods: ['POST'],
   guard: { module: 'support', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(z.object({ body: z.string().trim().min(1).max(3000) }), req.body);
-    const t = getTicket(ctx, req.params.id);
-    run(
+    const t = await getTicket(ctx, req.params.id);
+    await run(
       `INSERT INTO ticket_comments (id, ticket_id, author_id, body, created_at) VALUES (@id,@t,@u,@b,@ts)`,
       {
         id: id(),
@@ -160,7 +160,7 @@ defineHttp({
       },
     );
     const autoStatus = isAgent(ctx) && t.status === 'open' ? 'in_progress' : null;
-    run(`UPDATE tickets SET updated_at=@ts, status=COALESCE(@s, status) WHERE id=@id`, {
+    await run(`UPDATE tickets SET updated_at=@ts, status=COALESCE(@s, status) WHERE id=@id`, {
       ts: now(),
       s: autoStatus,
       id: t.id,

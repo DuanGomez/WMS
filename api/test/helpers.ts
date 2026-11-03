@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { createApp } from '../src/local/server';
-import { seed } from '../../scripts/seed';
+import { seed } from '../src/seed/demo';
 
 export async function bootstrap() {
   await seed({ quiet: true });

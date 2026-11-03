@@ -76,18 +76,27 @@ function aplicarReemplazos(lista, ruta) {
   }
   for (const [f, xs] of porArchivo) {
     const s = fs.readFileSync(f, 'utf8');
+    // Los ajustes de un archivo dependen entre sí y algunos llaman funciones internas por su nombre minificado: si
+    // alguno ya no coincide (la app cambió y el minificador renombró), se omiten TODOS los de ese archivo y queda
+    // el build normal de Angular, que funciona igual, solo sin esa optimización. Así nunca se publica algo a medias.
+    const faltan = xs.filter((x) => s.split(x.antes).length - 1 !== 1);
+    if (faltan.length) {
+      console.warn(
+        `  ⚠️  ${path.basename(f)}: ${faltan.length} de ${xs.length} ajustes ya no coinciden con el código compilado; ` +
+          `se omiten los ${xs.length} de este archivo (actualízalos en scripts/pages/ajustes.mjs). Primero: ${faltan[0].que}`,
+      );
+      continue;
+    }
     const pos = xs
       .map((x) => {
-        const n = s.split(x.antes).length - 1;
-        if (n !== 1) throw new Error(`${path.basename(f)} · ${x.que}: ${n} coincidencias (se esperaba 1)`);
         const ini = s.indexOf(x.antes);
-        return { ini, fin: ini + x.antes.length, x };
+        return { ini, fin: ini + x.antes.length, x, despues: x.despues };
       })
       .sort((a, b) => a.ini - b.ini);
     for (let k = 1; k < pos.length; k++)
       if (pos[k].ini < pos[k - 1].fin) throw new Error(`${pos[k - 1].x.que} y ${pos[k].x.que} se pisan`);
     let r = s;
-    for (const p of [...pos].reverse()) r = r.slice(0, p.ini) + p.x.despues + r.slice(p.fin);
+    for (const p of [...pos].reverse()) r = r.slice(0, p.ini) + p.despues + r.slice(p.fin);
     fs.writeFileSync(f, r);
   }
 }

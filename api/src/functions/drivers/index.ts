@@ -23,7 +23,7 @@ defineHttp({
   route: 'drivers',
   methods: ['GET'],
   guard: { module: 'drivers', level: 'read' },
-  handler: (_req, ctx) => ok(driversRepo.list(ctx.tenantId)),
+  handler: async (_req, ctx) => ok(await driversRepo.list(ctx.tenantId)),
 });
 
 defineHttp({
@@ -31,7 +31,7 @@ defineHttp({
   route: 'drivers/{id}',
   methods: ['GET'],
   guard: { module: 'drivers', level: 'read' },
-  handler: (req, ctx) => ok(driversRepo.get(ctx.tenantId, req.params.id)),
+  handler: async (req, ctx) => ok(await driversRepo.get(ctx.tenantId, req.params.id)),
 });
 
 /* RE7 – Registrar conductor (Conductor hereda de Usuario: crea usuario con rol driver + perfil) */
@@ -51,7 +51,7 @@ defineHttp({
       }),
       req.body,
     );
-    companiesRepo.assertCanAdd(ctx.tenantId, 'users');
+    await companiesRepo.assertCanAdd(ctx.tenantId, 'users');
     const user = await usersRepo.create(ctx.tenantId, {
       name: body.name,
       email: body.email,
@@ -59,9 +59,9 @@ defineHttp({
       password: body.password,
       role: 'driver',
     });
-    driversRepo.upsertProfile(ctx.tenantId, user.id, body);
-    if (body.vehicleId) driversRepo.assignVehicle(ctx.tenantId, user.id, body.vehicleId);
-    return created(driversRepo.get(ctx.tenantId, user.id));
+    await driversRepo.upsertProfile(ctx.tenantId, user.id, body);
+    if (body.vehicleId) await driversRepo.assignVehicle(ctx.tenantId, user.id, body.vehicleId);
+    return created(await driversRepo.get(ctx.tenantId, user.id));
   },
 });
 
@@ -70,7 +70,7 @@ defineHttp({
   route: 'drivers/{id}',
   methods: ['PATCH'],
   guard: { module: 'drivers', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       profile.extend({
         name: z.string().trim().min(2).max(80).optional(),
@@ -79,14 +79,14 @@ defineHttp({
       }),
       req.body,
     );
-    driversRepo.get(ctx.tenantId, req.params.id);
-    usersRepo.update(ctx.tenantId, req.params.id, {
+    await driversRepo.get(ctx.tenantId, req.params.id);
+    await usersRepo.update(ctx.tenantId, req.params.id, {
       name: body.name,
       phone: body.phone,
       active: body.active,
     });
-    driversRepo.upsertProfile(ctx.tenantId, req.params.id, body);
-    return ok(driversRepo.get(ctx.tenantId, req.params.id));
+    await driversRepo.upsertProfile(ctx.tenantId, req.params.id, body);
+    return ok(await driversRepo.get(ctx.tenantId, req.params.id));
   },
 });
 
@@ -96,9 +96,9 @@ defineHttp({
   route: 'drivers/{id}/vehicle',
   methods: ['PUT'],
   guard: { module: 'drivers', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(z.object({ vehicleId: z.string().nullable() }), req.body);
-    return ok(driversRepo.assignVehicle(ctx.tenantId, req.params.id, body.vehicleId));
+    return ok(await driversRepo.assignVehicle(ctx.tenantId, req.params.id, body.vehicleId));
   },
 });
 
@@ -107,17 +107,17 @@ defineHttp({
   route: 'drivers/{id}',
   methods: ['DELETE'],
   guard: { module: 'drivers', level: 'write' },
-  handler: (req, ctx) => {
-    driversRepo.get(ctx.tenantId, req.params.id);
-    usersRepo.remove(ctx.tenantId, req.params.id);
+  handler: async (req, ctx) => {
+    await driversRepo.get(ctx.tenantId, req.params.id);
+    await usersRepo.remove(ctx.tenantId, req.params.id);
     return noContent();
   },
 });
 
 /* ---- Acciones del propio conductor (modelo de dominio: iniciarRecorrido, finalizarRecorrido, enviarAlertaEmergencia) ---- */
 
-function myVehicle(tenantId: string, userId: string) {
-  const v = vehiclesRepo.list(tenantId, { driverId: userId })[0];
+async function myVehicle(tenantId: string, userId: string) {
+  const v = (await vehiclesRepo.list(tenantId, { driverId: userId }))[0];
   if (!v) throw notFound('Vehículo asignado');
   return v;
 }
@@ -127,10 +127,10 @@ defineHttp({
   route: 'me/driver',
   methods: ['GET'],
   guard: { roles: ['driver'] },
-  handler: (_req, ctx) => {
-    const d = driversRepo.get(ctx.tenantId, ctx.user.id);
-    const trips = trackingRepo.trips(ctx.tenantId, { driverId: ctx.user.id, limit: 10 });
-    return ok({ driver: d, vehicle: d.vehicle ? vehiclesRepo.get(ctx.tenantId, d.vehicle.id) : null, trips });
+  handler: async (_req, ctx) => {
+    const d = await driversRepo.get(ctx.tenantId, ctx.user.id);
+    const trips = await trackingRepo.trips(ctx.tenantId, { driverId: ctx.user.id, limit: 10 });
+    return ok({ driver: d, vehicle: d.vehicle ? await vehiclesRepo.get(ctx.tenantId, d.vehicle.id) : null, trips });
   },
 });
 
@@ -139,12 +139,12 @@ defineHttp({
   route: 'me/trip/start',
   methods: ['POST'],
   guard: { roles: ['driver'] },
-  handler: (_req, ctx) => {
-    const v = myVehicle(ctx.tenantId, ctx.user.id);
-    const open = trackingRepo.openTrip(v.id);
-    if (open) trackingRepo.closeTrip(open.id, now());
-    const tripId = trackingRepo.startTrip(ctx.tenantId, v.id, ctx.user.id, now());
-    driversRepo.setShift(ctx.tenantId, ctx.user.id, true);
+  handler: async (_req, ctx) => {
+    const v = await myVehicle(ctx.tenantId, ctx.user.id);
+    const open = await trackingRepo.openTrip(v.id);
+    if (open) await trackingRepo.closeTrip(open.id, now());
+    const tripId = await trackingRepo.startTrip(ctx.tenantId, v.id, ctx.user.id, now());
+    await driversRepo.setShift(ctx.tenantId, ctx.user.id, true);
     return ok({ tripId, vehicleId: v.id });
   },
 });
@@ -154,13 +154,13 @@ defineHttp({
   route: 'me/trip/finish',
   methods: ['POST'],
   guard: { roles: ['driver'] },
-  handler: (_req, ctx) => {
-    const v = myVehicle(ctx.tenantId, ctx.user.id);
-    const open = trackingRepo.openTrip(v.id);
+  handler: async (_req, ctx) => {
+    const v = await myVehicle(ctx.tenantId, ctx.user.id);
+    const open = await trackingRepo.openTrip(v.id);
     if (!open) throw badRequest('No tienes un recorrido en curso.');
-    trackingRepo.closeTrip(open.id, now());
-    driversRepo.setShift(ctx.tenantId, ctx.user.id, false);
-    return ok(trackingRepo.trip(ctx.tenantId, open.id));
+    await trackingRepo.closeTrip(open.id, now());
+    await driversRepo.setShift(ctx.tenantId, ctx.user.id, false);
+    return ok(await trackingRepo.trip(ctx.tenantId, open.id));
   },
 });
 
@@ -169,14 +169,14 @@ defineHttp({
   route: 'me/emergency',
   methods: ['POST'],
   guard: { roles: ['driver'] },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(z.object({ message: z.string().max(300).optional() }), req.body);
-    const v = myVehicle(ctx.tenantId, ctx.user.id);
+    const v = await myVehicle(ctx.tenantId, ctx.user.id);
     // Si el celular reportó hace poco, su posición es la más fiable para una emergencia.
-    const phone = driversRepo.get(ctx.tenantId, ctx.user.id).location;
+    const phone = (await driversRepo.get(ctx.tenantId, ctx.user.id)).location;
     const phoneFresh = phone && Date.now() - Date.parse(phone.ts) < 2 * 60_000;
     const where = phoneFresh ? phone : v.live;
-    const alert = fireAlert(
+    const alert = await fireAlert(
       ctx.tenantId,
       { id: '', name: 'Botón de emergencia', channels: ['inapp', 'push'], recipients: [] },
       {
@@ -213,11 +213,11 @@ defineHttp({
   route: 'me/location',
   methods: ['POST'],
   guard: { roles: ['driver'] },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const b = parse(locationBody, req.body);
     const t = b.timestamp ? Date.parse(b.timestamp) : NaN;
     const ts = Number.isFinite(t) && Math.abs(t - Date.now()) < 10 * 60_000 ? new Date(t).toISOString() : now();
-    driversRepo.saveLocation(ctx.tenantId, ctx.user.id, {
+    await driversRepo.saveLocation(ctx.tenantId, ctx.user.id, {
       lat: b.lat,
       lng: b.lng,
       accuracy: b.accuracy != null ? Math.round(b.accuracy) : null,
@@ -226,7 +226,7 @@ defineHttp({
       heading: b.heading ?? null,
       ts,
     });
-    const marker = driversRepo.locations(ctx.tenantId, { userId: ctx.user.id })[0];
+    const marker = (await driversRepo.locations(ctx.tenantId, { userId: ctx.user.id }))[0];
     publish(ctx.tenantId, 'driver', marker);
     return ok(marker);
   },
@@ -237,9 +237,9 @@ defineHttp({
   route: 'me/location',
   methods: ['DELETE'],
   guard: { roles: ['driver'] },
-  handler: (_req, ctx) => {
-    driversRepo.stopSharing(ctx.tenantId, ctx.user.id);
-    const marker = driversRepo.locations(ctx.tenantId, { userId: ctx.user.id })[0];
+  handler: async (_req, ctx) => {
+    await driversRepo.stopSharing(ctx.tenantId, ctx.user.id);
+    const marker = (await driversRepo.locations(ctx.tenantId, { userId: ctx.user.id }))[0];
     if (marker) publish(ctx.tenantId, 'driver', marker);
     return noContent();
   },
@@ -251,8 +251,8 @@ defineHttp({
   route: 'drivers/locations',
   methods: ['GET'],
   guard: { module: 'map', level: 'read' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const only = ctx.user.role === 'driver' ? ctx.user.id : undefined;
-    return ok(driversRepo.locations(ctx.tenantId, { since: req.query.get('since') ?? undefined, userId: only }));
+    return ok(await driversRepo.locations(ctx.tenantId, { since: req.query.get('since') ?? undefined, userId: only }));
   },
 });

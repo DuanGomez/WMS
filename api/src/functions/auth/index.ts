@@ -20,10 +20,10 @@ import { usersRepo } from '../../shared/repositories/users';
 import { email, parse, password, z } from '../../shared/validation';
 
 /** Sesión que recibe el frontend: usuario, permisos efectivos y empresa. */
-export function sessionPayload(userId: string) {
-  const u = loadAuthUser(userId);
+export async function sessionPayload(userId: string) {
+  const u = await loadAuthUser(userId);
   if (!u) throw unauthorized();
-  const row = get<any>(
+  const row = await get<any>(
     `SELECT u.phone, u.last_login_at, u.must_change_password, c.name AS company_name, c.is_platform,
        (SELECT p.name FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.company_id=c.id ORDER BY s.started_at DESC LIMIT 1) AS plan_name
      FROM users u JOIN companies c ON c.id=u.company_id WHERE u.id=@id`,
@@ -50,10 +50,10 @@ export function sessionPayload(userId: string) {
   };
 }
 
-function tokens(user: { id: string; company_id: string; role: string }) {
+async function tokens(user: { id: string; company_id: string; role: string }) {
   return {
     accessToken: signAccessToken(user),
-    refreshToken: issueRefreshToken(user.id),
+    refreshToken: await issueRefreshToken(user.id),
     tokenType: 'Bearer',
   };
 }
@@ -68,15 +68,15 @@ defineHttp({
     const body = parse(z.object({ email, password: z.string().min(1, 'Ingresa tu contraseña') }), req.body);
     const key = `login:${req.ip}:${body.email}`;
     rateLimit(key, 8, 5 * 60_000);
-    const user = usersRepo.findByEmail(body.email);
+    const user = await usersRepo.findByEmail(body.email);
     if (!user || !(await verifyPassword(body.password, user.password_hash))) {
       throw unauthorized('Correo o contraseña incorrectos.');
     }
     if (!user.active)
       throw unauthorized('Tu usuario está desactivado. Contacta al administrador de tu empresa.');
     resetRateLimit(key);
-    usersRepo.touchLogin(user.id);
-    return ok({ ...tokens(user), user: sessionPayload(user.id) });
+    await usersRepo.touchLogin(user.id);
+    return ok({ ...await tokens(user), user: await sessionPayload(user.id) });
   },
 });
 
@@ -86,15 +86,15 @@ defineHttp({
   route: 'auth/refresh',
   methods: ['POST'],
   guard: 'public',
-  handler: (req) => {
+  handler: async (req) => {
     const body = parse(z.object({ refreshToken: z.string().min(10) }), req.body);
-    const userId = consumeRefreshToken(body.refreshToken);
-    const user = get<any>(
+    const userId = await consumeRefreshToken(body.refreshToken);
+    const user = await get<any>(
       `SELECT id, company_id, role, active FROM users WHERE id=@id AND deleted_at IS NULL`,
       { id: userId },
     );
     if (!user || !user.active) throw unauthorized();
-    return ok({ ...tokens(user), user: sessionPayload(user.id) });
+    return ok({ ...await tokens(user), user: await sessionPayload(user.id) });
   },
 });
 
@@ -104,17 +104,17 @@ defineHttp({
   route: 'auth/logout',
   methods: ['POST'],
   guard: 'public',
-  handler: (req) => {
+  handler: async (req) => {
     const body = parse(
       z.object({ refreshToken: z.string().optional(), allDevices: z.boolean().optional() }),
       req.body,
     );
     if (body.refreshToken) {
-      const row = get<any>(`SELECT user_id FROM refresh_tokens WHERE token_hash=@h`, {
+      const row = await get<any>(`SELECT user_id FROM refresh_tokens WHERE token_hash=@h`, {
         h: sha256(body.refreshToken),
       });
-      revokeRefreshToken(body.refreshToken);
-      if (body.allDevices && row) revokeAllRefreshTokens(row.user_id);
+      await revokeRefreshToken(body.refreshToken);
+      if (body.allDevices && row) await revokeAllRefreshTokens(row.user_id);
     }
     return noContent();
   },
@@ -125,7 +125,7 @@ defineHttp({
   route: 'auth/me',
   methods: ['GET'],
   guard: 'authenticated',
-  handler: (_req, ctx) => ok(sessionPayload(ctx.user.id)),
+  handler: async (_req, ctx) => ok(await sessionPayload(ctx.user.id)),
 });
 
 defineHttp({
@@ -133,13 +133,13 @@ defineHttp({
   route: 'auth/me',
   methods: ['PATCH'],
   guard: 'authenticated',
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({ name: z.string().trim().min(2).max(80).optional(), phone: z.string().max(30).optional() }),
       req.body,
     );
-    usersRepo.update(ctx.tenantId, ctx.user.id, body);
-    return ok(sessionPayload(ctx.user.id));
+    await usersRepo.update(ctx.tenantId, ctx.user.id, body);
+    return ok(await sessionPayload(ctx.user.id));
   },
 });
 
@@ -151,14 +151,14 @@ defineHttp({
   guard: 'authenticated',
   handler: async (req, ctx) => {
     const body = parse(z.object({ currentPassword: z.string().min(1), newPassword: password }), req.body);
-    const u = get<any>(`SELECT * FROM users WHERE id=@id`, { id: ctx.user.id });
+    const u = await get<any>(`SELECT * FROM users WHERE id=@id`, { id: ctx.user.id });
     if (!(await verifyPassword(body.currentPassword, u.password_hash)))
       throw badRequest('La contraseña actual no es correcta.');
     if (body.currentPassword === body.newPassword)
       throw badRequest('La nueva contraseña debe ser diferente a la actual.');
     await usersRepo.setPassword(u.id, body.newPassword);
-    revokeAllRefreshTokens(u.id);
-    return ok({ ...tokens(u), user: sessionPayload(u.id) });
+    await revokeAllRefreshTokens(u.id);
+    return ok({ ...await tokens(u), user: await sessionPayload(u.id) });
   },
 });
 
@@ -168,16 +168,16 @@ defineHttp({
   route: 'auth/forgot-password',
   methods: ['POST'],
   guard: 'public',
-  handler: (req) => {
+  handler: async (req) => {
     const body = parse(z.object({ email }), req.body);
     rateLimit(`forgot:${req.ip}`, 5, 10 * 60_000);
-    const user = usersRepo.findByEmail(body.email);
+    const user = await usersRepo.findByEmail(body.email);
     const generic = {
       message: 'Si el correo está registrado, recibirás un enlace para restablecer tu contraseña.',
     };
     if (!user || !user.active) return ok(generic);
     const token = randomToken(32);
-    run(
+    await run(
       `INSERT INTO password_resets (id, user_id, token_hash, expires_at, created_at) VALUES (@id,@uid,@h,@exp,@ts)`,
       {
         id: id(),
@@ -188,7 +188,7 @@ defineHttp({
       },
     );
     const resetPath = `/restablecer?token=${token}`;
-    alertsRepo.insertNotification(user.company_id, {
+    await alertsRepo.insertNotification(user.company_id, {
       channel: 'email',
       recipient: user.email,
       subject: '[WMS] Restablece tu contraseña',
@@ -209,12 +209,12 @@ defineHttp({
   guard: 'public',
   handler: async (req) => {
     const body = parse(z.object({ token: z.string().min(10), newPassword: password }), req.body);
-    const row = get<any>(`SELECT * FROM password_resets WHERE token_hash=@h`, { h: sha256(body.token) });
+    const row = await get<any>(`SELECT * FROM password_resets WHERE token_hash=@h`, { h: sha256(body.token) });
     if (!row || row.used_at || row.expires_at < now())
       throw badRequest('El enlace no es válido o ya expiró. Solicita uno nuevo.');
     await usersRepo.setPassword(row.user_id, body.newPassword);
-    run(`UPDATE password_resets SET used_at=@ts WHERE id=@id`, { ts: now(), id: row.id });
-    revokeAllRefreshTokens(row.user_id);
+    await run(`UPDATE password_resets SET used_at=@ts WHERE id=@id`, { ts: now(), id: row.id });
+    await revokeAllRefreshTokens(row.user_id);
     return ok({ message: 'Contraseña actualizada. Ya puedes iniciar sesión.' });
   },
 });

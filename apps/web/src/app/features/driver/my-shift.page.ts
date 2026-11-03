@@ -53,7 +53,7 @@ const SHARE_LABELS: Record<ShareStatus, string> = {
             @if (me()?.vehicle; as v) {
               {{ v.plate }} · {{ types[v.type].label }} {{ v.brand }} {{ v.model }}
             } @else {
-              No tienes vehículo asignado. Pídeselo a tu supervisor.
+              Tu empresa te ve en el mapa mientras compartas la ubicación de este celular.
             }
           </p>
         </div>
@@ -122,10 +122,17 @@ const SHARE_LABELS: Record<ShareStatus, string> = {
             </section>
           </div>
         } @else {
-          <div class="card">
-            <app-empty icon="car" title="Sin vehículo asignado" text="Pídele a tu administrador que te asigne un vehículo en Conductores." />
+          <!-- Sin vehículo (p. ej. recién registrado con una invitación): lo principal es compartir la ubicación. -->
+          <div class="mgrid">
+            <ng-container [ngTemplateOutlet]="locCard" />
+            <section class="card mc">
+              <div class="mc-t"><span>Sin vehículo asignado</span></div>
+              <p class="note">
+                Cuando tu administrador te asigne un vehículo en Conductores, aquí podrás iniciar y finalizar recorridos y
+                enviar alertas de emergencia.
+              </p>
+            </section>
           </div>
-          <div class="mgrid" style="margin-top:18px"><ng-container [ngTemplateOutlet]="locCard" /></div>
         }
       } @else if (error()) {
         <div class="card">

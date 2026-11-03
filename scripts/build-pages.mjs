@@ -33,6 +33,7 @@ const ajustado = ajustarCodigo(out);
 console.log('▶ API para el navegador (esbuild)…');
 const alias = {
   'node:sqlite': path.join(shims, 'sqlite.ts'),
+  'node:async_hooks': path.join(shims, 'async-hooks.ts'),
   'node:fs': path.join(shims, 'node.ts'),
   fs: path.join(shims, 'node.ts'),
   'node:path': path.join(shims, 'node.ts'),
@@ -57,6 +58,8 @@ const shimPlugin = {
     b.onResolve({ filter: /.*/ }, (args) => (alias[args.path] ? { path: alias[args.path] } : undefined));
     // El runtime de Azure Functions solo se carga dentro del host de Azure: en el navegador no existe.
     b.onResolve({ filter: /^@azure\/functions$/ }, () => ({ path: 'azure-functions', namespace: 'empty' }));
+    // Los motores de Postgres (pg y PGlite) solo se usan en la nube y en las pruebas: la demo usa SQLite (sql.js).
+    b.onResolve({ filter: /^(pg|@electric-sql\/pglite)$/ }, (args) => ({ path: args.path, namespace: 'empty' }));
     b.onLoad({ filter: /.*/, namespace: 'empty' }, () => ({ contents: 'export default {};', loader: 'js' }));
   },
 };

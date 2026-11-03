@@ -81,8 +81,8 @@ export interface TripFilter {
 }
 
 export const trackingRepo = {
-  insertPosition(p: PositionInput) {
-    run(
+  async insertPosition(p: PositionInput) {
+    await run(
       `INSERT INTO positions (company_id, vehicle_id, device_id, trip_id, lat, lng, speed, heading, accuracy, battery, ignition, ts)
        VALUES (@companyId,@vehicleId,@deviceId,@tripId,@lat,@lng,@speed,@heading,@accuracy,@battery,@ignition,@ts)`,
       { ...p },
@@ -91,8 +91,8 @@ export const trackingRepo = {
 
   live: (vehicleId: string) => get<any>(`SELECT * FROM vehicle_live WHERE vehicle_id=@v`, { v: vehicleId }),
 
-  upsertLive(p: PositionInput, stoppedSince: string | null) {
-    run(
+  async upsertLive(p: PositionInput, stoppedSince: string | null) {
+    await run(
       `INSERT INTO vehicle_live (vehicle_id, company_id, lat, lng, speed, heading, accuracy, battery, ignition, ts, stopped_since)
        VALUES (@vehicleId,@companyId,@lat,@lng,@speed,@heading,@accuracy,@battery,@ignition,@ts,@stopped)
        ON CONFLICT(vehicle_id) DO UPDATE SET lat=excluded.lat, lng=excluded.lng, speed=excluded.speed, heading=excluded.heading,
@@ -106,38 +106,38 @@ export const trackingRepo = {
       v: vehicleId,
     }),
 
-  startTrip(companyId: string, vehicleId: string, driverId: string | null, ts: string): string {
+  async startTrip(companyId: string, vehicleId: string, driverId: string | null, ts: string): Promise<string> {
     const tid = id();
-    run(
+    await run(
       `INSERT INTO trips (id, company_id, vehicle_id, driver_id, started_at, status) VALUES (@id,@cid,@vid,@did,@ts,'open')`,
       { id: tid, cid: companyId, vid: vehicleId, did: driverId, ts },
     );
     return tid;
   },
 
-  closeTrip(tripId: string, ts: string) {
-    run(`UPDATE trips SET status='closed', ended_at=@ts WHERE id=@id AND status='open'`, { id: tripId, ts });
+  async closeTrip(tripId: string, ts: string) {
+    await run(`UPDATE trips SET status='closed', ended_at=@ts WHERE id=@id AND status='open'`, { id: tripId, ts });
   },
 
-  addToTrip(tripId: string, deltaM: number, speed: number, dtS: number, moving: boolean) {
-    run(
-      `UPDATE trips SET distance_m = distance_m + @d, max_speed = MAX(max_speed, @s), points = points + 1,
+  async addToTrip(tripId: string, deltaM: number, speed: number, dtS: number, moving: boolean) {
+    await run(
+      `UPDATE trips SET distance_m = distance_m + @d, max_speed = CASE WHEN @s > max_speed THEN @s ELSE max_speed END, points = points + 1,
          moving_seconds = moving_seconds + @mv, stopped_seconds = stopped_seconds + @st WHERE id=@id`,
       { id: tripId, d: deltaM, s: speed, mv: moving ? dtS : 0, st: moving ? 0 : dtS },
     );
   },
 
   /** Cierra recorridos sin datos recientes (lo invoca el watchdog). */
-  closeStaleTrips(olderThan: string): number {
-    return run(
+  async closeStaleTrips(olderThan: string): Promise<number> {
+    return (await run(
       `UPDATE trips SET status='closed', ended_at=COALESCE((SELECT MAX(ts) FROM positions p WHERE p.trip_id = trips.id), started_at)
        WHERE status='open' AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.trip_id = trips.id AND p.ts > @t) AND started_at < @t`,
       { t: olderThan },
-    ).changes;
+    )).changes;
   },
 
-  trips(tenantId: string, f: TripFilter = {}): TripDto[] {
-    return all(
+  async trips(tenantId: string, f: TripFilter = {}): Promise<TripDto[]> {
+    return (await all(
       `${TRIP_SQL} AND (@vehicle IS NULL OR t.vehicle_id=@vehicle) AND (@driver IS NULL OR t.driver_id=@driver)
         AND (@from IS NULL OR t.started_at >= @from) AND (@to IS NULL OR t.started_at <= @to)
        ORDER BY t.started_at DESC LIMIT @limit`,
@@ -149,11 +149,11 @@ export const trackingRepo = {
         to: f.to ?? null,
         limit: f.limit ?? 200,
       },
-    ).map(mapTrip);
+    )).map(mapTrip);
   },
 
-  trip(tenantId: string, tripId: string): TripDto | undefined {
-    const r = get(`${TRIP_SQL} AND t.id=@id`, { cid: tenantId, id: tripId });
+  async trip(tenantId: string, tripId: string): Promise<TripDto | undefined> {
+    const r = await get(`${TRIP_SQL} AND t.id=@id`, { cid: tenantId, id: tripId });
     return r ? mapTrip(r) : undefined;
   },
 
@@ -165,8 +165,8 @@ export const trackingRepo = {
   },
 
   /** Estela de los últimos minutos para el mapa en vivo. */
-  trail(tenantId: string, vehicleId: string, since: string, maxPoints = 400) {
-    const rows = all<any>(
+  async trail(tenantId: string, vehicleId: string, since: string, maxPoints = 400) {
+    const rows = await all<any>(
       `SELECT lat, lng, ts FROM positions WHERE company_id=@cid AND vehicle_id=@v AND ts >= @since ORDER BY ts`,
       { cid: tenantId, v: vehicleId, since },
     );
@@ -176,8 +176,8 @@ export const trackingRepo = {
       .map((r) => [r.lat, r.lng] as [number, number]);
   },
 
-  positionsRange(tenantId: string, vehicleId: string, from: string, to: string, maxPoints = 3000) {
-    const rows = all<any>(
+  async positionsRange(tenantId: string, vehicleId: string, from: string, to: string, maxPoints = 3000) {
+    const rows = await all<any>(
       `SELECT lat, lng, speed, heading, ts FROM positions WHERE company_id=@cid AND vehicle_id=@v AND ts BETWEEN @from AND @to ORDER BY ts`,
       { cid: tenantId, v: vehicleId, from, to },
     );
@@ -186,9 +186,9 @@ export const trackingRepo = {
   },
 
   /** KPIs y series para el dashboard. */
-  dashboard(tenantId: string) {
+  async dashboard(tenantId: string) {
     const today = bogotaDayStart().toISOString();
-    const vehicles = get<any>(
+    const vehicles = await get<any>(
       `SELECT COUNT(*) total,
          SUM(CASE WHEN d.connection='online' THEN 1 ELSE 0 END) online,
          SUM(CASE WHEN l.speed > 3 AND d.connection='online' THEN 1 ELSE 0 END) moving
@@ -196,18 +196,18 @@ export const trackingRepo = {
        WHERE v.company_id=@cid AND v.retired_at IS NULL`,
       { cid: tenantId },
     );
-    const openAlerts = get<any>(
+    const openAlerts = await get<any>(
       `SELECT COUNT(*) n, SUM(CASE WHEN priority IN ('high','critical') THEN 1 ELSE 0 END) critical FROM alerts WHERE company_id=@cid AND attended=0`,
       { cid: tenantId },
     );
-    const kmToday = get<any>(
+    const kmToday = await get<any>(
       `SELECT COALESCE(SUM(distance_m),0) m FROM trips WHERE company_id=@cid AND started_at >= @t`,
       {
         cid: tenantId,
         t: today,
       },
     );
-    const devices = get<any>(
+    const devices = await get<any>(
       `SELECT COUNT(*) total,
          SUM(CASE WHEN status='faulty' OR (status='active' AND connection='offline') THEN 1 ELSE 0 END) failing
        FROM devices WHERE company_id=@cid AND status <> 'retired'`,
@@ -218,7 +218,7 @@ export const trackingRepo = {
     for (let i = 6; i >= 0; i--) {
       const from = new Date(start.getTime() - i * 86400_000).toISOString();
       const to = new Date(start.getTime() - (i - 1) * 86400_000).toISOString();
-      const t = get<any>(
+      const t = await get<any>(
         `SELECT COALESCE(SUM(distance_m),0) m, COUNT(*) n FROM trips WHERE company_id=@cid AND started_at >= @f AND started_at < @t`,
         {
           cid: tenantId,
@@ -226,18 +226,18 @@ export const trackingRepo = {
           t: to,
         },
       );
-      const a = get<any>(`SELECT COUNT(*) n FROM alerts WHERE company_id=@cid AND ts >= @f AND ts < @t`, {
+      const a = await get<any>(`SELECT COUNT(*) n FROM alerts WHERE company_id=@cid AND ts >= @f AND ts < @t`, {
         cid: tenantId,
         f: from,
         t: to,
       });
       days.push({ day: from, km: Math.round(t.m / 100) / 10, trips: t.n, alerts: a.n });
     }
-    const alertsByType = all<any>(
+    const alertsByType = await all<any>(
       `SELECT type, COUNT(*) n FROM alerts WHERE company_id=@cid AND ts >= @f GROUP BY type ORDER BY n DESC`,
       { cid: tenantId, f: new Date(start.getTime() - 6 * 86400_000).toISOString() },
     );
-    const topVehicles = all<any>(
+    const topVehicles = await all<any>(
       `SELECT v.id, v.plate, v.type, COALESCE(SUM(t.distance_m),0) m FROM vehicles v
        LEFT JOIN trips t ON t.vehicle_id=v.id AND t.started_at >= @f
        WHERE v.company_id=@cid AND v.retired_at IS NULL GROUP BY v.id ORDER BY m DESC LIMIT 5`,
@@ -264,7 +264,7 @@ export const trackingRepo = {
    * days = 7 | 30 | 90. Buckets diarios (7 y 30) o semanales (90), en hora de Bogotá.
    * Devuelve el periodo actual, el anterior (misma duración) y el top 5 de conductores por km.
    */
-  analytics(tenantId: string, days: 7 | 30 | 90) {
+  async analytics(tenantId: string, days: 7 | 30 | 90) {
     const DAY = 86400_000;
     const bucketDays = days === 90 ? 7 : 1;
     const buckets = Math.ceil(days / bucketDays);
@@ -277,19 +277,19 @@ export const trackingRepo = {
          WHERE company_id=@cid AND started_at >= @f AND started_at < @t`,
         { cid: tenantId, f: f.toISOString(), t: t.toISOString() },
       );
-    const series = (from: Date) => {
+    const series = async (from: Date) => {
       const out: { day: string; km: number; trips: number }[] = [];
       for (let i = 0; i < buckets; i++) {
         const f = new Date(from.getTime() + i * bucketDays * DAY);
         const t = new Date(f.getTime() + bucketDays * DAY);
-        const r = sum(f, t);
+        const r = await sum(f, t);
         out.push({ day: f.toISOString(), km: Math.round(r.m / 100) / 10, trips: r.n });
       }
       return out;
     };
-    const cur = series(start);
-    const prev = series(prevStart);
-    const topDrivers = all<any>(
+    const cur = await series(start);
+    const prev = await series(prevStart);
+    const topDrivers = await all<any>(
       `SELECT u.id, u.name, COALESCE(SUM(t.distance_m),0) m, COUNT(t.id) n
        FROM trips t JOIN users u ON u.id = t.driver_id
        WHERE t.company_id=@cid AND t.started_at >= @f AND t.started_at < @t

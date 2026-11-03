@@ -1,0 +1,72 @@
+# API de WMS en Render (Blueprint): dos servicios, uno por ambiente.
+#  - wms-api-lab:  laboratorio. Despliega la rama «main». Datos demo y simulador GPS dentro del servidor.
+#  - wms-api-prod: producción. Despliega la rama «production». Base vacía: sin datos demo ni simulador.
+# Las bases de datos son PostgreSQL en Neon (una por ambiente): su URL va en DATABASE_URL (no se guarda aquí).
+# Guía completa: docs/despliegue-nube.md
+services:
+  - type: web
+    name: wms-api-lab
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci
+    startCommand: npm start -w api
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: lab
+      - key: NODE_VERSION
+        value: "22"
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SIMULATOR_KEY
+        generateValue: true
+      # Cada cuántos segundos avanza el simulador (menos escrituras en la base gratuita)
+      - key: SIMULATOR_STEP_SECONDS
+        value: "5"
+      # Posiciones GPS de más de N días se borran (los recorridos, alertas y reportes se conservan)
+      - key: POSITIONS_RETENTION_DAYS
+        value: "10"
+
+  - type: web
+    name: wms-api-prod
+    runtime: node
+    plan: free
+    region: virginia
+    branch: production
+    autoDeploy: true
+    buildCommand: npm ci
+    startCommand: npm start -w api
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SIMULATOR_KEY
+        generateValue: true
+      # Cuenta de soporte de la plataforma (opcional; se crea sola en el primer arranque)
+      - key: SUPPORT_EMAIL
+        sync: false
+      - key: SUPPORT_PASSWORD
+        sync: false

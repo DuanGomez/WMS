@@ -35,10 +35,13 @@
               "src/styles.scss"
             ],
             "allowedCommonJsDependencies": [
-              "leaflet"
+              "leaflet",
+              "qrcode-generator"
             ],
             "define": {
-              "WMS_DEMO": "false"
+              "WMS_DEMO": "false",
+              "WMS_ENV": "'local'",
+              "WMS_API_URL": "''"
             }
           },
           "configurations": {

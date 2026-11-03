@@ -11,7 +11,7 @@ import {
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth.service';
 import { DemoHttpBackend, demoApi } from './core/demo-backend';
-import { DEMO } from './core/runtime';
+import { apiBaseInterceptor, DEMO } from './core/runtime';
 import { isFlipping } from './ui/wms-fx';
 
 // Demo de GitHub Pages: la API arranca dentro del navegador mientras carga la interfaz.
@@ -31,7 +31,7 @@ export const appConfig: ApplicationConfig = {
       // («Transition was skipped»); en producción no.
       withViewTransitions({ onViewTransitionCreated: ({ transition }) => isFlipping() && transition.skipTransition() }),
     ),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor, apiBaseInterceptor])),
     ...(DEMO ? [{ provide: HttpBackend, useClass: DemoHttpBackend }] : []),
     { provide: LOCALE_ID, useValue: 'es-CO' },
   ],

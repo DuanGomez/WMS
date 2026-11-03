@@ -35,7 +35,7 @@ defineHttp({
   route: 'geofences',
   methods: ['GET'],
   guard: { module: 'geofences', level: 'read' },
-  handler: (_req, ctx) => ok(geofencesRepo.list(ctx.tenantId)),
+  handler: async (_req, ctx) => ok(await geofencesRepo.list(ctx.tenantId)),
 });
 
 defineHttp({
@@ -43,7 +43,7 @@ defineHttp({
   route: 'geofences/{id}',
   methods: ['GET'],
   guard: { module: 'geofences', level: 'read' },
-  handler: (req, ctx) => ok(geofencesRepo.get(ctx.tenantId, req.params.id)),
+  handler: async (req, ctx) => ok(await geofencesRepo.get(ctx.tenantId, req.params.id)),
 });
 
 /* RF5 – Crear geocerca */
@@ -52,10 +52,10 @@ defineHttp({
   route: 'geofences',
   methods: ['POST'],
   guard: { module: 'geofences', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(base, req.body);
     validateShape(body);
-    return created(geofencesRepo.create(ctx.tenantId, body));
+    return created(await geofencesRepo.create(ctx.tenantId, body));
   },
 });
 
@@ -65,11 +65,11 @@ defineHttp({
   route: 'geofences/{id}',
   methods: ['PATCH'],
   guard: { module: 'geofences', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(base.partial(), req.body);
-    const cur = geofencesRepo.get(ctx.tenantId, req.params.id);
+    const cur = await geofencesRepo.get(ctx.tenantId, req.params.id);
     validateShape({ ...cur, ...body });
-    return ok(geofencesRepo.update(ctx.tenantId, req.params.id, body));
+    return ok(await geofencesRepo.update(ctx.tenantId, req.params.id, body));
   },
 });
 
@@ -79,8 +79,8 @@ defineHttp({
   route: 'geofences/{id}',
   methods: ['DELETE'],
   guard: { module: 'geofences', level: 'write' },
-  handler: (req, ctx) => {
-    geofencesRepo.remove(ctx.tenantId, req.params.id);
+  handler: async (req, ctx) => {
+    await geofencesRepo.remove(ctx.tenantId, req.params.id);
     return noContent();
   },
 });

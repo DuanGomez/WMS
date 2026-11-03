@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input, isDevMode, signal } 
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { errorMessage } from '../../core/api.service';
-import { DEMO } from '../../core/runtime';
+import { APP_ENV } from '../../core/runtime';
 import { Auth } from '../../core/auth.service';
 import { IconComponent } from '../../ui/icon.component';
 import { LogoComponent } from '../../ui/logo.component';
@@ -118,8 +118,8 @@ export class LoginPage {
   readonly show = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
-  /** Las cuentas demo solo se muestran en la demo de Pages y en desarrollo, nunca en un despliegue real. */
-  readonly showDemo = DEMO || isDevMode();
+  /** Las cuentas demo se muestran en la demo de Pages, en el laboratorio y en desarrollo; en producción no existen. */
+  readonly showDemo = APP_ENV !== 'production' || isDevMode();
   readonly demos = [
     { label: 'Administrador', email: 'admin@la72.co' },
     { label: 'Responsable', email: 'gerencia@la72.co' },

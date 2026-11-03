@@ -43,9 +43,9 @@ defineHttp({
   route: 'users',
   methods: ['GET'],
   guard: { module: 'users', level: 'read' },
-  handler: (req, ctx) =>
+  handler: async (req, ctx) =>
     ok(
-      usersRepo.list(ctx.tenantId, {
+      await usersRepo.list(ctx.tenantId, {
         role: req.query.get('role') ?? undefined,
         q: req.query.get('q') ?? undefined,
       }),
@@ -57,7 +57,7 @@ defineHttp({
   route: 'users/{id}',
   methods: ['GET'],
   guard: { module: 'users', level: 'read' },
-  handler: (req, ctx) => ok(usersRepo.get(ctx.tenantId, req.params.id)),
+  handler: async (req, ctx) => ok(await usersRepo.get(ctx.tenantId, req.params.id)),
 });
 
 /* RF9 – Crear usuario con rol */
@@ -79,9 +79,9 @@ defineHttp({
       req.body,
     );
     assertRoleAllowed(ctx, body.role);
-    companiesRepo.assertCanAdd(ctx.tenantId, 'users');
+    await companiesRepo.assertCanAdd(ctx.tenantId, 'users');
     const user = await usersRepo.create(ctx.tenantId, body);
-    if (body.role === 'driver') driversRepo.upsertProfile(ctx.tenantId, user.id, {});
+    if (body.role === 'driver') await driversRepo.upsertProfile(ctx.tenantId, user.id, {});
     return created(user);
   },
 });
@@ -92,7 +92,7 @@ defineHttp({
   route: 'users/{id}',
   methods: ['PATCH'],
   guard: { module: 'users', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({
         name: z.string().trim().min(2).max(80).optional(),
@@ -103,7 +103,7 @@ defineHttp({
       }),
       req.body,
     );
-    const target = usersRepo.get(ctx.tenantId, req.params.id);
+    const target = await usersRepo.get(ctx.tenantId, req.params.id);
     if (body.role) assertRoleAllowed(ctx, body.role);
     if (target.role === 'owner' && ctx.user.role !== 'owner')
       throw forbidden('No puedes modificar al responsable de la empresa.');
@@ -113,10 +113,10 @@ defineHttp({
     ) {
       throw badRequest('No puedes desactivarte ni cambiar tu propio rol.');
     }
-    const updated = usersRepo.update(ctx.tenantId, req.params.id, body);
-    if (updated.role === 'driver') driversRepo.upsertProfile(ctx.tenantId, updated.id, {});
+    const updated = await usersRepo.update(ctx.tenantId, req.params.id, body);
+    if (updated.role === 'driver') await driversRepo.upsertProfile(ctx.tenantId, updated.id, {});
     if (target.role === 'driver' && updated.role !== 'driver') {
-      run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@id AND company_id=@cid`, {
+      await run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@id AND company_id=@cid`, {
         id: updated.id,
         cid: ctx.tenantId,
       });
@@ -131,9 +131,9 @@ defineHttp({
   route: 'users/{id}/permissions',
   methods: ['PUT'],
   guard: { module: 'users', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(z.object({ permissions: permissionsSchema }), req.body);
-    const target = usersRepo.get(ctx.tenantId, req.params.id);
+    const target = await usersRepo.get(ctx.tenantId, req.params.id);
     if (target.role === 'owner') throw badRequest('El responsable de la empresa siempre tiene acceso total.');
     if (req.params.id === ctx.user.id) throw badRequest('No puedes modificar tus propios permisos.');
     // Sólo se guardan las diferencias con el rol (así un cambio de rol sigue funcionando como se espera).
@@ -143,7 +143,7 @@ defineHttp({
       const v = body.permissions[m];
       if (v && v !== defaults[m]) overrides[m] = v;
     }
-    return ok(usersRepo.setPermissions(ctx.tenantId, req.params.id, overrides));
+    return ok(await usersRepo.setPermissions(ctx.tenantId, req.params.id, overrides));
   },
 });
 
@@ -154,11 +154,11 @@ defineHttp({
   methods: ['POST'],
   guard: { module: 'users', level: 'write' },
   handler: async (req, ctx) => {
-    const target = usersRepo.get(ctx.tenantId, req.params.id);
+    const target = await usersRepo.get(ctx.tenantId, req.params.id);
     if (target.role === 'owner' && ctx.user.role !== 'owner') throw forbidden();
     const temp = `Wms-${randomToken(6)}1`;
     await usersRepo.setPassword(target.id, temp);
-    run(`UPDATE users SET must_change_password=1 WHERE id=@id`, { id: target.id });
+    await run(`UPDATE users SET must_change_password=1 WHERE id=@id`, { id: target.id });
     return ok({ temporaryPassword: temp });
   },
 });
@@ -169,11 +169,11 @@ defineHttp({
   route: 'users/{id}',
   methods: ['DELETE'],
   guard: { module: 'users', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     if (req.params.id === ctx.user.id) throw badRequest('No puedes eliminar tu propio usuario.');
-    const target = usersRepo.get(ctx.tenantId, req.params.id);
+    const target = await usersRepo.get(ctx.tenantId, req.params.id);
     if (target.role === 'owner') throw forbidden('El responsable de la empresa no se puede eliminar.');
-    usersRepo.remove(ctx.tenantId, req.params.id);
+    await usersRepo.remove(ctx.tenantId, req.params.id);
     return noContent();
   },
 });

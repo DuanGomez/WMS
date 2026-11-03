@@ -14,7 +14,7 @@ defineHttp({
   route: 'plans',
   methods: ['GET'],
   guard: 'public',
-  handler: () => ok(plansRepo.list()),
+  handler: async () => ok(await plansRepo.list()),
 });
 
 /* RF23 – Registro self-service de una nueva empresa con su plan (HU7) */
@@ -41,8 +41,8 @@ defineHttp({
       }),
       req.body,
     );
-    if (usersRepo.findByEmail(body.owner.email)) throw conflict('Ya existe un usuario con ese correo.');
-    const companyId = companiesRepo.createWithPlan({ ...body.company, planCode: body.planCode });
+    if (await usersRepo.findByEmail(body.owner.email)) throw conflict('Ya existe un usuario con ese correo.');
+    const companyId = await companiesRepo.createWithPlan({ ...body.company, planCode: body.planCode });
     const owner = await usersRepo.create(companyId, {
       ...body.owner,
       role: 'owner',
@@ -50,9 +50,9 @@ defineHttp({
     });
     return created({
       accessToken: signAccessToken({ id: owner.id, company_id: companyId, role: 'owner' }),
-      refreshToken: issueRefreshToken(owner.id),
+      refreshToken: await issueRefreshToken(owner.id),
       tokenType: 'Bearer',
-      user: sessionPayload(owner.id),
+      user: await sessionPayload(owner.id),
     });
   },
 });
@@ -62,7 +62,7 @@ defineHttp({
   route: 'company',
   methods: ['GET'],
   guard: { module: 'billing', level: 'read' },
-  handler: (_req, ctx) => ok(companiesRepo.get(ctx.tenantId)),
+  handler: async (_req, ctx) => ok(await companiesRepo.get(ctx.tenantId)),
 });
 
 defineHttp({
@@ -70,7 +70,7 @@ defineHttp({
   route: 'company',
   methods: ['PATCH'],
   guard: { module: 'billing', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({
         name: z.string().trim().min(2).max(100).optional(),
@@ -82,7 +82,7 @@ defineHttp({
       }),
       req.body,
     );
-    return ok(companiesRepo.update(ctx.tenantId, body));
+    return ok(await companiesRepo.update(ctx.tenantId, body));
   },
 });
 
@@ -92,7 +92,7 @@ defineHttp({
   route: 'subscription',
   methods: ['GET'],
   guard: { module: 'billing', level: 'read' },
-  handler: (_req, ctx) => ok(companiesRepo.subscription(ctx.tenantId)),
+  handler: async (_req, ctx) => ok(await companiesRepo.subscription(ctx.tenantId)),
 });
 
 /* RF25 – Cambiar plan (también reactiva una suscripción cancelada) */
@@ -101,9 +101,9 @@ defineHttp({
   route: 'subscription/plan',
   methods: ['PUT'],
   guard: { module: 'billing', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(z.object({ planCode }), req.body);
-    return ok(companiesRepo.changePlan(ctx.tenantId, body.planCode));
+    return ok(await companiesRepo.changePlan(ctx.tenantId, body.planCode));
   },
 });
 
@@ -113,12 +113,12 @@ defineHttp({
   route: 'subscription/cancel',
   methods: ['POST'],
   guard: { module: 'billing', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({ reason: z.string().trim().min(3, 'Cuéntanos el motivo').max(300) }),
       req.body,
     );
-    return ok(companiesRepo.cancel(ctx.tenantId, body.reason));
+    return ok(await companiesRepo.cancel(ctx.tenantId, body.reason));
   },
 });
 
@@ -128,7 +128,7 @@ defineHttp({
   route: 'invoices',
   methods: ['GET'],
   guard: { module: 'billing', level: 'read' },
-  handler: (_req, ctx) => ok(companiesRepo.invoices(ctx.tenantId)),
+  handler: async (_req, ctx) => ok(await companiesRepo.invoices(ctx.tenantId)),
 });
 
 defineHttp({
@@ -136,5 +136,5 @@ defineHttp({
   route: 'invoices/{id}/pay',
   methods: ['POST'],
   guard: { module: 'billing', level: 'write' },
-  handler: (req, ctx) => ok(companiesRepo.payInvoice(ctx.tenantId, req.params.id)),
+  handler: async (req, ctx) => ok(await companiesRepo.payInvoice(ctx.tenantId, req.params.id)),
 });

@@ -232,7 +232,7 @@ describe('CP-R06 · Caducidad y revocación de enlaces públicos de reportes (R-
       .expect(201);
 
     // Simular vencimiento del token en la base de datos
-    run(`UPDATE report_shares SET expires_at = @past WHERE id = @id`, {
+    await run(`UPDATE report_shares SET expires_at = @past WHERE id = @id`, {
       past: new Date(Date.now() - 60_000).toISOString(),
       id: share.body.id,
     });

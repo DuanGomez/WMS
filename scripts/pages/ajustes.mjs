@@ -432,10 +432,6 @@ export const reemplazos = [
     antes: "this.drag={y:e.clientY,h:this.height()()},this.host.setPointerCapture(e.pointerId),this.host.parentElement?.classList.add(`dragging`)}move(e){if(!this.drag)return;let t=this.drag.h-(e.clientY-this.drag.y);this.height().set(Math.max(120,Math.min(window.innerHeight*.9,t)))}end(){if(!this.drag)return;this.drag=null,this.host.parentElement?.classList.remove(`dragging`);let e=this.height()();this.set(this.snaps().reduce((t,n)=>Math.abs(n-e)<Math.abs(t-e)?n:t))}",
     despues: "let p=this.host.parentElement,M=Math.round(window.innerHeight*.9),h0=this.height()();if(this.__st){clearTimeout(this.__st),this.__st=0,h0=this.__ss;let k=p?getComputedStyle(p).transform:``,y=k.startsWith(`matrix(`)?parseFloat(k.slice(7,-1).split(`,`)[5]):NaN;isFinite(y)&&(h0=Math.max(120,Math.min(M,Math.round(this.__sM-y))))}this.drag={y:e.clientY,h:h0,cur:h0,M:M},this.host.setPointerCapture(e.pointerId),p?.classList.add(`dragging`),p&&(p.style.animation=`none`,p.style.transition=`none`,p.style.setProperty(`--sheet-h`,M+`px`),p.style.transform=`translateY(${M-this.drag.h}px)`)}move(e){if(!this.drag)return;let t=Math.max(120,Math.min(this.drag.M,this.drag.h-(e.clientY-this.drag.y)));this.drag.cur=t;let p=this.host.parentElement;p&&(p.style.transform=`translateY(${this.drag.M-t}px)`)}end(){if(!this.drag)return;let d=this.drag,e=d.cur,p=this.host.parentElement;this.drag=null;let s=this.snaps().reduce((t,n)=>Math.abs(n-e)<Math.abs(t-e)?n:t);if(!p){this.set(s);return}p.style.transition=`transform .3s cubic-bezier(.2,.8,.2,1)`,p.style.transform=`translateY(${d.M-s}px)`,this.__ss=s,this.__sM=d.M,this.__st=setTimeout(()=>{this.__st=0,p.classList.remove(`dragging`),p.style.transition=`none`,p.style.transform=``,p.style.setProperty(`--sheet-h`,s+`px`),this.set(s),requestAnimationFrame(()=>requestAnimationFrame(()=>{p.style.transition=``}))},310)}",
   },
-  {
-    archivo: 'demo',
-    que: "Demo: la base se guarda al minuto y después cada 10 min; los reportes de ejemplo se generan a los 10 min",
-    antes: "if(i||Z(),l){let F=l;setTimeout(()=>F().then(Z,()=>{}),4e3)}return setInterval(Z,3e4),",
-    despues: "if(i||setTimeout(Z,6e4),l){let F=l;setTimeout(()=>F().then(Z,()=>{}),6e5)}return setInterval(Z,6e5),",
-  },
+  // Los tiempos de la API de la demo (guardar al minuto y cada 10 min, reportes de ejemplo a los 10 min) ahora están
+  // en el código fuente: api/src/demo/browser.ts.
 ];

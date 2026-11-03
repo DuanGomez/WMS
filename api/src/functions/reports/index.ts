@@ -56,21 +56,21 @@ const SQL = `SELECT r.id, r.name, r.type, r.format, r.vehicle_id, r.driver_id, r
   FROM reports r LEFT JOIN vehicles v ON v.id = r.vehicle_id LEFT JOIN users d ON d.id = r.driver_id LEFT JOIN users u ON u.id = r.created_by
   WHERE r.company_id = @cid AND r.deleted_at IS NULL`;
 
-function getReport(tenantId: string, reportId: string) {
-  const r = get(`${SQL} AND r.id=@id`, { cid: tenantId, id: reportId, now: now() });
+async function getReport(tenantId: string, reportId: string) {
+  const r = await get(`${SQL} AND r.id=@id`, { cid: tenantId, id: reportId, now: now() });
   if (!r) throw notFound('Reporte');
   return mapReport(r);
 }
 
-function checkRefs(ctx: Ctx, p: { vehicleId?: string | null; driverId?: string | null }) {
+async function checkRefs(ctx: Ctx, p: { vehicleId?: string | null; driverId?: string | null }) {
   if (
     p.vehicleId &&
-    !get(`SELECT id FROM vehicles WHERE id=@id AND company_id=@cid`, { id: p.vehicleId, cid: ctx.tenantId })
+    !await get(`SELECT id FROM vehicles WHERE id=@id AND company_id=@cid`, { id: p.vehicleId, cid: ctx.tenantId })
   )
     throw notFound('Vehículo');
   if (
     p.driverId &&
-    !get(`SELECT id FROM users WHERE id=@id AND company_id=@cid`, { id: p.driverId, cid: ctx.tenantId })
+    !await get(`SELECT id FROM users WHERE id=@id AND company_id=@cid`, { id: p.driverId, cid: ctx.tenantId })
   )
     throw notFound('Conductor');
 }
@@ -105,8 +105,8 @@ defineHttp({
   route: 'reports',
   methods: ['GET'],
   guard: { module: 'reports', level: 'read' },
-  handler: (_req, ctx) =>
-    ok(all(`${SQL} ORDER BY r.generated_at DESC`, { cid: ctx.tenantId, now: now() }).map(mapReport)),
+  handler: async (_req, ctx) =>
+    ok((await all(`${SQL} ORDER BY r.generated_at DESC`, { cid: ctx.tenantId, now: now() })).map(mapReport)),
 });
 
 /* Reportes compartidos conmigo (envío directo, RF33) — disponible aunque no tenga el módulo de reportes */
@@ -115,15 +115,15 @@ defineHttp({
   route: 'reports-shared',
   methods: ['GET'],
   guard: 'authenticated',
-  handler: (_req, ctx) =>
+  handler: async (_req, ctx) =>
     ok(
-      all<any>(
+      (await all<any>(
         `SELECT s.token, s.message, s.expires_at, s.created_at, r.name, r.format, r.type, u.name AS shared_by
          FROM report_shares s JOIN reports r ON r.id = s.report_id LEFT JOIN users u ON u.id = s.created_by
          WHERE s.shared_with_user_id=@uid AND s.company_id=@cid AND s.revoked_at IS NULL AND s.expires_at > @now AND r.deleted_at IS NULL
          ORDER BY s.created_at DESC`,
         { uid: ctx.user.id, cid: ctx.tenantId, now: now() },
-      ).map((s) => ({
+      )).map((s) => ({
         token: s.token,
         name: s.name,
         format: s.format,
@@ -141,7 +141,7 @@ defineHttp({
   route: 'reports/{id}',
   methods: ['GET'],
   guard: { module: 'reports', level: 'read' },
-  handler: (req, ctx) => ok(getReport(ctx.tenantId, req.params.id)),
+  handler: async (req, ctx) => ok(await getReport(ctx.tenantId, req.params.id)),
 });
 
 /* RF19 – Generar reporte personalizado (vehículo, conductor o periodo) en PDF o Excel */
@@ -152,7 +152,7 @@ defineHttp({
   guard: { module: 'reports', level: 'write' },
   handler: async (req, ctx) => {
     const p = parse(params, req.body);
-    checkRefs(ctx, p);
+    await checkRefs(ctx, p);
     const norm = {
       ...p,
       periodStart: new Date(p.periodStart).toISOString(),
@@ -160,7 +160,7 @@ defineHttp({
     };
     const { content, summary } = await buildReport(ctx.tenantId, norm);
     const rid = id();
-    run(
+    await run(
       `INSERT INTO reports (id, company_id, created_by, name, type, format, vehicle_id, driver_id, period_start, period_end, summary, content, size_bytes, version, generated_at)
        VALUES (@id,@cid,@uid,@name,@type,@format,@vehicle,@driver,@ps,@pe,@summary,@content,@size,1,@ts)`,
       {
@@ -180,7 +180,7 @@ defineHttp({
         ts: now(),
       },
     );
-    return created(getReport(ctx.tenantId, rid));
+    return created(await getReport(ctx.tenantId, rid));
   },
 });
 
@@ -191,7 +191,7 @@ defineHttp({
   methods: ['POST'],
   guard: { module: 'reports', level: 'write' },
   handler: async (req, ctx) => {
-    const cur = getReport(ctx.tenantId, req.params.id);
+    const cur = await getReport(ctx.tenantId, req.params.id);
     const merged = parse(params, {
       name: cur.name,
       type: cur.type,
@@ -202,14 +202,14 @@ defineHttp({
       periodEnd: cur.periodEnd,
       ...(req.body ?? {}),
     });
-    checkRefs(ctx, merged);
+    await checkRefs(ctx, merged);
     const norm = {
       ...merged,
       periodStart: new Date(merged.periodStart).toISOString(),
       periodEnd: new Date(merged.periodEnd).toISOString(),
     };
     const { content, summary } = await buildReport(ctx.tenantId, norm);
-    run(
+    await run(
       `UPDATE reports SET name=@name, type=@type, format=@format, vehicle_id=@vehicle, driver_id=@driver, period_start=@ps, period_end=@pe,
          summary=@summary, content=@content, size_bytes=@size, version=version+1, generated_at=@ts WHERE id=@id AND company_id=@cid`,
       {
@@ -228,7 +228,7 @@ defineHttp({
         cid: ctx.tenantId,
       },
     );
-    return ok(getReport(ctx.tenantId, cur.id));
+    return ok(await getReport(ctx.tenantId, cur.id));
   },
 });
 
@@ -238,8 +238,8 @@ defineHttp({
   route: 'reports/{id}/download',
   methods: ['GET'],
   guard: { module: 'reports', level: 'read' },
-  handler: (req, ctx) => {
-    const r = get<any>(
+  handler: async (req, ctx) => {
+    const r = await get<any>(
       `SELECT name, format, content, version FROM reports WHERE id=@id AND company_id=@cid AND deleted_at IS NULL`,
       {
         id: req.params.id,
@@ -257,14 +257,14 @@ defineHttp({
   route: 'reports/{id}',
   methods: ['DELETE'],
   guard: { module: 'reports', level: 'write' },
-  handler: (req, ctx) => {
-    getReport(ctx.tenantId, req.params.id);
-    run(`UPDATE reports SET deleted_at=@ts, content=NULL WHERE id=@id AND company_id=@cid`, {
+  handler: async (req, ctx) => {
+    await getReport(ctx.tenantId, req.params.id);
+    await run(`UPDATE reports SET deleted_at=@ts, content=NULL WHERE id=@id AND company_id=@cid`, {
       ts: now(),
       id: req.params.id,
       cid: ctx.tenantId,
     });
-    run(`UPDATE report_shares SET revoked_at=@ts WHERE report_id=@id AND revoked_at IS NULL`, {
+    await run(`UPDATE report_shares SET revoked_at=@ts WHERE report_id=@id AND revoked_at IS NULL`, {
       ts: now(),
       id: req.params.id,
     });
@@ -278,7 +278,7 @@ defineHttp({
   route: 'reports/{id}/share',
   methods: ['POST'],
   guard: { module: 'reports', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const body = parse(
       z.object({
         mode: z.enum(['link', 'user']),
@@ -288,11 +288,11 @@ defineHttp({
       }),
       req.body,
     );
-    const report = getReport(ctx.tenantId, req.params.id);
+    const report = await getReport(ctx.tenantId, req.params.id);
     let target: any = null;
     if (body.mode === 'user') {
       if (!body.userId) throw badRequest('Elige el usuario destinatario.');
-      target = get(
+      target = await get(
         `SELECT id, name, email FROM users WHERE id=@id AND company_id=@cid AND active=1 AND deleted_at IS NULL`,
         {
           id: body.userId,
@@ -304,7 +304,7 @@ defineHttp({
     const token = randomToken(24);
     const expiresAt = new Date(Date.now() + body.expiresInHours * 3600_000).toISOString();
     const sid = id();
-    run(
+    await run(
       `INSERT INTO report_shares (id, company_id, report_id, token, shared_with_user_id, message, expires_at, created_by, created_at)
        VALUES (@id,@cid,@rid,@token,@uid,@msg,@exp,@by,@ts)`,
       {
@@ -321,7 +321,7 @@ defineHttp({
     );
     const path = `/compartido/${token}`;
     if (target) {
-      alertsRepo.insertNotification(ctx.tenantId, {
+      await alertsRepo.insertNotification(ctx.tenantId, {
         channel: 'email',
         recipient: target.email,
         subject: `[WMS] ${ctx.user.name} compartió contigo «${report.name}»`,
@@ -343,14 +343,14 @@ defineHttp({
   route: 'reports/{id}/shares',
   methods: ['GET'],
   guard: { module: 'reports', level: 'read' },
-  handler: (req, ctx) => {
-    getReport(ctx.tenantId, req.params.id);
+  handler: async (req, ctx) => {
+    await getReport(ctx.tenantId, req.params.id);
     return ok(
-      all<any>(
+      (await all<any>(
         `SELECT s.*, u.name AS user_name FROM report_shares s LEFT JOIN users u ON u.id = s.shared_with_user_id
          WHERE s.report_id=@id AND s.company_id=@cid ORDER BY s.created_at DESC`,
         { id: req.params.id, cid: ctx.tenantId },
-      ).map((s) => ({
+      )).map((s) => ({
         id: s.id,
         token: s.token,
         path: `/compartido/${s.token}`,
@@ -369,8 +369,8 @@ defineHttp({
   route: 'report-shares/{id}',
   methods: ['DELETE'],
   guard: { module: 'reports', level: 'write' },
-  handler: (req, ctx) => {
-    const r = run(
+  handler: async (req, ctx) => {
+    const r = await run(
       `UPDATE report_shares SET revoked_at=@ts WHERE id=@id AND company_id=@cid AND revoked_at IS NULL`,
       {
         ts: now(),
@@ -384,8 +384,8 @@ defineHttp({
 });
 
 /* Acceso público por token (sin sesión): metadatos y descarga */
-function sharedReport(token: string) {
-  const s = get<any>(
+async function sharedReport(token: string) {
+  const s = await get<any>(
     `SELECT s.*, r.name, r.type, r.format, r.summary, r.period_start, r.period_end, r.generated_at, r.version, r.content, c.name AS company
      FROM report_shares s JOIN reports r ON r.id = s.report_id JOIN companies c ON c.id = s.company_id
      WHERE s.token=@t AND r.deleted_at IS NULL`,
@@ -402,8 +402,8 @@ defineHttp({
   route: 'public/reports/{token}',
   methods: ['GET'],
   guard: 'public',
-  handler: (req) => {
-    const s = sharedReport(req.params.token);
+  handler: async (req) => {
+    const s = await sharedReport(req.params.token);
     return ok({
       name: s.name,
       typeLabel: REPORT_TYPE_LABELS[s.type as ReportParams['type']],
@@ -424,5 +424,5 @@ defineHttp({
   route: 'public/reports/{token}/download',
   methods: ['GET'],
   guard: 'public',
-  handler: (req) => fileResponse(sharedReport(req.params.token)),
+  handler: async (req) => fileResponse(await sharedReport(req.params.token)),
 });

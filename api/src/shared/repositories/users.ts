@@ -42,18 +42,18 @@ export const usersRepo = {
       email: email.trim().toLowerCase(),
     }),
 
-  list(tenantId: string, opts: { role?: string; q?: string } = {}): UserDto[] {
-    return all(
+  async list(tenantId: string, opts: { role?: string; q?: string } = {}): Promise<UserDto[]> {
+    return (await all(
       `SELECT * FROM users WHERE company_id = @cid AND deleted_at IS NULL
          AND (@role IS NULL OR role = @role)
          AND (@q IS NULL OR name LIKE @q OR email LIKE @q)
        ORDER BY active DESC, name`,
       { cid: tenantId, role: opts.role ?? null, q: opts.q ? `%${opts.q}%` : null },
-    ).map(mapUser);
+    )).map(mapUser);
   },
 
-  get(tenantId: string, userId: string): UserDto {
-    const r = get(`SELECT * FROM users WHERE id = @id AND company_id = @cid AND deleted_at IS NULL`, {
+  async get(tenantId: string, userId: string): Promise<UserDto> {
+    const r = await get(`SELECT * FROM users WHERE id = @id AND company_id = @cid AND deleted_at IS NULL`, {
       id: userId,
       cid: tenantId,
     });
@@ -72,11 +72,11 @@ export const usersRepo = {
       permissions?: Partial<PermissionMap>;
     },
   ): Promise<UserDto> {
-    if (this.findByEmail(input.email)) throw conflict('Ya existe un usuario con ese correo.');
+    if (await this.findByEmail(input.email)) throw conflict('Ya existe un usuario con ese correo.');
     const hash = await hashPassword(input.password);
     const uid = id();
     const ts = now();
-    run(
+    await run(
       `INSERT INTO users (id, company_id, name, email, password_hash, role, permissions, phone, created_at, updated_at)
        VALUES (@id,@cid,@name,@email,@hash,@role,@perms,@phone,@ts,@ts)`,
       {
@@ -94,18 +94,18 @@ export const usersRepo = {
     return this.get(tenantId, uid);
   },
 
-  update(
+  async update(
     tenantId: string,
     userId: string,
     data: Partial<{ name: string; email: string; role: Role; phone: string; active: boolean }>,
   ) {
-    const cur = this.get(tenantId, userId);
+    const cur = await this.get(tenantId, userId);
     if (data.email && data.email.toLowerCase() !== cur.email) {
-      const other = this.findByEmail(data.email);
+      const other = await this.findByEmail(data.email);
       if (other && other.id !== userId) throw conflict('Ya existe un usuario con ese correo.');
     }
     const next = { ...cur, ...data };
-    run(
+    await run(
       `UPDATE users SET name=@name, email=@email, role=@role, phone=@phone, active=@active, updated_at=@ts
        WHERE id=@id AND company_id=@cid`,
       {
@@ -119,14 +119,14 @@ export const usersRepo = {
         ts: now(),
       },
     );
-    if (data.active === false) revokeAllRefreshTokens(userId);
+    if (data.active === false) await revokeAllRefreshTokens(userId);
     return this.get(tenantId, userId);
   },
 
   /** RF32: permisos granulares que sobrescriben los del rol. */
-  setPermissions(tenantId: string, userId: string, overrides: Partial<PermissionMap>) {
-    this.get(tenantId, userId);
-    run(`UPDATE users SET permissions=@p, updated_at=@ts WHERE id=@id AND company_id=@cid`, {
+  async setPermissions(tenantId: string, userId: string, overrides: Partial<PermissionMap>) {
+    await this.get(tenantId, userId);
+    await run(`UPDATE users SET permissions=@p, updated_at=@ts WHERE id=@id AND company_id=@cid`, {
       p: JSON.stringify(overrides),
       ts: now(),
       id: userId,
@@ -136,10 +136,10 @@ export const usersRepo = {
   },
 
   /** RF12: borrado lógico (desactiva y libera el vehículo asignado). */
-  remove(tenantId: string, userId: string) {
-    this.get(tenantId, userId);
-    tx(() => {
-      run(
+  async remove(tenantId: string, userId: string) {
+    await this.get(tenantId, userId);
+    await tx(async () => {
+      await run(
         `UPDATE users SET active=0, deleted_at=@ts, email = email || '#deleted-' || @suffix WHERE id=@id AND company_id=@cid`,
         {
           ts: now(),
@@ -148,24 +148,24 @@ export const usersRepo = {
           cid: tenantId,
         },
       );
-      run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@id AND company_id=@cid`, {
+      await run(`UPDATE vehicles SET driver_id=NULL WHERE driver_id=@id AND company_id=@cid`, {
         id: userId,
         cid: tenantId,
       });
-      revokeAllRefreshTokens(userId);
+      await revokeAllRefreshTokens(userId);
     });
   },
 
   async setPassword(userId: string, plain: string) {
-    run(`UPDATE users SET password_hash=@h, must_change_password=0, updated_at=@ts WHERE id=@id`, {
+    await run(`UPDATE users SET password_hash=@h, must_change_password=0, updated_at=@ts WHERE id=@id`, {
       h: await hashPassword(plain),
       ts: now(),
       id: userId,
     });
   },
 
-  touchLogin(userId: string) {
-    run(`UPDATE users SET last_login_at=@ts WHERE id=@id`, { ts: now(), id: userId });
+  async touchLogin(userId: string) {
+    await run(`UPDATE users SET last_login_at=@ts WHERE id=@id`, { ts: now(), id: userId });
   },
 };
 
@@ -238,17 +238,17 @@ export interface DriverProfileInput {
 }
 
 export const driversRepo = {
-  list: (tenantId: string): DriverDto[] =>
-    all(`${DRIVER_SQL} ORDER BY u.name`, { cid: tenantId }).map(mapDriver),
+  list: async (tenantId: string): Promise<DriverDto[]> =>
+    (await all(`${DRIVER_SQL} ORDER BY u.name`, { cid: tenantId })).map(mapDriver),
 
-  get(tenantId: string, userId: string): DriverDto {
-    const r = get(`${DRIVER_SQL} AND u.id = @id`, { cid: tenantId, id: userId });
+  async get(tenantId: string, userId: string): Promise<DriverDto> {
+    const r = await get(`${DRIVER_SQL} AND u.id = @id`, { cid: tenantId, id: userId });
     if (!r) throw notFound('Conductor');
     return mapDriver(r);
   },
 
-  upsertProfile(tenantId: string, userId: string, p: DriverProfileInput) {
-    const cur = get<any>(`SELECT * FROM driver_profiles WHERE user_id=@id`, { id: userId });
+  async upsertProfile(tenantId: string, userId: string, p: DriverProfileInput) {
+    const cur = await get<any>(`SELECT * FROM driver_profiles WHERE user_id=@id`, { id: userId });
     const next = {
       document: p.document ?? cur?.document ?? '',
       license_number: p.licenseNumber ?? cur?.license_number ?? '',
@@ -257,7 +257,7 @@ export const driversRepo = {
         p.licenseExpiresAt !== undefined ? p.licenseExpiresAt : (cur?.license_expires_at ?? null),
       status: p.status ?? cur?.status ?? 'disponible',
     };
-    run(
+    await run(
       `INSERT INTO driver_profiles (user_id, company_id, document, license_number, license_category, license_expires_at, status)
        VALUES (@id,@cid,@document,@license_number,@license_category,@license_expires_at,@status)
        ON CONFLICT(user_id) DO UPDATE SET document=excluded.document, license_number=excluded.license_number,
@@ -267,21 +267,21 @@ export const driversRepo = {
   },
 
   /** Asigna (o libera con vehicleId=null) un vehículo al conductor. Un conductor ↔ un vehículo. */
-  assignVehicle(tenantId: string, userId: string, vehicleId: string | null) {
-    this.get(tenantId, userId);
-    tx(() => {
-      run(`UPDATE vehicles SET driver_id=NULL, updated_at=@ts WHERE driver_id=@uid AND company_id=@cid`, {
+  async assignVehicle(tenantId: string, userId: string, vehicleId: string | null) {
+    await this.get(tenantId, userId);
+    await tx(async () => {
+      await run(`UPDATE vehicles SET driver_id=NULL, updated_at=@ts WHERE driver_id=@uid AND company_id=@cid`, {
         uid: userId,
         cid: tenantId,
         ts: now(),
       });
       if (vehicleId) {
-        const v = get(`SELECT id FROM vehicles WHERE id=@vid AND company_id=@cid AND retired_at IS NULL`, {
+        const v = await get(`SELECT id FROM vehicles WHERE id=@vid AND company_id=@cid AND retired_at IS NULL`, {
           vid: vehicleId,
           cid: tenantId,
         });
         if (!v) throw notFound('Vehículo');
-        run(`UPDATE vehicles SET driver_id=@uid, updated_at=@ts WHERE id=@vid`, {
+        await run(`UPDATE vehicles SET driver_id=@uid, updated_at=@ts WHERE id=@vid`, {
           uid: userId,
           vid: vehicleId,
           ts: now(),
@@ -291,8 +291,8 @@ export const driversRepo = {
     return this.get(tenantId, userId);
   },
 
-  setShift(tenantId: string, userId: string, active: boolean) {
-    run(`UPDATE driver_profiles SET shift_active=@a, status=@s WHERE user_id=@id AND company_id=@cid`, {
+  async setShift(tenantId: string, userId: string, active: boolean) {
+    await run(`UPDATE driver_profiles SET shift_active=@a, status=@s WHERE user_id=@id AND company_id=@cid`, {
       a: active,
       s: active ? 'en_ruta' : 'disponible',
       id: userId,
@@ -301,12 +301,12 @@ export const driversRepo = {
   },
 
   /** Guarda la ubicación enviada por el celular del conductor (Geolocation API del navegador). */
-  saveLocation(
+  async saveLocation(
     tenantId: string,
     userId: string,
     p: { lat: number; lng: number; accuracy?: number | null; speed?: number | null; heading?: number | null; ts: string },
   ) {
-    run(
+    await run(
       `INSERT INTO driver_locations (user_id, company_id, lat, lng, accuracy, speed, heading, sharing, source, ts)
        VALUES (@uid,@cid,@lat,@lng,@accuracy,@speed,@heading,1,'browser',@ts)
        ON CONFLICT(user_id) DO UPDATE SET lat=excluded.lat, lng=excluded.lng, accuracy=excluded.accuracy,
@@ -316,8 +316,8 @@ export const driversRepo = {
   },
 
   /** ts pasa a la hora de la pausa: así el polling (locations con `since`) también entrega el cambio. */
-  stopSharing(tenantId: string, userId: string) {
-    run(`UPDATE driver_locations SET sharing=0, ts=@ts WHERE user_id=@uid AND company_id=@cid`, {
+  async stopSharing(tenantId: string, userId: string) {
+    await run(`UPDATE driver_locations SET sharing=0, ts=@ts WHERE user_id=@uid AND company_id=@cid`, {
       uid: userId,
       cid: tenantId,
       ts: now(),
@@ -325,11 +325,11 @@ export const driversRepo = {
   },
 
   /** Conductores con ubicación conocida (para el mapa del administrador). */
-  locations(tenantId: string, opts: { since?: string; userId?: string } = {}) {
-    return all(
+  async locations(tenantId: string, opts: { since?: string; userId?: string } = {}) {
+    return (await all(
       `${DRIVER_SQL} AND l.ts IS NOT NULL AND (@since IS NULL OR l.ts > @since) AND (@only IS NULL OR u.id = @only) ORDER BY u.name`,
       { cid: tenantId, since: opts.since ?? null, only: opts.userId ?? null },
-    )
+    ))
       .map(mapDriver)
       .map(toDriverMarker);
   },

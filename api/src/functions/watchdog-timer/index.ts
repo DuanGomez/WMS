@@ -13,9 +13,9 @@ defineTimer({
   name: 'watchdog-timer',
   schedule: '*/5 * * * * *',
   intervalMs: 5000,
-  handler: () => {
-    const r = watchdogTick();
-    if (++ticks % 12 === 0) trackingRepo.closeStaleTrips(new Date(Date.now() - 10 * 60_000).toISOString());
+  handler: async () => {
+    const r = await watchdogTick();
+    if (++ticks % 12 === 0) await trackingRepo.closeStaleTrips(new Date(Date.now() - 10 * 60_000).toISOString());
     if (r.offline || r.alerts) console.log(JSON.stringify({ level: 'info', msg: 'watchdog', ...r }));
   },
 });

@@ -46,29 +46,29 @@ const fmtNum = (n: number, d = 1) =>
   n.toLocaleString('es-CO', { maximumFractionDigits: d, minimumFractionDigits: 0 });
 
 /** Reúne los datos del reporte filtrados por tenant, vehículo, conductor y periodo. */
-export function collectReportData(tenantId: string, p: ReportParams) {
-  const company = get<any>(`SELECT name, nit FROM companies WHERE id=@id`, { id: tenantId });
+export async function collectReportData(tenantId: string, p: ReportParams) {
+  const company = await get<any>(`SELECT name, nit FROM companies WHERE id=@id`, { id: tenantId });
   const vehicle = p.vehicleId
-    ? get<any>(`SELECT plate, type FROM vehicles WHERE id=@id AND company_id=@cid`, {
+    ? await get<any>(`SELECT plate, type FROM vehicles WHERE id=@id AND company_id=@cid`, {
         id: p.vehicleId,
         cid: tenantId,
       })
     : null;
   const driver = p.driverId
-    ? get<any>(`SELECT name FROM users WHERE id=@id AND company_id=@cid`, { id: p.driverId, cid: tenantId })
+    ? await get<any>(`SELECT name FROM users WHERE id=@id AND company_id=@cid`, { id: p.driverId, cid: tenantId })
     : null;
 
-  const trips: TripDto[] = trackingRepo
+  const trips: TripDto[] = (await trackingRepo
     .trips(tenantId, {
       vehicleId: p.vehicleId ?? undefined,
       driverId: p.driverId ?? undefined,
       from: p.periodStart,
       to: p.periodEnd,
       limit: 5000,
-    })
+    }))
     .reverse();
 
-  const alerts = all<any>(
+  const alerts = (await all<any>(
     `SELECT a.*, v.plate FROM alerts a LEFT JOIN vehicles v ON v.id = a.vehicle_id
      WHERE a.company_id=@cid AND a.ts BETWEEN @from AND @to
        AND (@vehicle IS NULL OR a.vehicle_id=@vehicle)
@@ -81,7 +81,7 @@ export function collectReportData(tenantId: string, p: ReportParams) {
       vehicle: p.vehicleId ?? null,
       driver: p.driverId ?? null,
     },
-  ).map((a) => ({
+  )).map((a) => ({
     ts: a.ts,
     plate: a.plate ?? '—',
     type: ALERT_TYPE_LABELS[a.type as AlertType] ?? a.type,
@@ -145,7 +145,7 @@ export function collectReportData(tenantId: string, p: ReportParams) {
   // Trayecto del recorrido más largo para el mini mapa vectorial del PDF
   const longest = [...trips].sort((a, b) => b.distanceKm - a.distanceKm)[0];
   const sample = longest
-    ? trackingRepo.tripPositions(tenantId, longest.id).map((r: any) => [r.lat, r.lng] as [number, number])
+    ? (await trackingRepo.tripPositions(tenantId, longest.id)).map((r: any) => [r.lat, r.lng] as [number, number])
     : [];
 
   return {
@@ -166,7 +166,7 @@ export function collectReportData(tenantId: string, p: ReportParams) {
   };
 }
 
-export type ReportData = ReturnType<typeof collectReportData>;
+export type ReportData = Awaited<ReturnType<typeof collectReportData>>;
 
 /* ------------------------------ PDF ------------------------------ */
 
@@ -571,7 +571,7 @@ export async function buildXlsx(p: ReportParams, d: ReportData): Promise<Buffer>
 }
 
 export async function buildReport(tenantId: string, p: ReportParams) {
-  const data = collectReportData(tenantId, p);
+  const data = await collectReportData(tenantId, p);
   const content = p.format === 'pdf' ? await buildPdf(p, data) : await buildXlsx(p, data);
   return { content, summary: { ...data.summary, filters: data.filters } };
 }

@@ -97,7 +97,7 @@ export async function boot(opts: BootOptions): Promise<DemoApi> {
   let sampleReports: (() => Promise<void>) | null = null;
   if (!fresh) {
     step('Creando los datos de la demo…');
-    const { seed } = await import('../../../scripts/seed');
+    const { seed } = await import('../seed/demo');
     sampleReports = await seed({ quiet: true, deferReports: true });
     seededAt = Date.now();
   }
@@ -181,14 +181,15 @@ export async function boot(opts: BootOptions): Promise<DemoApi> {
     const db = g.__WMS_DB;
     if (db) idbSet(DB_KEY, { tag: SCHEMA_TAG, at: Date.now(), seededAt, bytes: db.export() });
   }
-  if (!fresh) persist();
-  // Los reportes de ejemplo (PDF y Excel) se generan unos segundos después del arranque: así la primera
-  // visita no descarga ni ejecuta ExcelJS y PDFKit antes de poder iniciar sesión.
+  // Tiempos medidos en celulares de gama baja (exportar la base cuesta CPU): la base recién creada se guarda al
+  // minuto y después cada 10 min (las acciones del usuario se guardan aparte, ver schedulePersist); los reportes de
+  // ejemplo (PDF y Excel) se generan a los 10 min, para que la primera visita no cargue ExcelJS ni PDFKit.
+  if (!fresh) setTimeout(persist, 60_000);
   if (sampleReports) {
     const make = sampleReports;
-    setTimeout(() => make().then(persist, () => {}), 4000);
+    setTimeout(() => make().then(persist, (e) => console.warn('[demo] reportes de ejemplo:', e)), 600_000);
   }
-  setInterval(persist, 30_000);
+  setInterval(persist, 600_000);
   // En el Worker no hay document: ahí la página avisa con un mensaje «persist» al ocultarse.
   if (typeof document !== 'undefined') {
     addEventListener('pagehide', persist);

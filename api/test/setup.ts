@@ -8,3 +8,7 @@ process.env.DB_PATH = path.join(
 );
 process.env.DEMO_MODE = 'true';
 process.env.JWT_SECRET = 'test-secret';
+
+// WMS_TEST_DB=postgres: las mismas pruebas contra PostgreSQL real (PGlite, en memoria) para validar el SQL
+// del ambiente en la nube (Neon) sin necesitar un servidor.
+if (process.env.WMS_TEST_DB === 'postgres') process.env.DATABASE_URL = 'pglite:memory';

@@ -26,8 +26,8 @@ const vehicleBody = z.object({
 });
 
 /** Los conductores sólo ven su propio vehículo. */
-function assertVehicleAccess(ctx: Ctx, vehicleId: string) {
-  const v = vehiclesRepo.get(ctx.tenantId, vehicleId);
+async function assertVehicleAccess(ctx: Ctx, vehicleId: string) {
+  const v = await vehiclesRepo.get(ctx.tenantId, vehicleId);
   if (ctx.user.role === 'driver' && v.driver?.id !== ctx.user.id)
     throw forbidden('Sólo puedes ver el vehículo que tienes asignado.');
   return v;
@@ -39,9 +39,9 @@ defineHttp({
   route: 'vehicles',
   methods: ['GET'],
   guard: { module: 'vehicles', level: 'read' },
-  handler: (req, ctx) =>
+  handler: async (req, ctx) =>
     ok(
-      vehiclesRepo.list(ctx.tenantId, {
+      await vehiclesRepo.list(ctx.tenantId, {
         includeRetired: req.query.get('includeRetired') === 'true',
         q: req.query.get('q') ?? undefined,
         type: req.query.get('type') ?? undefined,
@@ -55,7 +55,7 @@ defineHttp({
   route: 'vehicles/{id}',
   methods: ['GET'],
   guard: { module: 'vehicles', level: 'read' },
-  handler: (req, ctx) => ok(assertVehicleAccess(ctx, req.params.id)),
+  handler: async (req, ctx) => ok(await assertVehicleAccess(ctx, req.params.id)),
 });
 
 /* RF1 – Crear vehículo (respeta el límite del plan) */
@@ -64,7 +64,7 @@ defineHttp({
   route: 'vehicles',
   methods: ['POST'],
   guard: { module: 'vehicles', level: 'write' },
-  handler: (req, ctx) => created(vehiclesRepo.create(ctx.tenantId, parse(vehicleBody, req.body))),
+  handler: async (req, ctx) => created(await vehiclesRepo.create(ctx.tenantId, parse(vehicleBody, req.body))),
 });
 
 /* RF3 – Actualizar tipo, estado, conductor o dispositivo */
@@ -73,8 +73,8 @@ defineHttp({
   route: 'vehicles/{id}',
   methods: ['PATCH'],
   guard: { module: 'vehicles', level: 'write' },
-  handler: (req, ctx) =>
-    ok(vehiclesRepo.update(ctx.tenantId, req.params.id, parse(vehicleBody.partial(), req.body))),
+  handler: async (req, ctx) =>
+    ok(await vehiclesRepo.update(ctx.tenantId, req.params.id, parse(vehicleBody.partial(), req.body))),
 });
 
 /* RF4 – Dar de baja */
@@ -83,9 +83,9 @@ defineHttp({
   route: 'vehicles/{id}',
   methods: ['DELETE'],
   guard: { module: 'vehicles', level: 'write' },
-  handler: (req, ctx) => {
+  handler: async (req, ctx) => {
     const reason = req.query.get('reason') || 'Dado de baja por el administrador';
-    vehiclesRepo.retire(ctx.tenantId, req.params.id, reason.slice(0, 200));
+    await vehiclesRepo.retire(ctx.tenantId, req.params.id, reason.slice(0, 200));
     return noContent();
   },
 });
@@ -96,11 +96,11 @@ defineHttp({
   route: 'vehicles/{id}/positions',
   methods: ['GET'],
   guard: { module: 'vehicles', level: 'read' },
-  handler: (req, ctx) => {
-    assertVehicleAccess(ctx, req.params.id);
+  handler: async (req, ctx) => {
+    await assertVehicleAccess(ctx, req.params.id);
     const q = parse(z.object({ from: isoDate, to: isoDate }), Object.fromEntries(req.query.entries()));
     return ok(
-      trackingRepo.positionsRange(
+      await trackingRepo.positionsRange(
         ctx.tenantId,
         req.params.id,
         new Date(q.from).toISOString(),
@@ -116,10 +116,10 @@ defineHttp({
   route: 'vehicles/{id}/trips',
   methods: ['GET'],
   guard: { module: 'vehicles', level: 'read' },
-  handler: (req, ctx) => {
-    assertVehicleAccess(ctx, req.params.id);
+  handler: async (req, ctx) => {
+    await assertVehicleAccess(ctx, req.params.id);
     return ok(
-      trackingRepo.trips(ctx.tenantId, {
+      await trackingRepo.trips(ctx.tenantId, {
         vehicleId: req.params.id,
         from: req.query.get('from') ?? undefined,
         to: req.query.get('to') ?? undefined,
@@ -135,10 +135,10 @@ defineHttp({
   route: 'trips/{id}/positions',
   methods: ['GET'],
   guard: { module: 'vehicles', level: 'read' },
-  handler: (req, ctx) => {
-    const trip = trackingRepo.trip(ctx.tenantId, req.params.id);
+  handler: async (req, ctx) => {
+    const trip = await trackingRepo.trip(ctx.tenantId, req.params.id);
     if (!trip) return { status: 404, json: { code: 'NOT_FOUND', message: 'Recorrido no encontrado.' } };
-    assertVehicleAccess(ctx, trip.vehicleId);
-    return ok({ trip, positions: trackingRepo.tripPositions(ctx.tenantId, req.params.id) });
+    await assertVehicleAccess(ctx, trip.vehicleId);
+    return ok({ trip, positions: await trackingRepo.tripPositions(ctx.tenantId, req.params.id) });
   },
 });

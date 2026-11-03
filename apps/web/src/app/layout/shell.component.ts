@@ -15,6 +15,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { Auth } from '../core/auth.service';
 import { Live } from '../core/live.service';
+import { APP_ENV } from '../core/runtime';
 import { Module } from '../core/models';
 import { Confirm, pref } from '../core/ui.services';
 import { IconComponent } from '../ui/icon.component';
@@ -103,6 +104,13 @@ const NAV: NavItem[] = [
   styleUrl: './shell.component.scss',
 })
 export class ShellComponent implements OnInit, OnDestroy {
+  /** Insignia del ambiente: se ve en laboratorio y en la demo (en producción no aparece). */
+  readonly envBadge =
+    APP_ENV === 'lab'
+      ? { label: 'LAB', title: 'Ambiente de laboratorio: datos de prueba' }
+      : APP_ENV === 'demo'
+        ? { label: 'DEMO', title: 'Demo sin servidor: los datos viven en este navegador' }
+        : null;
   readonly auth = inject(Auth);
   readonly live = inject(Live);
   private driverLocation = inject(DriverLocation);
