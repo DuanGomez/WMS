@@ -5,12 +5,12 @@ html:root .dot.pulse::before{animation-iteration-count:3!important;animation-fil
 @media (max-width:760px){html:root .pills{animation:none!important;--pills-fade:28px}}
 html:root .skeleton::after{animation-iteration-count:2!important}
 html:root,html:root body{overscroll-behavior-y:none}
-@media (hover:none){html:root .page .card{content-visibility:visible!important}html:root .page .table.grid tbody tr{contain-intrinsic-size:auto 64px!important}}
+@media (hover:none),(pointer:coarse){html:root .page .card{content-visibility:visible!important}html:root .page .table.grid tbody tr{contain-intrinsic-size:auto 64px!important}}
 html:root body::before{bottom:auto!important;height:100lvh!important}
 html:root app-geofences .panel-body>.row:first-child{animation:none!important;background:var(--wms-panel),var(--wms-page)}
 html:root .page .grid~.grid .card,html:root .page .grid~* .card{animation:none!important}
 html:root .page tbody tr,html:root .page .list-item,html:root .page .mini,html:root .page .vrow,html:root .page .gitem,html:root .page .trip{animation:none!important}
-@media (hover:none){html:root app-bar-chart .bar{transition-duration:1ms!important}html:root app-fleet-activity :is(.line,.area,.prevline,.dseg){animation:none!important}}
+@media (hover:none),(pointer:coarse){html:root app-bar-chart .bar{transition-duration:1ms!important}html:root app-fleet-activity :is(.line,.area,.prevline,.dseg){animation:none!important}}
 html:root app-live-map .panel.panel{transition:opacity var(--dur-2) var(--ease-fade)}
 html:root app-live-map .vdrawer.vdrawer,html:root app-geofences .panel.panel{transition:none}
 html:root .bcol.bcol.wms-over{background:var(--wms-card)!important}
@@ -21,4 +21,4 @@ html:root .a-glow-a,html:root .a-glow-b{transition:none!important}
 html:root .alert-dialog{animation-name:alert-in-fx!important}
 html:root[data-theme=light]{--wms-card-shadow:0 14px 24px -16px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.9)}
 html:root:not([data-theme=light]){--wms-card-shadow:0 18px 24px -10px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.16)}
-@media (hover:none){html:root body{text-rendering:auto!important}}
+@media (hover:none),(pointer:coarse){html:root body{text-rendering:auto!important}}

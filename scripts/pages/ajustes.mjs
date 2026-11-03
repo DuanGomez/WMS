@@ -40,13 +40,13 @@ export const reemplazos = [
     archivo: 'main',
     que: "En táctil, la tarjeta inclinable no lleva transición ni capa propia",
     antes: "this.el.style.transition=`transform var(--dur-2) var(--ease-out)`,this.el.style.backfaceVisibility=`hidden`}",
-    despues: "(globalThis.__wmsTouch??=matchMedia(\"(hover: none)\").matches)||(this.el.style.transition=`transform var(--dur-2) var(--ease-out)`,this.el.style.backfaceVisibility=`hidden`)}",
+    despues: "(globalThis.__wmsTouch??=matchMedia(\"(hover: none), (pointer: coarse)\").matches)||(this.el.style.transition=`transform var(--dur-2) var(--ease-out)`,this.el.style.backfaceVisibility=`hidden`)}",
   },
   {
     archivo: 'main',
     que: "Giro login ↔ registro: en táctil y en la versión liviana, cambio directo con un fundido corto (sin el giro de 650 ms)",
     antes: "t=!0){cancel",
-    despues: "t=!0){if((globalThis.__wmsTouch??=matchMedia(\"(hover: none)\").matches)||document.documentElement.classList.contains(\"v-liviana\")){cancelAnimationFrame(a$1.raf);let w=a$1.active;a$1.active=!1,a$1.last=n;w&&a$1.card&&(a$1.card.style.transform=`none`,document.documentElement.classList.contains(\"v-liviana\")||a$1.card.animate([{opacity:.5,transform:`scale(.97)`},{opacity:1,transform:`none`}],{duration:280,easing:`ease-out`}));return 180}cancel",
+    despues: "t=!0){if((globalThis.__wmsTouch??=matchMedia(\"(hover: none), (pointer: coarse)\").matches)||document.documentElement.classList.contains(\"v-liviana\")){cancelAnimationFrame(a$1.raf);let w=a$1.active;a$1.active=!1,a$1.last=n;w&&a$1.card&&(a$1.card.style.transform=`none`,document.documentElement.classList.contains(\"v-liviana\")||a$1.card.animate([{opacity:.5,transform:`scale(.97)`},{opacity:1,transform:`none`}],{duration:280,easing:`ease-out`}));return 180}cancel",
   },
   {
     archivo: 'main',
@@ -88,7 +88,7 @@ export const reemplazos = [
     archivo: 'main',
     que: "Contadores: en táctil y en la versión liviana el número aparece en su valor final",
     antes: "let h=Math.min((c-o)/1200,",
-    despues: "let h=(globalThis.__wmsTouch??=matchMedia(\"(hover: none)\").matches)||document.documentElement.classList.contains(\"v-liviana\")?1:Math.min((c-o)/1200,",
+    despues: "let h=(globalThis.__wmsTouch??=matchMedia(\"(hover: none), (pointer: coarse)\").matches)||document.documentElement.classList.contains(\"v-liviana\")?1:Math.min((c-o)/1200,",
   },
   {
     archivo: 'main',
@@ -160,7 +160,7 @@ export const reemplazos = [
     archivo: 'main',
     que: "Filas: en táctil no se repite la animación de entrada de filas nuevas",
     antes: "if(f$1())return;",
-    despues: "if(f$1()||matchMedia(`(hover: none)`).matches)return;",
+    despues: "if(f$1()||matchMedia(`(hover: none), (pointer: coarse)`).matches)return;",
   },
   {
     archivo: 'main',
@@ -267,8 +267,8 @@ export const reemplazos = [
   {
     archivo: 'main',
     que: "Alto del contenido con svh",
-    antes: "min-height:calc(100dvh - var(--%NS%nav-h))}",
-    despues: "min-height:calc(100svh - var(--%NS%nav-h))}",
+    antes: "min-height:calc(100dvh - var(--%NS%nav-h));overflow-x:clip}",
+    despues: "min-height:calc(100svh - var(--%NS%nav-h));overflow-x:clip}",
   },
   {
     archivo: 'main',

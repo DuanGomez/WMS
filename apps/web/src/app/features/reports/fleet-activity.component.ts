@@ -87,7 +87,7 @@ const pathOf = (vals: number[], max: number) =>
   vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * 800).toFixed(1)},${yOf(v, max).toFixed(1)}`).join('');
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** En táctil la gráfica pasa de un periodo a otro sin transición cuadro a cuadro. */
-const tactil = typeof matchMedia === 'function' && matchMedia('(hover: none)').matches;
+const tactil = typeof matchMedia === 'function' && matchMedia('(hover: none), (pointer: coarse)').matches;
 /** Formateadores creados una vez (antes se creaba uno por etiqueta en cada cálculo). */
 const WD = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'short' });
 const DM = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short' });

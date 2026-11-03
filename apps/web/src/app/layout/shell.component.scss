@@ -471,6 +471,10 @@
 .main {
   position: relative;
   min-height: calc(100dvh - var(--nav-h));
+  /* La entrada de la página (wms-cam) empieza en scale(1.022) y se salía ~10 px por cada lado: en tablet y celular el
+     navegador ensanchaba la vista (880 → 890 px) y alejaba el zoom de toda la app hasta que terminaba la animación.
+     clip recorta sin crear un área de desplazamiento (los paneles fijos y los encabezados sticky no cambian). */
+  overflow-x: clip;
 }
 .main.bleed {
   height: calc(100dvh - var(--nav-h));

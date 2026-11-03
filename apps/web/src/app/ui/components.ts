@@ -100,7 +100,7 @@ export class SheetComponent {
         this.opener = document.activeElement as HTMLElement | null;
         setTimeout(() => {
           const el = this.panel()?.nativeElement;
-          const touch = matchMedia('(hover: none)').matches;
+          const touch = matchMedia('(hover: none), (pointer: coarse)').matches;
           const first = touch
             ? null
             : el?.querySelector<HTMLElement>('.sheet-body input:not([type=hidden]):not([disabled]), .sheet-body select, .sheet-body textarea');

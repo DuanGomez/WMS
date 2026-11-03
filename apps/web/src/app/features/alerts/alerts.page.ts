@@ -5,6 +5,7 @@ import {
   computed,
   DestroyRef,
   effect,
+  ElementRef,
   inject,
   OnDestroy,
   OnInit,
@@ -155,6 +156,7 @@ export class AlertsPage implements OnInit, OnDestroy {
   private live = inject(Live);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
+  private host = inject(ElementRef);
 
   readonly tab = signal('history');
   readonly tabs = computed(() => [
@@ -269,10 +271,42 @@ export class AlertsPage implements OnInit, OnDestroy {
 
   private sub?: Subscription;
 
+  /** Tablet: la primera vez que se marca un check la GPU prepara su dibujo (palomita con rebote y salida de la fila) y
+   *  el primer check daba unos 3 cuadros de 35–47 ms. En tiempo libre al entrar, una copia de la primera fila abierta,
+   *  dentro de una caja invisible (opacidad 0,001: se dibuja pero no se ve), hace eso una vez. La copia no tiene
+   *  manejadores ni se puede tocar, y se quita a los 1,4 s. En celular y PC no corre. */
+  private precalentarCheck() {
+    if (!matchMedia('(hover: none) and (min-width: 761px), (pointer: coarse) and (min-width: 761px)').matches) return;
+    enTiempoLibre(() => {
+      if (this.destroyRef.destroyed) return;
+      const fila = (this.host.nativeElement as HTMLElement)
+        .querySelector('.alert-row:not(.al-leaving) .al-check:not(.done):not([disabled])')
+        ?.closest<HTMLElement>('.alert-row');
+      if (!fila) return;
+      const copia = fila.cloneNode(true) as HTMLElement;
+      copia.inert = true;
+      const caja = document.createElement('div');
+      caja.setAttribute('aria-hidden', 'true');
+      caja.style.cssText = `position:absolute;left:0;top:0;width:${fila.offsetWidth}px;opacity:.001;pointer-events:none;z-index:-1`;
+      caja.appendChild(copia);
+      fila.parentElement!.appendChild(caja);
+      const check = copia.querySelector('.al-check')!;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          check.classList.add('done', 'bounce');
+          setTimeout(() => check.classList.remove('bounce'), 260);
+          setTimeout(() => copia.classList.add('al-leaving'), 750);
+          setTimeout(() => caja.remove(), 1400);
+        }),
+      );
+    }, 600);
+  }
+
   async ngOnInit() {
     await this.loadHistory();
     // Si se salió de la vista mientras cargaba, no se abre la suscripción (quedaría viva).
     if (this.destroyRef.destroyed) return;
+    this.precalentarCheck();
     this.sub = this.live.alerts$.subscribe((a) => {
       if (this.state() !== 'attended' && (!this.typeF() || this.typeF() === a.type)) {
         this.alerts.update((l) => [a, ...l.filter((x) => x.id !== a.id)]);
