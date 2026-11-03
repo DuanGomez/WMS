@@ -21,6 +21,10 @@
   html:root:root .backdrop:not(.wms-leave-fade){animation:wms-fade var(--dur-3) var(--ease-fade) both!important}
   html:root:root:root .backdrop:not(.wms-leave-fade)::before,html:root:root:root .backdrop:not(.wms-leave-fade)::after,html:root:root:root .backdrop:not(.wms-leave-fade)>.wms-banda{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
   html:root .al-check,html:root .mini-check,html:root .mini-done{will-change:transform}
+  /* Cada fila de alerta en su propia capa: marcar el check (título tachado), la salida de la fila y el cierre del hueco
+     obligaban a la GPU a redibujar la tarjeta entera de la lista (esquinas y sombras), como el anillo del tablero.
+     Medido en la tablet (Mali-G68), 6 checks por variante: 7–8 cuadros lentos por check (hasta 134 ms) → 0 */
+  html:root .alert-row{will-change:transform}
   /* Filas que abren un panel sin fondo de «hover» ni su transición: en Samsung (modo escritorio) el toque dejaba el
      hover pegado y, al abrir y cerrar rápido, repintaba filas de 880 px en cada cuadro (en la tablet: 9 cuadros largos
      y 74 tarde en 8 s → 0 y 19) */
