@@ -1,0 +1,35 @@
+/* Táctil (celular y tablet; también Samsung Internet en modo escritorio, que dice hover:hover con el dedo): la etiqueta
+   de la sección y los contadores de la barra cambian sin transición (el relleno animado rehacía y repintaba toda la
+   barra en cada cuadro); la píldora se desliza en su propia capa, sin animar su ancho ni desenfocar lo de atrás. La fila
+   de una alerta atendida sale con fundido y desplazamiento, sin desenfoque animado; las de Inicio sin transición de fondo */
+@media (hover:none),(pointer:coarse){
+  html:root .nav-item,html:root .nav .count-badge{transition:none!important}
+  html:root .wms-pill-active{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;will-change:transform}
+  html:root .wms-pill-active:not([style*="transition: none"]){transition-property:transform,opacity!important}
+  html:root .alert-row{transition:opacity var(--dur-2) var(--ease-fade),transform var(--dur-2) var(--ease-fade)}
+  html:root .alert-row.al-leaving{filter:none!important}
+  html:root .wms-swipe.mini{transition:none}
+  /* Anillo de «soltar aquí» del tablero en su propia capa: al encenderse obligaba a la GPU a redibujar la columna entera
+     (esquinas y sombra). 20 arrastres automáticos: tablet 4 de 9 con tirones → 0 de 15; A3 9 de 9 → 1 de 10 */
+  html:root .wms-board .bcol::after{will-change:opacity}
+}
+/* Tablet (táctil y ancha): el fondo de los paneles solo se oscurece (de lado, la franja desenfocada era casi media
+   pantalla en cada cuadro) y, ya sin desenfoque, vuelve a aparecer con su fundido (en celular aparece de golpe porque el
+   panel tapa casi todo; en tablet media pantalla se oscurecía de golpe mientras el panel aún entraba); los checks se
+   animan en su propia capa y el resto de la fila cambia sin transición */
+@media (hover:none) and (min-width:761px),(pointer:coarse) and (min-width:761px){
+  html:root:root .backdrop:not(.wms-leave-fade){animation:wms-fade var(--dur-3) var(--ease-fade) both!important}
+  html:root:root:root .backdrop:not(.wms-leave-fade)::before,html:root:root:root .backdrop:not(.wms-leave-fade)::after,html:root:root:root .backdrop:not(.wms-leave-fade)>.wms-banda{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+  html:root .al-check,html:root .mini-check,html:root .mini-done{will-change:transform}
+  /* Filas que abren un panel sin fondo de «hover» ni su transición: en Samsung (modo escritorio) el toque dejaba el
+     hover pegado y, al abrir y cerrar rápido, repintaba filas de 880 px en cada cuadro (en la tablet: 9 cuadros largos
+     y 74 tarde en 8 s → 0 y 19) */
+  html:root .table tbody tr:hover td,html:root .table.grid tbody tr:hover,html:root button.list-item:hover,html:root .list-item.clickable:hover{background:transparent!important}
+  html:root .table td,html:root button.list-item,html:root .list-item.clickable:not(.alert-row){transition:none!important}
+  html:root .alert-row :not(.al-check):not(.al-check *),html:root .wms-swipe.mini :not(.mini-check):not(.mini-check *):not(.mini-done):not(.mini-done *){transition:none!important}
+}
+/* PC de gama baja (versión liviana con mouse): el fondo de los paneles solo se oscurece (el desenfoque de toda la
+   pantalla al abrir un panel atrasaba 3 de cada 4 cuadros) */
+@media (hover:hover) and (pointer:fine){
+  html.v-liviana .backdrop,html.v-liviana .drawer-scrim.open{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+}

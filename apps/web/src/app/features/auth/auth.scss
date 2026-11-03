@@ -404,7 +404,7 @@ form {
   transition: transform var(--dur-5);
 }
 /* Relleno solo con mouse: en táctil el toque lo activaba y se quedaba pegado (destello al pulsar). */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .abtn:hover:not([disabled]) {
     color: var(--wms-fill-1-text);
   }

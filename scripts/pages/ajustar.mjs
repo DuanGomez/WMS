@@ -271,6 +271,7 @@ export function armarIndex(out, html, { worker, leaflet }) {
     ['fin-15-sombra-paneles.css', '\n'],
     ['fin-16-paneles-capa.css', '\n'],
     ['fin-17-liviana.css', '\n'],
+    ['fin-18-tactil.css', '\n'],
   ]
     .map(([f, sep]) => etiqueta(f, completar(cab(f))) + sep)
     .join('');

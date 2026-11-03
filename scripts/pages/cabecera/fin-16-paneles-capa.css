@@ -1,2 +1,2 @@
 /* Paneles en táctil: su contenido va en una capa propia mientras están a la vista */
-@media (hover:none){html:root .sheet:not(.wms-oculta)>*{will-change:transform}}
+@media (hover:none),(pointer:coarse){html:root .sheet:not(.wms-oculta)>*{will-change:transform}}

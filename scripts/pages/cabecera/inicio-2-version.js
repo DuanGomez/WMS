@@ -3,20 +3,29 @@
   // La clase va en <html> antes del primer pintado. Gama: pista rápida aquí, consulta de GPU en tiempo libre y, en
   // gama media o alta, prueba real de cuadros en las primeras entradas. Lo decidido se guarda en localStorage wms.gama.
   var cl = document.documentElement.classList;
-  var APP = __APP__, CLAVE = 'wms.gama';
+  // REGLA: número de la regla de decisión. Al cambiar la regla se sube y lo guardado se vuelve a decidir, aunque el
+  // código de la app (APP) no haya cambiado (2: tablet de gama baja o media en liviana desde el primer arranque).
+  var APP = __APP__, CLAVE = 'wms.gama', REGLA = 2;
   var nav = navigator, ua = nav.userAgent || '';
   var apple = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && nav.maxTouchPoints > 1) || (/Safari\//.test(ua) && !/Chrome\/|Chromium|CriOS|Edg\/|OPR\/|Firefox\/|FxiOS/.test(ua));
   // en iOS y Safari la memoria y los núcleos no son fiables
   var mem = apple ? undefined : nav.deviceMemory, nuc = apple ? undefined : nav.hardwareConcurrency;
   var reducir = false;
   try { reducir = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  // Tablet (táctil y ancha; también Samsung Internet en modo escritorio, que dice hover:hover con el dedo): pantalla
+  // grande con GPU de celular. Arranca en liviana y solo pasa a completa si su GPU es de gama alta (en una tablet con
+  // Mali-G68 la completa salió mala en la prueba real 2 de 3 veces y se trababa hasta que la prueba la bajaba).
+  // Por el lado menor de la pantalla (screen), no por el ancho de la vista: este script corre antes de que el navegador
+  // lea <meta name="viewport">, y en ese momento un celular aún dice 980 px de ancho.
+  var tableta = false;
+  try { tableta = matchMedia('(hover: none), (pointer: coarse)').matches && Math.min(screen.width, screen.height) >= 600; } catch (e) {}
   var g = null;
   try { g = JSON.parse(localStorage.getItem(CLAVE)); } catch (e) {}
-  var valida = !!g && g.appVersion === APP && (g.version === 'completa' || g.version === 'liviana') && !(g.motivo === 'prueba' && Date.now() - (g.fecha || 0) > 7 * 864e5);
-  if (!valida) g = { gama: null, version: null, motivo: null, gpu: null, mem: mem, nucleos: nuc, resultados: [], appVersion: APP, fecha: Date.now() };
+  var valida = !!g && g.appVersion === APP && g.regla === REGLA && (g.version === 'completa' || g.version === 'liviana') && !(g.motivo === 'prueba' && Date.now() - (g.fecha || 0) > 7 * 864e5);
+  if (!valida) g = { gama: null, version: null, motivo: null, gpu: null, mem: mem, nucleos: nuc, resultados: [], appVersion: APP, regla: REGLA, fecha: Date.now() };
   if (!g.resultados) g.resultados = [];
   var guardar = function () { try { localStorage.setItem(CLAVE, JSON.stringify(g)); } catch (e) {} };
-  var actual = (reducir ? 'liviana' : valida ? g.version : (mem && mem <= 4) || (nuc && nuc <= 4) ? 'liviana' : 'completa');
+  var actual = (reducir ? 'liviana' : valida ? g.version : (mem && mem <= 4) || (nuc && nuc <= 4) || tableta ? 'liviana' : 'completa');
   cl.add('v-' + actual);
 
   // El cambio de versión se aplica en la siguiente navegación, antes de que entre la nueva sección.
@@ -114,8 +123,8 @@
     g.gama = clasificar(nombre, sw);
     g.mem = mem;
     g.nucleos = nuc;
-    g.version = g.gama === 'baja' ? 'liviana' : 'completa';
-    g.motivo = 'gama ' + g.gama;
+    g.version = g.gama === 'baja' || (tableta && g.gama !== 'alta') ? 'liviana' : 'completa';
+    g.motivo = 'gama ' + g.gama + (tableta && g.gama === 'media' ? ' (tableta)' : '');
     g.resultados = [];
     g.fecha = Date.now();
     guardar();

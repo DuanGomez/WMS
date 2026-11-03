@@ -39,7 +39,7 @@ export default tseslint.config(
         [
           'window', 'document', 'location', 'history', 'navigator', 'performance', 'addEventListener', 'innerHeight',
           'matchMedia', 'requestAnimationFrame', 'setInterval', 'clearInterval', 'Worker', 'Blob', 'OffscreenCanvas',
-          'ResizeObserver', 'PerformanceObserver', 'Event', 'Document', 'self', 'URL', '__APP__', '__ACCESO__',
+          'ResizeObserver', 'PerformanceObserver', 'Event', 'Document', 'self', 'URL', 'screen', '__APP__', '__ACCESO__',
           '__SECCIONES__',
         ].map((g) => [g, 'readonly']),
       ),
