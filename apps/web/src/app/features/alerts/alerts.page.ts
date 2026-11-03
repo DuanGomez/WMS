@@ -201,17 +201,30 @@ export class AlertsPage implements OnInit, OnDestroy {
     return this.limite() >= s.length ? s : s.slice(0, this.limite());
   });
   private tandaId = 0;
+  /** Alertas de la lista anterior: para saber si llegaron filas nuevas o solo salió o entró una. */
+  private tandaIds = new Set<string>();
   private readonly tandas = effect(() => {
-    const total = this.shown().length;
-    untracked(() => this.porTandas(total));
+    const lista = this.shown();
+    untracked(() => this.porTandas(lista));
   });
-  private porTandas(total: number) {
+  private porTandas(lista: readonly Alert[]) {
     const id = ++this.tandaId;
+    const total = lista.length;
+    let nuevas = 0;
+    for (const a of lista) if (!this.tandaIds.has(a.id) && ++nuevas > 2) break;
+    this.tandaIds = new Set(lista.map((a) => a.id));
     if (total <= 16) {
       this.limite.set(Infinity);
       return;
     }
-    this.limite.set(10);
+    // Solo salió una alerta (atendida con el check) o llegó una nueva: las filas ya dibujadas se quedan. Antes la
+    // lista se recortaba a 10 filas y las demás se volvían a armar por tandas (tirones al marcar un check).
+    if (nuevas <= 2) {
+      if (this.limite() >= total) {
+        this.limite.set(Infinity);
+        return;
+      }
+    } else this.limite.set(10);
     const libre = (g: () => void) =>
       typeof requestIdleCallback === 'function' ? requestIdleCallback(g, { timeout: 300 }) : setTimeout(g, 50);
     const siguiente = () => {

@@ -112,6 +112,17 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
   private confirm = inject(Confirm);
   private theme = inject(Theme);
   private mapEl = viewChild.required<ElementRef<HTMLDivElement>>('map');
+  /** <main> de la app. La barra lo deja a pantalla completa y sin desplazamiento en /geocercas (para el mapa); en
+   *  modo lista recupera el desplazamiento normal de la página, como las demás secciones (si no, en pantallas bajas
+   *  la lista quedaba cortada sin poder bajar). */
+  private readonly hostEl = inject(ElementRef).nativeElement as HTMLElement;
+  private main: HTMLElement | null = null;
+  // El padre se busca al correr el efecto (en el constructor el componente aún no está dentro de <main>).
+  private readonly listaEnPagina = effect(() => {
+    const lista = !this.mapMode();
+    this.main ??= this.hostEl.parentElement;
+    this.main?.classList.toggle('gf-lista', lista);
+  });
   private map!: L.Map;
   private layers = L.layerGroup();
   private draftLayer = L.layerGroup();
@@ -207,6 +218,7 @@ export class GeofencesPage implements AfterViewInit, OnDestroy {
     this.unbindFreehand?.();
     this.ro?.disconnect();
     this.map?.remove();
+    this.main?.classList.remove('gf-lista');
   }
 
   async load() {
