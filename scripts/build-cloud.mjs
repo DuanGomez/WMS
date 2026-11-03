@@ -33,10 +33,13 @@ if (!js.some((f) => fs.readFileSync(path.join(out, f), 'utf8').includes(api))) {
 }
 
 // Cloudflare Pages: encabezados de seguridad y caché larga para los archivos con hash.
+// «! Link» desactiva las Early Hints automáticas: Cloudflare las arma con los modulepreload relativos del HTML
+// resueltos contra la ruta pedida (/unirse/x → /unirse/chunk.js) e ignora el <base href>, así que fallaban.
 const origin = new URL(api).origin;
 fs.writeFileSync(
   path.join(out, '_headers'),
   `/*
+  ! Link
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
