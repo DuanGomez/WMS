@@ -117,7 +117,9 @@
 }
 
 @mixin light-tokens {
-  color-scheme: light;
+  /* «only»: el navegador no la oscurece por su cuenta (Chrome «Oscurecer sitios web», modo oscuro de Samsung
+     Internet); con «light» a secas la trataba como página sin tema oscuro y mezclaba los colores. */
+  color-scheme: only light;
   --blue: #007aff;
   --green: #34c759;
   --orange: #ff9500;
@@ -252,8 +254,10 @@
 }
 /* Pantallas táctiles (celulares y tablets): vidrio de 20 px en vez de 50 px. El costo del desenfoque crece con el
    radio y con los píxeles de la pantalla; en gama media (CPU 4x) bajaba los frames perdidos al cambiar de sección
-   de 19 % a 15 % con GPU y de 50 % a 39 % sin ella, con un aspecto casi igual. Con mouse se mantiene 50 px. */
-@media (hover: none) and (pointer: coarse) {
+   de 19 % a 15 % con GPU y de 50 % a 39 % sin ella, con un aspecto casi igual. Con mouse se mantiene 50 px.
+   Táctil = puntero principal grueso: Samsung Internet en tablet (modo escritorio) dice hover:hover, pero su
+   puntero sigue siendo el dedo. */
+@media (pointer: coarse) {
   :root {
     --glass: blur(20px) saturate(180%);
   }
@@ -594,7 +598,7 @@ textarea::placeholder {
     border-color var(--dur-3);
 }
 /* Solo con mouse: en pantallas táctiles no hay hover y el :has() costaba recálculo de estilos al cambiar el DOM. */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .card:not(:has(input, select, textarea, .leaflet-container)):hover {
     transform: translateY(-3px) scale(1.008);
   }
@@ -677,7 +681,7 @@ textarea::placeholder {
 }
 /* Relleno al pasar el mouse. Solo con mouse: en táctil el toque activa :hover y el relleno barría el botón, le
    invertía el texto y se quedaba pegado hasta tocar otra cosa (destello en cada toque). */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .btn:hover {
     color: var(--wms-fill-2-text);
   }
@@ -1183,7 +1187,7 @@ table.table {
   transition: transform var(--dur-5);
 }
 /* Solo con mouse (ver .btn:hover) */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .chip:hover {
     color: var(--wms-fill-2-text);
   }
@@ -1275,11 +1279,21 @@ table.table {
 }
 /* Brillo de carga con transform (no repinta el fondo en cada frame). El patrón se repite cada 2 anchos
    (sk2 → sk → sk2) y se desplaza 4 anchos por ciclo, igual que el background-position 200% → -200% anterior. */
+/* El esqueleto aparece solo si la carga pasa de 160 ms: los datos de la demo llegan en 50-100 ms y, sin el View
+   Transition (en táctil y en la versión liviana), se veía 2-5 cuadros al entrar a una sección. Con visibility
+   (no con opacity) no se crea una capa por cada esqueleto y ocupa su lugar desde el principio. */
 .skeleton {
   position: relative;
   overflow: hidden;
   background: var(--wms-sk2);
   border-radius: 8px;
+  animation: wms-sk-espera 0.16s;
+}
+@keyframes wms-sk-espera {
+  from,
+  to {
+    visibility: hidden;
+  }
 }
 .skeleton::after {
   content: '';
@@ -2323,7 +2337,7 @@ table.table {
    los frames perdidos al cambiar de sección de ~18 % a ~14 % con GPU y de ~41 % a 31 % sin ella). Con mouse se
    mantienen como están. Las entradas ya no tienen desenfoque en ningún dispositivo.
    Va antes del bloque móvil de wms-out-sheet, que debe seguir ganando. */
-@media (hover: none) and (pointer: coarse) {
+@media (pointer: coarse) {
   @keyframes wms-out-sheet {
     to {
       opacity: 0;
@@ -2438,7 +2452,7 @@ table.table {
 /* Con una hoja abierta o escribiendo (teclado arriba), abajo tapan el campo y el botón Guardar: van arriba.
    En celular y en cualquier pantalla táctil (en tablet el teclado también achica la vista y tapaba campos).
    Clases en <html> (SheetComponent y trackKeyboard) en lugar de :root:has(), que recalculaba estilos al cambiar el DOM. */
-@media (max-width: 760px), (hover: none) and (pointer: coarse) {
+@media (max-width: 760px), (pointer: coarse) {
   :root:is(.wms-typing, .wms-sheet-open) .toasts {
     top: calc(12px + env(safe-area-inset-top));
     bottom: auto;

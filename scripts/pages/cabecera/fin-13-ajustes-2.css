@@ -1,9 +1,9 @@
 /* Ajustes de fluidez (paneles, menú y acceso) */
 html:root .drawer-scrim:not(.open)::before{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
-@media (hover:none){html:root .drawer .dr-item{transition:none!important}}
-@media (hover:none){html:root .page :is(.eyebrow,.large-title,.mod-tool,.table-wrap,tbody,.card,.list),html:root .page :is(.eyebrow,.large-title)~p{animation:none!important}}
+@media (hover:none),(pointer:coarse){html:root .drawer .dr-item{transition:none!important}}
+@media (hover:none),(pointer:coarse){html:root .page :is(.eyebrow,.large-title,.mod-tool,.table-wrap,tbody,.card,.list),html:root .page :is(.eyebrow,.large-title)~p{animation:none!important}}
 /* En táctil el fondo del panel aparece de una vez (el desenfoque se calcula una sola vez, no en cada frame de un fundido) y al cerrar se quita el desenfoque y solo se desvanece el oscurecido */
-@media (hover:none){html:root .backdrop{animation:none!important}html:root .backdrop.wms-leave-fade{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;animation:wms-out-fade var(--dur-2) var(--ease-fade) both!important}}
+@media (hover:none),(pointer:coarse){html:root .backdrop{animation:none!important}html:root .backdrop.wms-leave-fade{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;animation:wms-out-fade var(--dur-2) var(--ease-fade) both!important}}
 html:root .a-glow-a,html:root .a-glow-b{animation-play-state:paused!important}
 html:root.wms-auth-nav .auth-stage{animation:none!important}
 /* Mientras se arrastra, el panel va en su propia capa de GPU: moverlo no lo vuelve a dibujar en cada cuadro */
@@ -12,7 +12,7 @@ html:root :is(app-live-map,app-geofences) .dragging{will-change:transform}
    abajo), no en toda la pantalla, que el panel tapa casi entera. El oscurecido queda debajo: se ve igual. Sin medidas,
    la franja de arriba cubre todo. */
 .backdrop>.wms-banda{display:none}
-@media (hover:none){
+@media (hover:none),(pointer:coarse){
 html:root:root .backdrop:not(.wms-leave-fade){-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
 html:root:root .backdrop:not(.wms-leave-fade)::before,html:root:root .backdrop:not(.wms-leave-fade)::after,html:root:root .backdrop:not(.wms-leave-fade)>.wms-banda{display:block;content:"";position:absolute;pointer-events:none;-webkit-backdrop-filter:blur(10px) saturate(140%)!important;backdrop-filter:blur(10px) saturate(140%)!important}
 html:root:root .backdrop:not(.wms-leave-fade)::before{left:0;right:0;top:0;height:var(--wms-franja,100%)}

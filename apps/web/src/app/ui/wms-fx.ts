@@ -24,12 +24,13 @@ import { Theme } from '../core/ui.services';
    ===================================================================== */
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const touch = () => window.matchMedia('(hover: none)').matches;
+/** Táctil: sin hover o con puntero grueso (Samsung Internet en tablet, en modo escritorio, dice hover:hover). */
+const touch = () => window.matchMedia('(hover: none), (pointer: coarse)').matches;
 /** Teléfono o tablet de gama baja: táctil y con 4 GB de RAM o menos, o 4 núcleos o menos (lo que informa el navegador). */
 const lowEnd = () => {
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   return (
-    window.matchMedia('(hover: none) and (pointer: coarse)').matches &&
+    window.matchMedia('(pointer: coarse)').matches &&
     ((mem !== undefined && mem <= 4) || (navigator.hardwareConcurrency || 8) <= 4)
   );
 };
@@ -287,8 +288,10 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
     this.act.className = 'wms-pill-active';
     this.host.prepend(this.hov, this.act);
     this.zone.runOutsideAngular(() => {
-      this.host.addEventListener('mouseover', this.over);
-      this.host.addEventListener('mouseleave', this.out);
+      // Eventos de puntero (no de mouse): un toque también manda un «mouseover» de compatibilidad, pero nunca el
+      // «mouseleave», y la píldora de hover quedaba pegada donde se tocó (en tablet, con la barra visible).
+      this.host.addEventListener('pointerover', this.over);
+      this.host.addEventListener('pointerleave', this.out);
       this.host.addEventListener('click', this.go);
       // También observa cada sección: su ancho cambia al activarse, al cargar la fuente o al traducir a inglés,
       // y la píldora debe seguirla (antes se quedaba con la medida vieja y aparecía desplazada).
@@ -320,7 +323,8 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
     requestAnimationFrame(() => this.place(false));
     document.fonts?.ready.then(() => this.place(false));
   }
-  private over = (e: Event) => {
+  private over = (e: PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
     const it = (e.target as HTMLElement).closest('.nav-item') as HTMLElement | null;
     if (!it || !this.host.contains(it)) return;
     this.hov.style.opacity = '1';
@@ -429,8 +433,8 @@ export class NavPillDirective implements AfterViewInit, OnDestroy {
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.ro?.disconnect();
-    this.host.removeEventListener('mouseover', this.over);
-    this.host.removeEventListener('mouseleave', this.out);
+    this.host.removeEventListener('pointerover', this.over);
+    this.host.removeEventListener('pointerleave', this.out);
     this.host.removeEventListener('click', this.go);
     clearTimeout(this.goalTimer);
   }

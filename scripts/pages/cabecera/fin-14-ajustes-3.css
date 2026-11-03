@@ -4,4 +4,4 @@ html:root .drawer-scrim:not(.open){opacity:0!important;background:transparent!im
 html:root .drawer-scrim.open{opacity:1!important;transition:background-color var(--dur-3) var(--ease-fade),opacity 0s!important}
 /* En táctil, el resaltado de columna del tablero cambia sin transición al arrastrar y al soltar (el borde
    punteado y el aro repintaban la columna entera en cada cuadro durante 0,3 s cada vez que el dedo cruzaba de columna) */
-@media (hover:none){html:root .wms-board .bcol,html:root .wms-board .bcol::after,html:root .wms-board .bempty,html:root .wms-board .vcard{transition:none!important}}
+@media (hover:none),(pointer:coarse){html:root .wms-board .bcol,html:root .wms-board .bcol::after,html:root .wms-board .bempty,html:root .wms-board .vcard{transition:none!important}}
