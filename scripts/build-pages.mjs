@@ -1,6 +1,7 @@
 /**
  * Build para GitHub Pages (demo sin servidor).
- *   1. Angular en modo demo (configuración «pages»: WMS_DEMO=true, base href /WMS/).
+ *   1. Angular: el MISMO build de producción que la nube (scripts/build-cloud.mjs), con base href /WMS/; el modo
+ *      demo se activa al arrancar con window.__WMS_CFG = { demo: true } (ver apps/web/src/app/core/runtime.ts).
  *   2. La API empaquetada para el navegador con esbuild (api/src/demo/browser.ts): los módulos de Node
  *      (node:sqlite, fs, crypto, jsonwebtoken…) se reemplazan por los shims de api/src/demo/shims.
  *   3. Copia sql-wasm.wasm y la ruta fija de Medellín, y crea 404.html para el enrutamiento SPA.
@@ -21,8 +22,8 @@ const shims = path.join(root, 'api/src/demo/shims');
 const base = process.env.BASE_HREF ?? '/WMS/';
 
 if (!process.env.SKIP_NG) {
-  console.log('▶ Angular (configuración pages)…');
-  execSync(`npx ng build --configuration pages --base-href ${base}`, { cwd: path.join(root, 'apps/web'), stdio: 'inherit' });
+  console.log('▶ Angular (build de producción, el mismo de la nube)…');
+  execSync(`npx ng build --configuration production --base-href ${base}`, { cwd: path.join(root, 'apps/web'), stdio: 'inherit' });
 }
 const indexHtml = path.join(out, 'index.html');
 if (fs.readFileSync(indexHtml, 'utf8').includes('__wmsDemoWorker'))
@@ -136,7 +137,7 @@ const workerBoot = `(function () {
 })();`;
 fs.writeFileSync(
   indexHtml,
-  armarIndex(out, fs.readFileSync(indexHtml, 'utf8'), { worker: workerBoot, leaflet: ajustado.leaflet }),
+  armarIndex(out, fs.readFileSync(indexHtml, 'utf8'), { worker: workerBoot, leaflet: ajustado.leaflet, config: { demo: true } }),
 );
 // GitHub Pages: /WMS/mapa se sirve desde mapa.html si existe (código 200). Se crea una copia de index.html por
 // cada ruta de la app (leídas de app.routes.ts, así la lista no se desactualiza); el resto pasa por 404.html.

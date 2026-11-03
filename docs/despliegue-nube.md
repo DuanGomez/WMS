@@ -15,6 +15,8 @@ WMS corre en la nube en **dos ambientes**, con el mismo código y bases de datos
 
 La demo de GitHub Pages (<https://duangomez.github.io/WMS/>) sigue igual: todo corre en el navegador, sin servidor.
 
+Los tres sitios (demo, laboratorio y producción) se publican con **el mismo build de Angular** y los mismos ajustes de rendimiento de [scripts/pages/](../scripts/pages/) (versión liviana para equipos de gama baja, táctil, precargas). Solo cambia `window.__WMS_CFG` en `index.html`.
+
 ```mermaid
 flowchart LR
   U[Navegador / celular] -->|HTTPS| CF[Cloudflare Pages<br/>Angular]

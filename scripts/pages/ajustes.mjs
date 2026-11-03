@@ -46,7 +46,7 @@ export const reemplazos = [
     archivo: 'main',
     que: "Giro login ↔ registro: en táctil y en la versión liviana, cambio directo con un fundido corto (sin el giro de 650 ms)",
     antes: "t=!0){cancel",
-    despues: "t=!0){if((globalThis.__wmsTouch??=matchMedia(\"(hover: none), (pointer: coarse)\").matches)||document.documentElement.classList.contains(\"v-liviana\")){cancelAnimationFrame(a$1.raf);let w=a$1.active;a$1.active=!1,a$1.last=n;w&&a$1.card&&(a$1.card.style.transform=`none`,document.documentElement.classList.contains(\"v-liviana\")||a$1.card.animate([{opacity:.5,transform:`scale(.97)`},{opacity:1,transform:`none`}],{duration:280,easing:`ease-out`}));return 180}cancel",
+    despues: "t=!0){if((globalThis.__wmsTouch??=matchMedia(\"(hover: none), (pointer: coarse)\").matches)||document.documentElement.classList.contains(\"v-liviana\")){cancelAnimationFrame(a.raf);let w=a.active;a.active=!1,a.last=n;w&&a.card&&(a.card.style.transform=`none`,document.documentElement.classList.contains(\"v-liviana\")||a.card.animate([{opacity:.5,transform:`scale(.97)`},{opacity:1,transform:`none`}],{duration:280,easing:`ease-out`}));return 180}cancel",
   },
   {
     archivo: 'main',
@@ -159,8 +159,8 @@ export const reemplazos = [
   {
     archivo: 'main',
     que: "Filas: en táctil no se repite la animación de entrada de filas nuevas",
-    antes: "if(f$1())return;",
-    despues: "if(f$1()||matchMedia(`(hover: none), (pointer: coarse)`).matches)return;",
+    antes: "if(f())return;",
+    despues: "if(f()||matchMedia(`(hover: none), (pointer: coarse)`).matches)return;",
   },
   {
     archivo: 'main',
@@ -190,19 +190,19 @@ export const reemplazos = [
     archivo: 'main',
     que: "Panel (app-sheet): estado para armarlo de antemano y oculto",
     antes: "=null;static",
-    despues: "=null;retenido=vs(!1);saliendo=vs(!1);montado=_b(()=>this.open()||this.retenido());static",
+    despues: "=null;retenido=Ds(!1);saliendo=Ds(!1);montado=Db(()=>this.open()||this.retenido());static",
   },
   {
     archivo: 'main',
     que: "Panel (app-sheet): se arma en tiempo libre después de entrar y su contenido se prepara por tandas (content-visibility); abrir solo lo muestra",
     antes: "ull)})}close",
-    despues: "ull)}),this.__retener()}__retener(){let abierto=!1,pend=[],vistos=new WeakSet,liberar=()=>{pend.splice(0).forEach(p=>p.style.removeProperty(`content-visibility`))},tanda=()=>{pend.length&&(window.requestIdleCallback||(f=>setTimeout(f,50)))(()=>{pend.splice(0,3).forEach(p=>p.style.removeProperty(`content-visibility`)),requestAnimationFrame(tanda)},{timeout:500})},esconder=b=>{let ps=b.children.length===1?b.children[0].children:b.children,nuevos=[];for(let p of ps)vistos.has(p)||(vistos.add(p),p.style.contentVisibility=`hidden`,nuevos.push(p));nuevos.length&&(pend.push(...nuevos),pend.length===nuevos.length&&tanda())},mo=null;Es(()=>{let a=this.open();a?(abierto=!0,this.saliendo.set(!1),liberar()):abierto&&(abierto=!1,this.retenido()&&(this.saliendo.set(!0),setTimeout(()=>this.open()||this.saliendo.set(!1),450)))});ZL(()=>{let a=this.open(),s=this.saliendo(),r=this.retenido(),el=this.panel()?.nativeElement;if(!el)return;let b=el.previousElementSibling,oc=r&&!a&&!s;el.classList.toggle(`wms-oculta`,oc),b?.classList.toggle(`wms-oculta`,oc),el.classList.toggle(`wms-leave-sheet`,r&&s),b?.classList.toggle(`wms-leave-fade`,r&&s);let cuerpo=el.querySelector(`.sheet-body`);cuerpo&&r&&!a&&(esconder(cuerpo),mo||(mo=new MutationObserver(()=>this.open()||esconder(cuerpo)),mo.observe(cuerpo,{childList:!0,subtree:!1})))});m$1(de$1).onDestroy(()=>mo?.disconnect());let y=NaN,intento=()=>{if(performance.now()-(globalThis.__lastTap??-1e9)<1e3||window.scrollY!==y){y=window.scrollY,setTimeout(()=>(window.requestIdleCallback||(f=>setTimeout(f,200)))(intento,{timeout:4e3}),700);return}this.retenido.set(!0)};setTimeout(()=>(window.requestIdleCallback||(f=>setTimeout(f,200)))(intento,{timeout:4e3}),3e3)}close",
+    despues: "ull)}),this.__retener()}__retener(){let abierto=!1,pend=[],vistos=new WeakSet,liberar=()=>{pend.splice(0).forEach(p=>p.style.removeProperty(`content-visibility`))},tanda=()=>{pend.length&&(window.requestIdleCallback||(f=>setTimeout(f,50)))(()=>{pend.splice(0,3).forEach(p=>p.style.removeProperty(`content-visibility`)),requestAnimationFrame(tanda)},{timeout:500})},esconder=b=>{let ps=b.children.length===1?b.children[0].children:b.children,nuevos=[];for(let p of ps)vistos.has(p)||(vistos.add(p),p.style.contentVisibility=`hidden`,nuevos.push(p));nuevos.length&&(pend.push(...nuevos),pend.length===nuevos.length&&tanda())},mo=null;Es(()=>{let a=this.open();a?(abierto=!0,this.saliendo.set(!1),liberar()):abierto&&(abierto=!1,this.retenido()&&(this.saliendo.set(!0),setTimeout(()=>this.open()||this.saliendo.set(!1),450)))});PL(()=>{let a=this.open(),s=this.saliendo(),r=this.retenido(),el=this.panel()?.nativeElement;if(!el)return;let b=el.previousElementSibling,oc=r&&!a&&!s;el.classList.toggle(`wms-oculta`,oc),b?.classList.toggle(`wms-oculta`,oc),el.classList.toggle(`wms-leave-sheet`,r&&s),b?.classList.toggle(`wms-leave-fade`,r&&s);let cuerpo=el.querySelector(`.sheet-body`);cuerpo&&r&&!a&&(esconder(cuerpo),mo||(mo=new MutationObserver(()=>this.open()||esconder(cuerpo)),mo.observe(cuerpo,{childList:!0,subtree:!1})))});m$2(de$1).onDestroy(()=>mo?.disconnect());let y=NaN,intento=()=>{if(performance.now()-(globalThis.__lastTap??-1e9)<1e3||window.scrollY!==y){y=window.scrollY,setTimeout(()=>(window.requestIdleCallback||(f=>setTimeout(f,200)))(intento,{timeout:4e3}),700);return}this.retenido.set(!0)};setTimeout(()=>(window.requestIdleCallback||(f=>setTimeout(f,200)))(intento,{timeout:4e3}),3e3)}close",
   },
   {
     archivo: 'main',
     que: "Panel (app-sheet): la plantilla sigue armada mientras está retenido",
-    antes: "e&2&&pI(t.open()?0:-1)}",
-    despues: "e&2&&pI(t.montado()?0:-1)}",
+    antes: "e&2&&oI(t.open()?0:-1)}",
+    despues: "e&2&&oI(t.montado()?0:-1)}",
   },
   {
     archivo: 'main',
@@ -225,14 +225,14 @@ export const reemplazos = [
   {
     archivo: 'main',
     que: "Selector de opciones: sin volver a medir con cada resize de la ventana (sus botones ya avisan con su ResizeObserver)",
-    antes: "e&1&&bg(`resize`,function(){return t.onResize()},Tv)}",
+    antes: "e&1&&Ig(`resize`,function(){return t.onResize()},xD)}",
     despues: "}",
   },
   {
     archivo: 'main',
     que: "Buscador: limpiar no espera",
-    antes: "return zf(l.q.set(``))}",
-    despues: "return clearTimeout(l.__qt),zf(l.q.set(``))}",
+    antes: "return Gf(l.q.set(``))}",
+    despues: "return clearTimeout(l.__qt),Gf(l.q.set(``))}",
   },
   {
     archivo: 'main',
@@ -273,20 +273,20 @@ export const reemplazos = [
   {
     archivo: 'main',
     que: "Arranque: Angular arranca en la tarea siguiente a la evaluación de los módulos; en la versión liviana se suelta el observador de filas",
-    antes: "uo(q,$e).catch(e=>console.error(e));",
-    despues: "setTimeout(()=>{uo(q,$e).then(()=>{let o=globalThis.__wmsRowMO;o&&document.documentElement.classList.contains(`v-liviana`)&&o.disconnect()}).catch(e=>console.error(e))});",
+    antes: "uo(J,Je).catch(e=>console.error(e));",
+    despues: "setTimeout(()=>{uo(J,Je).then(()=>{let o=globalThis.__wmsRowMO;o&&document.documentElement.classList.contains(`v-liviana`)&&o.disconnect()}).catch(e=>console.error(e))});",
   },
   {
     archivo: 'nucleo',
     que: "Angular revisa los cambios en su propia tarea (temporizador), no dentro del cuadro de dibujo",
-    antes: "let r=this.useMicrotaskScheduler?ap:il;",
-    despues: "let r=this.useMicrotaskScheduler?ap:(f=>{let t=setTimeout(f);return()=>clearTimeout(t)});",
+    antes: "let r=this.useMicrotaskScheduler?ip:sl;",
+    despues: "let r=this.useMicrotaskScheduler?ip:(f=>{let t=setTimeout(f);return()=>clearTimeout(t)});",
   },
   {
     archivo: 'nucleo',
     que: "Íconos: cada uno se copia de un molde ya armado (mismo SVG) en vez de construirlo nodo por nodo",
-    antes: "s(()=>{let t=bi(Hy[this.name()]??vo,{width:this.size(),height:this.size(),\"stroke-width\":this.stroke()});this.host.nativeElement.replaceChildren(t)}",
-    despues: "s(()=>{let k=this.name()+\"|\"+this.size()+\"|\"+this.stroke(),c=globalThis.__wmsIconos??=new Map,t=c.get(k);t||(t=bi(Hy[this.name()]??vo,{width:this.size(),height:this.size(),\"stroke-width\":this.stroke()}),c.set(k,t));this.host.nativeElement.replaceChildren(t.cloneNode(!0))}",
+    antes: "s(()=>{let t=bi(Vy[this.name()]??Do,{width:this.size(),height:this.size(),\"stroke-width\":this.stroke()});this.host.nativeElement.replaceChildren(t)}",
+    despues: "s(()=>{let k=this.name()+\"|\"+this.size()+\"|\"+this.stroke(),c=globalThis.__wmsIconos??=new Map,t=c.get(k);t||(t=bi(Vy[this.name()]??Do,{width:this.size(),height:this.size(),\"stroke-width\":this.stroke()}),c.set(k,t));this.host.nativeElement.replaceChildren(t.cloneNode(!0))}",
   },
   {
     archivo: 'enrutador',

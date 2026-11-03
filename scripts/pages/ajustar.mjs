@@ -204,8 +204,11 @@ function anularEntradasLiviana(archivos) {
 /**
  * index.html: tema claro, scripts y estilos de la cabecera en sus posiciones, pantalla de carga fija y bloques en
  * línea minificados. Escribe también la precarga (precarga-<hash>.js). `worker` es el script de arranque de la API.
+ * `config` va a window.__WMS_CFG antes de todo (lo lee apps/web/src/app/core/runtime.ts): { demo: true } en GitHub
+ * Pages; { env, api } en la nube. `pantalla` agrega la pantalla de carga fija de la demo (la quita el Worker de la
+ * API al quedar listo; en la nube no hay Worker ni pantalla).
  */
-export function armarIndex(out, html, { worker, leaflet }) {
+export function armarIndex(out, html, { worker = '', leaflet, config = {}, pantalla: conPantalla = true }) {
   const cab = (f) => fs.readFileSync(path.join(aqui, 'cabecera', f), 'utf8');
   const una = (s, a, b, d) => {
     const n = s.split(a).length - 1;
@@ -287,10 +290,11 @@ export function armarIndex(out, html, { worker, leaflet }) {
     "        if (t === 'dark') { document.documentElement.setAttribute('data-theme', 'dark'); document.querySelector('meta[name=\"theme-color\"]').setAttribute('content', '#000000'); }",
     'tema guardado',
   );
-  html = una(html, '<head>\n', '<head>\n' + inicio, 'inicio de la cabecera');
+  const cfg = `<script>window.__WMS_CFG=${JSON.stringify(config)};</script>\n`;
+  html = una(html, '<head>\n', '<head>\n' + cfg + inicio, 'inicio de la cabecera');
   html = una(html, '</noscript></head>', `</noscript>  <script>${worker}</script>\n${fin}</head>`, 'fin de la cabecera');
   const pantalla = fs.readFileSync(path.join(aqui, 'pantalla-carga.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
-  html = una(html, '<app-root></app-root>', pantalla + '<app-root></app-root>', 'pantalla de carga');
+  if (conPantalla) html = una(html, '<app-root></app-root>', pantalla + '<app-root></app-root>', 'pantalla de carga');
   // minifica los bloques en línea (los de la cabecera y los que ya traía el HTML)
   return html.replace(/<(script|style)([^>]*)>([\s\S]*?)<\/\1>/g, (todo, t, at, c) => {
     if (!c.trim() || /\bsrc=/.test(at) || /type=["']?(application\/(?!javascript)|text\/(?!javascript|css))/.test(at))

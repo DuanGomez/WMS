@@ -2,14 +2,16 @@
  * Build del frontend para la nube (Cloudflare Pages), un ambiente a la vez:
  *   WMS_ENV=lab        WMS_API_URL=https://wms-api-lab.onrender.com   node scripts/build-cloud.mjs
  *   WMS_ENV=production WMS_API_URL=https://wms-api-prod.onrender.com  node scripts/build-cloud.mjs
- * Deja el sitio en apps/web/dist/web/browser. Es el build normal de Angular (sin los ajustes de la demo de
- * GitHub Pages) con la dirección de la API y el ambiente fijados al compilar.
+ * Deja el sitio en apps/web/dist/web/browser. Es el MISMO build de Angular que la demo de GitHub Pages, con los mismos
+ * ajustes de rendimiento (scripts/pages/ajustar.mjs); el ambiente y la dirección de la API van en index.html
+ * (window.__WMS_CFG, ver apps/web/src/app/core/runtime.ts). Sin la API del navegador ni su pantalla de carga.
  * Cloudflare Pages sirve index.html para cualquier ruta que no exista (SPA) porque no hay 404.html.
  */
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
+import { ajustarCodigo, armarIndex } from './pages/ajustar.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'apps/web/dist/web/browser');
@@ -21,16 +23,16 @@ if (!['lab', 'production'].includes(env)) throw new Error('WMS_ENV debe ser «la
 const local = !!process.env.WMS_ALLOW_HTTP && /^http:\/\/localhost:\d+$/.test(api);
 if (!/^https:\/\/[^/]+$/.test(api) && !local) throw new Error('WMS_API_URL debe ser la dirección https de la API, p. ej. https://wms-api-lab.onrender.com');
 
-console.log(`▶ Angular · ambiente ${env} · API ${api}`);
-const define = { WMS_DEMO: 'false', WMS_ENV: `'${env}'`, WMS_API_URL: `'${api}'` };
-const args = Object.entries(define).map(([k, v]) => `--define ${k}=${JSON.stringify(v)}`).join(' ');
-execSync(`npx ng build --configuration production ${args}`, { cwd: path.join(root, 'apps/web'), stdio: 'inherit' });
+console.log(`▶ Angular (build de producción, el mismo de la demo) · ambiente ${env} · API ${api}`);
+execSync('npx ng build --configuration production --base-href /', { cwd: path.join(root, 'apps/web'), stdio: 'inherit' });
 
-// Comprobación: el bundle debe llevar la dirección de la API (si --define no se aplicara, la app llamaría a /api).
-const js = fs.readdirSync(out).filter((f) => f.endsWith('.js'));
-if (!js.some((f) => fs.readFileSync(path.join(out, f), 'utf8').includes(api))) {
-  throw new Error('El build no contiene WMS_API_URL: revisa la opción --define de Angular.');
-}
+console.log('▶ Ajustes de rendimiento (los mismos de la demo)…');
+const ajustado = ajustarCodigo(out);
+const indexHtml = path.join(out, 'index.html');
+fs.writeFileSync(
+  indexHtml,
+  armarIndex(out, fs.readFileSync(indexHtml, 'utf8'), { leaflet: ajustado.leaflet, config: { env, api }, pantalla: false }),
+);
 
 // Cloudflare Pages: encabezados de seguridad y caché larga para los archivos con hash.
 // «! Link» desactiva las Early Hints automáticas: Cloudflare las arma con los modulepreload relativos del HTML

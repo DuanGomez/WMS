@@ -583,7 +583,7 @@ GitHub Pages solo sirve archivos estáticos, así que el build de Pages (`npm ru
 - ExcelJS y PDFKit van en archivos aparte (`wms-demo-xlsx.js`, `wms-demo-pdf.js`) que solo se descargan al generar el primer reporte: la API de la demo pesa ~170 KB comprimida.
 - Cada ruta de la app tiene su copia de `index.html` (`mapa.html`, `alertas.html`…), así los enlaces directos y las recargas responden 200 en vez de 404.
 - Los módulos de Node (`node:sqlite`, `fs`, `crypto`, `jsonwebtoken`…) se reemplazan con *shims* en `api/src/demo/shims` mediante alias de esbuild; el código del backend no cambia.
-- En Angular, la configuración `pages` define `WMS_DEMO=true`: un `HttpBackend` entrega cada petición `/api/*` al Worker por mensajes y el tiempo real usa polling.
+- La demo y la nube usan **el mismo build de Angular** y los mismos ajustes de rendimiento ([scripts/pages/](scripts/pages/)); el modo se elige al arrancar con `window.__WMS_CFG` en `index.html` (`{ demo: true }` en Pages, `{ env, api }` en la nube). En la demo, un `HttpBackend` entrega cada petición `/api/*` al Worker por mensajes y el tiempo real usa polling.
 - El workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) construye y publica en cada *push* a `main`.
 
 **Limitación honesta:** en la demo cada navegador tiene su propia base de datos. La ubicación del celular de un conductor se ve en el mapa del administrador **en el mismo navegador** (cambiando de cuenta); para verla entre dispositivos distintos se usa el backend real (`npm run dev` o la nube).
